@@ -1,4 +1,4 @@
-import { Tabs, TabsContent, TabsTrigger } from '@/components/ui/tabs'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { HydrationWidget } from '@/components/health/hydration-widget'
 import { MoodWidget } from '@/components/health/mood-widget'
 import { BowelWidget } from '@/components/health/bowel-widget'
