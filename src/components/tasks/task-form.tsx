@@ -16,7 +16,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { useAppStore, Priority } from '@/stores/main'
+import { useAppStore, Priority } from '@/stores/useAppStore'
 import { Plus } from 'lucide-react'
 
 export function TaskForm() {
@@ -34,7 +34,7 @@ export function TaskForm() {
       title,
       categoryId,
       priority,
-      completed: false,
+      isRoutine: false,
       date: new Date().toISOString().split('T')[0],
     })
 

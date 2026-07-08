@@ -1,4 +1,4 @@
-import { Task, useAppStore } from '@/stores/main'
+import { Task, useAppStore } from '@/stores/useAppStore'
 import { Checkbox } from '@/components/ui/checkbox'
 import { cn } from '@/lib/utils'
 import { AlertCircle, ArrowUpCircle, MinusCircle, Trash2 } from 'lucide-react'
@@ -47,10 +47,8 @@ export function TaskCard({ task }: TaskCardProps) {
         <div className="flex items-center gap-2 mt-1">
           {category && (
             <span
-              className={cn(
-                'text-[10px] font-semibold px-2 py-0.5 rounded-full uppercase tracking-wider',
-                category.color,
-              )}
+              className="text-[10px] font-semibold px-2 py-0.5 rounded-full uppercase tracking-wider"
+              style={{ backgroundColor: category.color + '20', color: category.color }}
             >
               {category.name}
             </span>

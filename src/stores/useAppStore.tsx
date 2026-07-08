@@ -26,6 +26,7 @@ type AppState = {
   updateUser: (u: Partial<User>) => void
   addTask: (t: Omit<Task, 'id' | 'completed'>) => void
   toggleTask: (id: string) => void
+  deleteTask: (id: string) => void
 }
 
 const AppStoreContext = createContext<AppState | undefined>(undefined)
@@ -112,9 +113,12 @@ export const AppStoreProvider = ({ children }: { children: ReactNode }) => {
         return t
       }),
     )
+  const deleteTask = (id: string) => setTasks((p) => p.filter((t) => t.id !== id))
 
   return (
-    <AppStoreContext.Provider value={{ user, categories, tasks, updateUser, addTask, toggleTask }}>
+    <AppStoreContext.Provider
+      value={{ user, categories, tasks, updateUser, addTask, toggleTask, deleteTask }}
+    >
       {children}
     </AppStoreContext.Provider>
   )

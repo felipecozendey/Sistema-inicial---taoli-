@@ -1,4 +1,4 @@
-import { useAppStore } from '@/stores/main'
+import { useAppStore } from '@/stores/useAppStore'
 import { CircularProgress } from '@/components/ui/circular-progress'
 import { TaskCard } from '@/components/tasks/task-card'
 import { TaskForm } from '@/components/tasks/task-form'
