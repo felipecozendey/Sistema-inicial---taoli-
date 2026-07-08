@@ -1,13 +1,14 @@
-import { Check, Flame } from 'lucide-react'
+import { Check, Clock, Trash2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Task, useAppStore } from '@/stores/useAppStore'
+import { formatTime } from '@/lib/habit-utils'
 
 export function TaskItem({ task }: { task: Task }) {
-  const { toggleTask, categories } = useAppStore()
-  const category = categories.find((c) => c.id === task.categoryId)
+  const { toggleTask, deleteTask, tags } = useAppStore()
+  const tag = tags.find((c) => c.id === task.tagId)
 
   return (
-    <div className="flex items-center p-4 bg-card rounded-2xl shadow-subtle mb-3 hover:-translate-y-1 transition-transform border border-border/50 hover:shadow-elevation group">
+    <div className="group flex items-center p-4 bg-card rounded-2xl shadow-subtle mb-3 hover:-translate-y-1 transition-transform border border-border/50 hover:shadow-elevation">
       <button
         onClick={() => toggleTask(task.id)}
         className={cn(
@@ -29,21 +30,32 @@ export function TaskItem({ task }: { task: Task }) {
           {task.title}
         </h4>
         <div className="flex items-center gap-2 mt-1 text-xs text-muted-foreground">
-          {category && (
+          {tag && (
             <span
               className="px-2 py-0.5 rounded-full whitespace-nowrap"
-              style={{ backgroundColor: category.color + '20', color: category.color }}
+              style={{ backgroundColor: tag.color + '20', color: tag.color }}
             >
-              {category.name}
+              {tag.name}
             </span>
           )}
-          {task.isRoutine && (task.streak ?? 0) > 0 && (
-            <span className="flex items-center text-orange-500 font-medium whitespace-nowrap bg-orange-500/10 px-2 py-0.5 rounded-full">
-              <Flame className="w-3 h-3 mr-1" /> {task.streak}
-            </span>
-          )}
+          <span className="flex items-center gap-1 whitespace-nowrap">
+            <Clock className="w-3 h-3" /> {formatTime(task.estimatedTime)}
+          </span>
+          <span className="whitespace-nowrap">
+            {new Date(task.dueDate).toLocaleDateString('pt-BR', {
+              day: '2-digit',
+              month: '2-digit',
+            })}
+          </span>
         </div>
       </div>
+      <button
+        onClick={() => deleteTask(task.id)}
+        className="opacity-0 group-hover:opacity-100 transition-opacity p-2 text-muted-foreground hover:text-destructive rounded-full hover:bg-destructive/10"
+        aria-label="Delete task"
+      >
+        <Trash2 className="w-4 h-4" />
+      </button>
     </div>
   )
 }

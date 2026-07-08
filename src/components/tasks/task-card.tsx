@@ -1,7 +1,8 @@
 import { Task, useAppStore } from '@/stores/useAppStore'
 import { Checkbox } from '@/components/ui/checkbox'
 import { cn } from '@/lib/utils'
-import { AlertCircle, ArrowUpCircle, MinusCircle, Trash2 } from 'lucide-react'
+import { AlertCircle, ArrowUpCircle, MinusCircle, Trash2, Clock } from 'lucide-react'
+import { formatTime } from '@/lib/habit-utils'
 
 interface TaskCardProps {
   task: Task
@@ -19,8 +20,8 @@ const PriorityIcon = ({ priority }: { priority: string }) => {
 }
 
 export function TaskCard({ task }: TaskCardProps) {
-  const { categories, toggleTask, deleteTask } = useAppStore()
-  const category = categories.find((c) => c.id === task.categoryId)
+  const { tags, toggleTask, deleteTask } = useAppStore()
+  const tag = tags.find((c) => c.id === task.tagId)
 
   return (
     <div
@@ -34,7 +35,6 @@ export function TaskCard({ task }: TaskCardProps) {
         onCheckedChange={() => toggleTask(task.id)}
         className="w-6 h-6 rounded-full border-2 data-[state=checked]:bg-primary data-[state=checked]:border-primary transition-all duration-300"
       />
-
       <div className="flex-1 min-w-0">
         <p
           className={cn(
@@ -45,18 +45,20 @@ export function TaskCard({ task }: TaskCardProps) {
           {task.title}
         </p>
         <div className="flex items-center gap-2 mt-1">
-          {category && (
+          {tag && (
             <span
               className="text-[10px] font-semibold px-2 py-0.5 rounded-full uppercase tracking-wider"
-              style={{ backgroundColor: category.color + '20', color: category.color }}
+              style={{ backgroundColor: tag.color + '20', color: tag.color }}
             >
-              {category.name}
+              {tag.name}
             </span>
           )}
           <PriorityIcon priority={task.priority} />
+          <span className="flex items-center gap-1 text-xs text-muted-foreground">
+            <Clock className="w-3 h-3" /> {formatTime(task.estimatedTime)}
+          </span>
         </div>
       </div>
-
       <button
         onClick={() => deleteTask(task.id)}
         className="opacity-0 group-hover:opacity-100 transition-opacity p-2 text-muted-foreground hover:text-destructive rounded-full hover:bg-destructive/10"
