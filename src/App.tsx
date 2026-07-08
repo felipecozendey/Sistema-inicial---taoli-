@@ -11,6 +11,7 @@ import Dashboard from './pages/Dashboard'
 import Tasks from './pages/Tasks'
 import Analytics from './pages/Analytics'
 import Settings from './pages/Settings'
+import Health from './pages/Health'
 
 const App = () => (
   <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
@@ -24,6 +25,7 @@ const App = () => (
               <Route path="/" element={<Navigate to="/dashboard" replace />} />
               <Route path="/dashboard" element={<Dashboard />} />
               <Route path="/tasks" element={<Tasks />} />
+              <Route path="/health" element={<Health />} />
               <Route path="/analytics" element={<Analytics />} />
               <Route path="/settings" element={<Settings />} />
             </Route>

@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useAppStore, Tag } from '@/stores/useAppStore'
-import { Button } from '@/components/ui/button'
+import { GameButton } from '@/components/ui/game-button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
@@ -18,14 +18,14 @@ import { Pencil, Trash2, Plus } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 const PRESET_COLORS = [
-  '#10b981',
-  '#3b82f6',
-  '#8b5cf6',
-  '#f59e0b',
-  '#ef4444',
-  '#ec4899',
-  '#06b6d4',
-  '#84cc16',
+  '#58CC02',
+  '#1CB0F6',
+  '#FFC800',
+  '#FF4B4B',
+  '#CE82FF',
+  '#FF9600',
+  '#E84BD6',
+  '#84CC16',
 ]
 
 export function TagManager() {
@@ -59,62 +59,66 @@ export function TagManager() {
   }
 
   return (
-    <section className="bg-card rounded-[2rem] p-6 md:p-8 shadow-sm border space-y-6">
+    <section className="bg-card rounded-3xl p-6 md:p-8 shadow-sm border space-y-6">
       <div className="flex items-center justify-between">
-        <h3 className="text-xl font-bold">Tags</h3>
-        <Button onClick={openCreate} size="sm" variant="outline" className="rounded-xl gap-2">
-          <Plus className="w-4 h-4" /> Nova Tag
-        </Button>
+        <h3 className="text-xl font-extrabold">Tags</h3>
+        <GameButton variant="outline" size="sm" onClick={openCreate} className="gap-2">
+          <Plus className="w-4 h-4" strokeWidth={2.5} /> Nova Tag
+        </GameButton>
       </div>
 
       <div className="flex flex-wrap gap-3">
-        {tags.map((tag) => (
+        {tags.map((tag: any) => (
           <div
             key={tag.id}
             className="flex items-center gap-2 bg-muted/50 rounded-full pl-3 pr-1 py-1 group"
           >
             <span className="w-3 h-3 rounded-full" style={{ backgroundColor: tag.color }} />
-            <span className="text-sm font-medium">{tag.name}</span>
+            <span className="text-sm font-bold">{tag.name}</span>
             <div className="flex items-center opacity-0 group-hover:opacity-100 transition-opacity">
               <button
                 onClick={() => openEdit(tag)}
                 className="p-1.5 hover:bg-muted rounded-full transition-colors"
               >
-                <Pencil className="w-3.5 h-3.5" />
+                <Pencil className="w-3.5 h-3.5" strokeWidth={2.5} />
               </button>
               <button
                 onClick={() => setDeleteId(tag.id)}
-                className="p-1.5 hover:bg-destructive/10 hover:text-destructive rounded-full transition-colors"
+                className="p-1.5 hover:bg-[#FF4B4B]/10 hover:text-[#FF4B4B] rounded-full transition-colors"
               >
-                <Trash2 className="w-3.5 h-3.5" />
+                <Trash2 className="w-3.5 h-3.5" strokeWidth={2.5} />
               </button>
             </div>
           </div>
         ))}
         {tags.length === 0 && (
-          <p className="text-sm text-muted-foreground">Nenhuma tag criada ainda.</p>
+          <p className="text-sm text-muted-foreground font-semibold">Nenhuma tag criada ainda.</p>
         )}
       </div>
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent className="sm:max-w-[400px] rounded-3xl">
           <DialogHeader>
-            <DialogTitle>{editingTag ? 'Editar Tag' : 'Nova Tag'}</DialogTitle>
+            <DialogTitle className="text-xl font-extrabold">
+              {editingTag ? 'Editar Tag' : 'Nova Tag'}
+            </DialogTitle>
           </DialogHeader>
           <form onSubmit={handleSubmit} className="space-y-4 mt-4">
             <div className="space-y-2">
-              <Label htmlFor="tag-name">Nome</Label>
+              <Label htmlFor="tag-name" className="font-bold">
+                Nome
+              </Label>
               <Input
                 id="tag-name"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                className="rounded-xl"
+                className="rounded-2xl font-semibold"
                 placeholder="Ex: Projetos Pessoais"
                 autoFocus
               />
             </div>
             <div className="space-y-2">
-              <Label>Cor</Label>
+              <Label className="font-bold">Cor</Label>
               <div className="flex flex-wrap gap-2">
                 {PRESET_COLORS.map((c) => (
                   <button
@@ -122,17 +126,17 @@ export function TagManager() {
                     type="button"
                     onClick={() => setColor(c)}
                     className={cn(
-                      'w-8 h-8 rounded-full transition-transform',
+                      'w-9 h-9 rounded-full transition-transform border-2 border-b-4 active:translate-y-0.5 active:border-b-2',
                       color === c && 'ring-2 ring-offset-2 ring-foreground scale-110',
                     )}
-                    style={{ backgroundColor: c }}
+                    style={{ backgroundColor: c, borderColor: c }}
                   />
                 ))}
               </div>
             </div>
-            <Button type="submit" className="w-full rounded-xl h-12 font-semibold">
+            <GameButton type="submit" variant="primary" size="lg" className="w-full">
               {editingTag ? 'Salvar' : 'Criar Tag'}
-            </Button>
+            </GameButton>
           </form>
         </DialogContent>
       </Dialog>
@@ -140,15 +144,15 @@ export function TagManager() {
       <AlertDialog open={!!deleteId} onOpenChange={(open) => !open && setDeleteId(null)}>
         <AlertDialogContent className="rounded-3xl">
           <AlertDialogHeader>
-            <AlertDialogTitle>Excluir Tag?</AlertDialogTitle>
+            <AlertDialogTitle className="text-xl font-extrabold">Excluir Tag?</AlertDialogTitle>
             <AlertDialogDescription>
               Tarefas e hábitos associados a esta tag não serão removidos, mas ficarão sem tag.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel className="rounded-xl">Cancelar</AlertDialogCancel>
+            <AlertDialogCancel className="rounded-2xl font-bold">Cancelar</AlertDialogCancel>
             <AlertDialogAction
-              className="rounded-xl bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              className="rounded-2xl bg-[#FF4B4B] text-white hover:bg-[#FF4B4B]/90 font-bold"
               onClick={() => {
                 if (deleteId) deleteTag(deleteId)
                 setDeleteId(null)

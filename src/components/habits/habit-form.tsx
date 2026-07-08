@@ -6,7 +6,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog'
-import { Button } from '@/components/ui/button'
+import { GameButton } from '@/components/ui/game-button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import {
@@ -45,34 +45,36 @@ export function HabitForm() {
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button variant="outline" className="rounded-2xl gap-2 font-medium">
-          <Plus className="w-5 h-5" /> Novo Hábito
-        </Button>
+        <GameButton variant="outline" size="md" className="gap-2">
+          <Plus className="w-5 h-5" strokeWidth={2.5} /> Novo Hábito
+        </GameButton>
       </DialogTrigger>
       <DialogContent className="sm:max-w-[425px] rounded-3xl">
         <DialogHeader>
-          <DialogTitle className="text-2xl font-bold">Criar Hábito</DialogTitle>
+          <DialogTitle className="text-2xl font-extrabold">Criar Hábito</DialogTitle>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-6 mt-4">
           <div className="space-y-2">
-            <Label htmlFor="habit-title">O que você quer cultivar?</Label>
+            <Label htmlFor="habit-title" className="font-bold">
+              O que você quer cultivar?
+            </Label>
             <Input
               id="habit-title"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               placeholder="Ex: Beber 2L de água"
-              className="rounded-xl bg-muted/50 border-transparent"
+              className="rounded-2xl bg-muted/50 border-transparent font-semibold"
               autoFocus
             />
           </div>
           <div className="space-y-2">
-            <Label>Tag</Label>
+            <Label className="font-bold">Tag</Label>
             <Select value={tagId} onValueChange={setTagId}>
-              <SelectTrigger className="rounded-xl bg-muted/50 border-transparent">
+              <SelectTrigger className="rounded-2xl bg-muted/50 border-transparent font-semibold">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                {tags.map((t) => (
+                {tags.map((t: any) => (
                   <SelectItem key={t.id} value={t.id}>
                     {t.name}
                   </SelectItem>
@@ -81,16 +83,16 @@ export function HabitForm() {
             </Select>
           </div>
           <div className="space-y-2">
-            <Label>Frequência</Label>
+            <Label className="font-bold">Frequência</Label>
             <div className="grid grid-cols-2 gap-2">
               <button
                 type="button"
                 onClick={() => setFrequency('daily')}
                 className={cn(
-                  'p-3 rounded-xl text-sm font-medium border-2 transition-all',
+                  'p-3 rounded-2xl text-sm font-bold border-2 border-b-4 transition-all active:translate-y-0.5 active:border-b-2',
                   frequency === 'daily'
-                    ? 'border-primary bg-primary/10'
-                    : 'border-transparent bg-muted/50',
+                    ? 'border-[#FFC800] bg-[#FFC800]/10 text-[#374151]'
+                    : 'border-[#E5E5E5] dark:border-[#3B4A55] bg-muted/50',
                 )}
               >
                 Diário
@@ -99,10 +101,10 @@ export function HabitForm() {
                 type="button"
                 onClick={() => setFrequency('weekly')}
                 className={cn(
-                  'p-3 rounded-xl text-sm font-medium border-2 transition-all',
+                  'p-3 rounded-2xl text-sm font-bold border-2 border-b-4 transition-all active:translate-y-0.5 active:border-b-2',
                   frequency === 'weekly'
-                    ? 'border-primary bg-primary/10'
-                    : 'border-transparent bg-muted/50',
+                    ? 'border-[#FFC800] bg-[#FFC800]/10 text-[#374151]'
+                    : 'border-[#E5E5E5] dark:border-[#3B4A55] bg-muted/50',
                 )}
               >
                 Semanal
@@ -117,9 +119,9 @@ export function HabitForm() {
                   type="button"
                   onClick={() => toggleDay(i)}
                   className={cn(
-                    'flex-1 py-2 rounded-lg text-xs font-medium transition-all',
+                    'flex-1 py-2 rounded-xl text-xs font-bold transition-all',
                     weekDays.includes(i)
-                      ? 'bg-primary text-primary-foreground'
+                      ? 'bg-[#FFC800] text-[#374151]'
                       : 'bg-muted/50 text-muted-foreground',
                   )}
                 >
@@ -128,9 +130,9 @@ export function HabitForm() {
               ))}
             </div>
           )}
-          <Button type="submit" className="w-full rounded-xl py-6 text-base font-semibold">
+          <GameButton type="submit" variant="gold" size="lg" className="w-full">
             Criar Hábito
-          </Button>
+          </GameButton>
         </form>
       </DialogContent>
     </Dialog>

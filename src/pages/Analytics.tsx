@@ -3,6 +3,8 @@ import { HabitHeatmap } from '@/components/analytics/habit-heatmap'
 import { TaskDistribution } from '@/components/analytics/task-distribution'
 import { TimeDistribution } from '@/components/analytics/time-distribution'
 import { HabitStreaks } from '@/components/analytics/habit-streaks'
+import { MoodEvolution } from '@/components/analytics/mood-evolution'
+import { HydrationConsistency } from '@/components/analytics/hydration-consistency'
 
 export default function Analytics() {
   const { tasks, habits } = useAppStore()
@@ -17,6 +19,11 @@ export default function Analytics() {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <TaskDistribution tasks={tasks} />
         <HabitStreaks habits={habits} />
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <MoodEvolution />
+        <HydrationConsistency />
       </div>
 
       <TimeDistribution tasks={tasks} />

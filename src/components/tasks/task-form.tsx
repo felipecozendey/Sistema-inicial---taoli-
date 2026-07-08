@@ -6,7 +6,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog'
-import { Button } from '@/components/ui/button'
+import { GameButton } from '@/components/ui/game-button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import {
@@ -39,35 +39,37 @@ export function TaskForm() {
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button className="rounded-2xl gap-2 font-medium shadow-subtle hover:scale-95 transition-transform">
-          <Plus className="w-5 h-5" /> Nova Tarefa
-        </Button>
+        <GameButton variant="primary" size="md" className="gap-2">
+          <Plus className="w-5 h-5" strokeWidth={2.5} /> Nova Tarefa
+        </GameButton>
       </DialogTrigger>
       <DialogContent className="sm:max-w-[425px] rounded-3xl">
         <DialogHeader>
-          <DialogTitle className="text-2xl font-bold">Criar Nova Tarefa</DialogTitle>
+          <DialogTitle className="text-2xl font-extrabold">Criar Nova Tarefa</DialogTitle>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-6 mt-4">
           <div className="space-y-2">
-            <Label htmlFor="title">O que você precisa fazer?</Label>
+            <Label htmlFor="title" className="font-bold">
+              O que você precisa fazer?
+            </Label>
             <Input
               id="title"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               placeholder="Ex: Ler 10 páginas do livro..."
-              className="rounded-xl bg-muted/50 border-transparent focus-visible:ring-primary"
+              className="rounded-2xl bg-muted/50 border-transparent focus-visible:ring-[#58CC02] font-semibold"
               autoFocus
             />
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label>Tag</Label>
+              <Label className="font-bold">Tag</Label>
               <Select value={tagId} onValueChange={setTagId}>
-                <SelectTrigger className="rounded-xl bg-muted/50 border-transparent">
+                <SelectTrigger className="rounded-2xl bg-muted/50 border-transparent font-semibold">
                   <SelectValue placeholder="Selecione..." />
                 </SelectTrigger>
                 <SelectContent>
-                  {tags.map((t) => (
+                  {tags.map((t: any) => (
                     <SelectItem key={t.id} value={t.id}>
                       {t.name}
                     </SelectItem>
@@ -76,9 +78,9 @@ export function TaskForm() {
               </Select>
             </div>
             <div className="space-y-2">
-              <Label>Prioridade</Label>
+              <Label className="font-bold">Prioridade</Label>
               <Select value={priority} onValueChange={(v) => setPriority(v as Priority)}>
-                <SelectTrigger className="rounded-xl bg-muted/50 border-transparent">
+                <SelectTrigger className="rounded-2xl bg-muted/50 border-transparent font-semibold">
                   <SelectValue placeholder="Selecione..." />
                 </SelectTrigger>
                 <SelectContent>
@@ -91,22 +93,24 @@ export function TaskForm() {
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="due-date">Data</Label>
+              <Label htmlFor="due-date" className="font-bold">
+                Data
+              </Label>
               <Input
                 id="due-date"
                 type="date"
                 value={dueDate}
                 onChange={(e) => setDueDate(e.target.value)}
-                className="rounded-xl bg-muted/50 border-transparent"
+                className="rounded-2xl bg-muted/50 border-transparent font-semibold"
               />
             </div>
             <div className="space-y-2">
-              <Label>Tempo estimado</Label>
+              <Label className="font-bold">Tempo estimado</Label>
               <Select
                 value={String(estimatedTime)}
                 onValueChange={(v) => setEstimatedTime(Number(v))}
               >
-                <SelectTrigger className="rounded-xl bg-muted/50 border-transparent">
+                <SelectTrigger className="rounded-2xl bg-muted/50 border-transparent font-semibold">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -119,9 +123,9 @@ export function TaskForm() {
               </Select>
             </div>
           </div>
-          <Button type="submit" className="w-full rounded-xl py-6 text-base font-semibold">
+          <GameButton type="submit" variant="primary" size="lg" className="w-full">
             Criar Tarefa
-          </Button>
+          </GameButton>
         </form>
       </DialogContent>
     </Dialog>
