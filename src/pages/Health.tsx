@@ -21,7 +21,7 @@ export default function HealthPage() {
             Registro Diário
           </TabsTrigger>
           <TabsTrigger value="history" className="rounded-xl font-bold">
-            Histórico
+            Histórico Completo
           </TabsTrigger>
         </TabsList>
 
