@@ -1,29 +1,38 @@
-/* Main App Component - Handles routing (using react-router-dom), query client and other providers - use this file to add all routes */
-import { BrowserRouter, Routes, Route } from 'react-router-dom'
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { Toaster } from '@/components/ui/toaster'
 import { Toaster as Sonner } from '@/components/ui/sonner'
 import { TooltipProvider } from '@/components/ui/tooltip'
-import Index from './pages/Index'
-import NotFound from './pages/NotFound'
-import Layout from './components/Layout'
+import { ThemeProvider } from '@/components/ThemeProvider'
+import { AppStoreProvider } from '@/stores/useAppStore'
 
-// ONLY IMPORT AND RENDER WORKING PAGES, NEVER ADD PLACEHOLDER COMPONENTS OR PAGES IN THIS FILE
-// AVOID REMOVING ANY CONTEXT PROVIDERS FROM THIS FILE (e.g. TooltipProvider, Toaster, Sonner)
+import Layout from './components/Layout'
+import NotFound from './pages/NotFound'
+import Dashboard from './pages/Dashboard'
+import Tasks from './pages/Tasks'
+import Analytics from './pages/Analytics'
+import Settings from './pages/Settings'
 
 const App = () => (
-  <BrowserRouter>
-    <TooltipProvider>
-      <Toaster />
-      <Sonner />
-      <Routes>
-        <Route element={<Layout />}>
-          <Route path="/" element={<Index />} />
-          {/* ADD ALL CUSTOM ROUTES MUST BE ADDED HERE */}
-        </Route>
-        <Route path="*" element={<NotFound />} />
-      </Routes>
-    </TooltipProvider>
-  </BrowserRouter>
+  <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
+    <AppStoreProvider>
+      <BrowserRouter>
+        <TooltipProvider>
+          <Toaster />
+          <Sonner />
+          <Routes>
+            <Route element={<Layout />}>
+              <Route path="/" element={<Navigate to="/dashboard" replace />} />
+              <Route path="/dashboard" element={<Dashboard />} />
+              <Route path="/tasks" element={<Tasks />} />
+              <Route path="/analytics" element={<Analytics />} />
+              <Route path="/settings" element={<Settings />} />
+            </Route>
+            <Route path="*" element={<NotFound />} />
+          </Routes>
+        </TooltipProvider>
+      </BrowserRouter>
+    </AppStoreProvider>
+  </ThemeProvider>
 )
 
 export default App
