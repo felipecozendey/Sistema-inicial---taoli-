@@ -9,7 +9,7 @@ export function HabitStreaks({ habits }: { habits: Habit[] }) {
   )
 
   return (
-    <div className="bg-card rounded-[2rem] p-6 shadow-sm border">
+    <div className="bg-card rounded-3xl p-6 shadow-sm border">
       <h3 className="font-bold mb-6 text-lg">Hábitos em Alta</h3>
       <div className="space-y-4">
         {sorted.slice(0, 5).map((h) => {

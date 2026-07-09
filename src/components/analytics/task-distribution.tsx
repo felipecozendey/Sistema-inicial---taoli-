@@ -16,7 +16,7 @@ export function TaskDistribution({ tasks }: { tasks: Task[] }) {
   }, [tasks, tags])
 
   return (
-    <div className="bg-card rounded-[2rem] p-6 shadow-sm border">
+    <div className="bg-card rounded-3xl p-6 shadow-sm border">
       <h3 className="font-bold mb-6 text-lg">Distribuição de Tarefas</h3>
       <div className="h-56">
         {chartData.length > 0 ? (

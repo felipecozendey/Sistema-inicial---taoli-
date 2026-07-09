@@ -24,7 +24,7 @@ export function HabitHeatmap({ habits }: { habits: Habit[] }) {
   }, [habits])
 
   return (
-    <div className="bg-card rounded-[2rem] p-6 md:p-8 shadow-sm border">
+    <div className="bg-card rounded-3xl p-6 md:p-8 shadow-sm border">
       <div className="flex items-center justify-between mb-6">
         <h3 className="font-bold text-lg">Consistência de Hábitos</h3>
         <span className="text-xs text-muted-foreground">Últimos 90 dias</span>
@@ -37,9 +37,9 @@ export function HabitHeatmap({ habits }: { habits: Habit[] }) {
             className={cn(
               'w-4 h-4 md:w-5 md:h-5 rounded-[4px] transition-all duration-300 hover:scale-125 cursor-default',
               day.level === 0 && 'bg-muted',
-              day.level === 1 && 'bg-primary/40',
-              day.level === 2 && 'bg-primary/70',
-              day.level === 3 && 'bg-primary',
+              day.level === 1 && 'bg-[#58CC02]/40',
+              day.level === 2 && 'bg-[#58CC02]/70',
+              day.level === 3 && 'bg-[#58CC02]',
             )}
           />
         ))}
@@ -47,9 +47,9 @@ export function HabitHeatmap({ habits }: { habits: Habit[] }) {
       <div className="flex items-center gap-2 mt-4 justify-end">
         <span className="text-xs text-muted-foreground">Menos</span>
         <div className="w-4 h-4 rounded-[4px] bg-muted" />
-        <div className="w-4 h-4 rounded-[4px] bg-primary/40" />
-        <div className="w-4 h-4 rounded-[4px] bg-primary/70" />
-        <div className="w-4 h-4 rounded-[4px] bg-primary" />
+        <div className="w-4 h-4 rounded-[4px] bg-[#58CC02]/40" />
+        <div className="w-4 h-4 rounded-[4px] bg-[#58CC02]/70" />
+        <div className="w-4 h-4 rounded-[4px] bg-[#58CC02]" />
         <span className="text-xs text-muted-foreground">Mais</span>
       </div>
     </div>

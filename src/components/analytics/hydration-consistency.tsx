@@ -26,7 +26,7 @@ export function HydrationConsistency() {
   }, [getHealthRecord])
 
   return (
-    <div className="bg-card rounded-[2rem] p-6 shadow-sm border">
+    <div className="bg-card rounded-3xl p-6 shadow-sm border">
       <h3 className="font-bold mb-6 text-lg">Hidratação (7 dias)</h3>
       <div className="h-56">
         <ChartContainer config={{ ml: { label: 'ml', color: '#1CB0F6' } }} className="h-full">
