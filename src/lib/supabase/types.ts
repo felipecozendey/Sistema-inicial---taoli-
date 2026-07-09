@@ -9,7 +9,74 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      decks: {
+        Row: {
+          color: string
+          created_at: string
+          emoji: string
+          id: string
+          title: string
+        }
+        Insert: {
+          color?: string
+          created_at?: string
+          emoji?: string
+          id?: string
+          title: string
+        }
+        Update: {
+          color?: string
+          created_at?: string
+          emoji?: string
+          id?: string
+          title?: string
+        }
+        Relationships: []
+      }
+      flashcards: {
+        Row: {
+          back: string
+          created_at: string
+          deck_id: string
+          ease_factor: number
+          front: string
+          id: string
+          interval: number
+          next_review_date: string
+          note_id: string | null
+        }
+        Insert: {
+          back: string
+          created_at?: string
+          deck_id: string
+          ease_factor?: number
+          front: string
+          id?: string
+          interval?: number
+          next_review_date?: string
+          note_id?: string | null
+        }
+        Update: {
+          back?: string
+          created_at?: string
+          deck_id?: string
+          ease_factor?: number
+          front?: string
+          id?: string
+          interval?: number
+          next_review_date?: string
+          note_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: 'flashcards_deck_id_fkey'
+            columns: ['deck_id']
+            isOneToOne: false
+            referencedRelation: 'decks'
+            referencedColumns: ['id']
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never

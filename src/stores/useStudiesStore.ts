@@ -79,7 +79,8 @@ interface StudiesState {
     updates: Partial<Pick<Flashcard, 'front' | 'back' | 'noteId'>>,
   ) => Promise<void>
   deleteFlashcard: (id: string) => Promise<void>
-  reviewCard: (cardId: string, feedback: ReviewFeedback) => void
+  reviewCard: (cardId: string, feedback: ReviewFeedback) => Promise<void>
+  loadStudiesData: () => Promise<void>
 }
 
 export const useStudiesStore = create<StudiesState>()(
@@ -229,14 +230,66 @@ export const useStudiesStore = create<StudiesState>()(
         }
       },
 
-      reviewCard: (cardId, feedback) =>
+      loadStudiesData: async () => {
+        try {
+          const [{ data: decksData }, { data: cardsData }] = await Promise.all([
+            supabase.from('decks').select('*').order('created_at', { ascending: true }),
+            supabase.from('flashcards').select('*').order('created_at', { ascending: true }),
+          ])
+          if (decksData && decksData.length > 0) {
+            set({
+              decks: decksData.map((d) => ({
+                id: d.id,
+                title: d.title,
+                emoji: d.emoji,
+                color: d.color,
+              })),
+            })
+          }
+          if (cardsData && cardsData.length > 0) {
+            set({
+              flashcards: cardsData.map((c) => ({
+                id: c.id,
+                deckId: c.deck_id,
+                noteId: c.note_id,
+                front: c.front,
+                back: c.back,
+                nextReviewDate: c.next_review_date,
+                interval: c.interval,
+                easeFactor: c.ease_factor,
+              })),
+            })
+          }
+        } catch {
+          /* intentionally ignored */
+        }
+      },
+
+      reviewCard: async (cardId, feedback) => {
+        let updated: Flashcard | undefined
         set((s) => ({
           flashcards: s.flashcards.map((fc) => {
             if (fc.id !== cardId) return fc
             const { interval, easeFactor, nextReviewDate } = calculateSRS(fc, feedback)
-            return { ...fc, interval, easeFactor, nextReviewDate }
+            updated = { ...fc, interval, easeFactor, nextReviewDate }
+            return updated
           }),
-        })),
+        }))
+        if (updated) {
+          try {
+            await supabase
+              .from('flashcards')
+              .update({
+                interval: updated.interval,
+                ease_factor: updated.easeFactor,
+                next_review_date: updated.nextReviewDate,
+              })
+              .eq('id', cardId)
+          } catch {
+            /* intentionally ignored */
+          }
+        }
+      },
     }),
     { name: 'taoli-studies-storage' },
   ),

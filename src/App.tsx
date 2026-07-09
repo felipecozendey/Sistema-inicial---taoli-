@@ -6,6 +6,8 @@ import { ThemeProvider } from '@/components/ThemeProvider'
 import { AppStoreProvider } from '@/stores/useAppStore'
 import { FocusRadarProvider } from '@/components/focus-radar/focus-radar-provider'
 import { useServiceWorker } from '@/hooks/use-service-worker'
+import { AuthProvider, useAuth } from '@/hooks/use-auth'
+import { AuthScreen } from '@/components/auth-screen'
 
 import Layout from './components/Layout'
 import NotFound from './pages/NotFound'
@@ -16,33 +18,56 @@ import Settings from './pages/Settings'
 import Profile from './pages/Profile'
 import Health from './pages/Health'
 import Studies from './pages/Studies'
+
+function AppInner() {
+  const { user, loading } = useAuth()
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <div className="w-8 h-8 rounded-full border-4 border-primary border-t-transparent animate-spin" />
+      </div>
+    )
+  }
+
+  if (!user) {
+    return <AuthScreen />
+  }
+
+  return (
+    <AppStoreProvider>
+      <FocusRadarProvider>
+        <BrowserRouter>
+          <TooltipProvider>
+            <Toaster />
+            <Sonner />
+            <Routes>
+              <Route element={<Layout />}>
+                <Route path="/" element={<Navigate to="/dashboard" replace />} />
+                <Route path="/dashboard" element={<Dashboard />} />
+                <Route path="/tasks" element={<Tasks />} />
+                <Route path="/health" element={<Health />} />
+                <Route path="/studies" element={<Studies />} />
+                <Route path="/analytics" element={<Analytics />} />
+                <Route path="/profile" element={<Profile />} />
+                <Route path="/settings" element={<Settings />} />
+              </Route>
+              <Route path="*" element={<NotFound />} />
+            </Routes>
+          </TooltipProvider>
+        </BrowserRouter>
+      </FocusRadarProvider>
+    </AppStoreProvider>
+  )
+}
+
 const App = () => {
   useServiceWorker()
   return (
     <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
-      <AppStoreProvider>
-        <FocusRadarProvider>
-          <BrowserRouter>
-            <TooltipProvider>
-              <Toaster />
-              <Sonner />
-              <Routes>
-                <Route element={<Layout />}>
-                  <Route path="/" element={<Navigate to="/dashboard" replace />} />
-                  <Route path="/dashboard" element={<Dashboard />} />
-                  <Route path="/tasks" element={<Tasks />} />
-                  <Route path="/health" element={<Health />} />
-                  <Route path="/studies" element={<Studies />} />
-                  <Route path="/analytics" element={<Analytics />} />
-                  <Route path="/profile" element={<Profile />} />
-                  <Route path="/settings" element={<Settings />} />
-                </Route>
-                <Route path="*" element={<NotFound />} />
-              </Routes>
-            </TooltipProvider>
-          </BrowserRouter>
-        </FocusRadarProvider>
-      </AppStoreProvider>{' '}
+      <AuthProvider>
+        <AppInner />
+      </AuthProvider>
     </ThemeProvider>
   )
 }

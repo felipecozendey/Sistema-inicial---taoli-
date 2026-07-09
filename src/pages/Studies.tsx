@@ -3,15 +3,17 @@ import { useStudiesStore } from '@/stores/useStudiesStore'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { NotebooksTab } from '@/components/studies/notebooks-tab'
 import { NotesTab } from '@/components/studies/notes-tab'
-import { RevisionPlaceholder } from '@/components/studies/revision-placeholder'
+import { DecksTab } from '@/components/studies/decks-tab'
+import { StudyMode } from '@/components/studies/study-mode'
 import { NoteEditor } from '@/components/studies/note-editor'
 import { GraduationCap } from 'lucide-react'
 
 export default function Studies() {
-  const { notes } = useStudiesStore()
+  const { notes, loadStudiesData } = useStudiesStore()
   const [activeTab, setActiveTab] = useState('notebooks')
   const [editingNoteId, setEditingNoteId] = useState<string | null>(null)
   const [filterNotebookId, setFilterNotebookId] = useState<string | null>(null)
+  const [studyingDeckId, setStudyingDeckId] = useState<string | null>(null)
 
   useEffect(() => {
     if (editingNoteId && editingNoteId !== 'new') {
@@ -19,6 +21,10 @@ export default function Studies() {
       if (!exists) setEditingNoteId(null)
     }
   }, [editingNoteId, notes])
+
+  useEffect(() => {
+    loadStudiesData()
+  }, [loadStudiesData])
 
   const handleOpenNotebook = (notebookId: string) => {
     setFilterNotebookId(notebookId)
@@ -82,7 +88,11 @@ export default function Studies() {
         </TabsContent>
 
         <TabsContent value="revision" className="mt-6">
-          <RevisionPlaceholder />
+          {studyingDeckId ? (
+            <StudyMode deckId={studyingDeckId} onExit={() => setStudyingDeckId(null)} />
+          ) : (
+            <DecksTab onStudyDeck={(id) => setStudyingDeckId(id)} />
+          )}
         </TabsContent>
       </Tabs>
     </div>

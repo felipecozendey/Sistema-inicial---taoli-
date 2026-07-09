@@ -12,8 +12,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { ArrowLeft, Trash2, X } from 'lucide-react'
+import { ArrowLeft, Layers, Trash2, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { FlashcardDialog } from '@/components/studies/flashcard-dialog'
 
 interface NoteEditorProps {
   noteId: string | null
@@ -40,6 +41,7 @@ export function NoteEditor({
   const [autoOpen, setAutoOpen] = useState(false)
   const [autoQuery, setAutoQuery] = useState('')
   const [autoIndex, setAutoIndex] = useState(0)
+  const [flashcardOpen, setFlashcardOpen] = useState(false)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
 
   useEffect(() => {
@@ -155,6 +157,14 @@ export function NoteEditor({
           <ArrowLeft className="w-5 h-5" /> Voltar
         </button>
         <div className="flex gap-2">
+          <GameButton
+            variant="secondary"
+            size="md"
+            onClick={() => setFlashcardOpen(true)}
+            className="gap-1"
+          >
+            <Layers className="w-4 h-4" /> Flashcard
+          </GameButton>
           {editNote && (
             <button
               onClick={handleDelete}
@@ -310,6 +320,12 @@ export function NoteEditor({
           )}
         </div>
       </div>
+
+      <FlashcardDialog
+        open={flashcardOpen}
+        onOpenChange={setFlashcardOpen}
+        noteId={editNote?.id ?? null}
+      />
     </div>
   )
 }
