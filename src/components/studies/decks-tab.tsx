@@ -12,7 +12,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
-import { Plus, Pencil, Trash2, Layers, Clock } from 'lucide-react'
+import { Plus, Pencil, Trash2, Layers, Clock, Play } from 'lucide-react'
 import type { Deck } from '@/types/flashcard'
 
 interface DecksTabProps {
@@ -53,13 +53,13 @@ export function DecksTab({ onStudyDeck }: DecksTabProps) {
           return (
             <div
               key={deck.id}
+              className="cursor-pointer rounded-3xl border-2 border-b-4 border-border bg-card p-5 transition-all hover:shadow-lg active:translate-y-0.5 active:border-b-2 group flex flex-col"
               onClick={() => onStudyDeck(deck.id)}
-              className="cursor-pointer rounded-3xl border-2 border-b-4 border-border bg-card p-5 transition-all hover:shadow-lg active:translate-y-0.5 active:border-b-2 group"
             >
               <div className="flex items-start justify-between">
                 <div className="flex items-center gap-3">
                   <div
-                    className="w-12 h-12 rounded-2xl flex items-center justify-center text-2xl"
+                    className="w-12 h-12 rounded-2xl flex items-center justify-center text-2xl shadow-sm"
                     style={{ backgroundColor: `${deck.color}20` }}
                   >
                     {deck.emoji}
@@ -95,13 +95,23 @@ export function DecksTab({ onStudyDeck }: DecksTabProps) {
               </div>
               {due > 0 ? (
                 <div className="mt-3 inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#FF4B4B]/15 text-[#FF4B4B] text-xs font-bold">
-                  <Clock className="w-3.5 h-3.5" /> {due} para revisar
+                  <Clock className="w-3.5 h-3.5" /> {due}{' '}
+                  {due === 1 ? 'cartão pendente' : 'cartões pendentes'}
                 </div>
               ) : (
                 <div className="mt-3 inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#58CC02]/15 text-[#58CC02] text-xs font-bold">
                   Em dia
                 </div>
               )}
+              <button
+                onClick={(e) => {
+                  e.stopPropagation()
+                  onStudyDeck(deck.id)
+                }}
+                className="mt-4 w-full py-2.5 rounded-2xl bg-primary text-primary-foreground font-bold text-sm border-2 border-b-4 border-primary/80 active:translate-y-0.5 active:border-b-2 transition-all flex items-center justify-center gap-1.5 hover:brightness-105"
+              >
+                <Play className="w-4 h-4" fill="currentColor" /> Estudar Agora
+              </button>
             </div>
           )
         })}
