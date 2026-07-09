@@ -1,9 +1,27 @@
-import React, { createContext, useContext, useState, useEffect, useMemo, ReactNode } from 'react'
+import React, {
+  createContext,
+  useContext,
+  useState,
+  useEffect,
+  useMemo,
+  useRef,
+  ReactNode,
+} from 'react'
 
 export type Priority = 'low' | 'medium' | 'high'
+export type EnergyLevel = 1 | 2 | 3
 export type FrequencyType = 'daily' | 'weekly'
 export type MoodLevel = 1 | 2 | 3 | 4 | 5
 export type BowelType = 1 | 2 | 3 | 4 | 5 | 6 | 7
+export type SoundProfile = 'ding' | 'pop' | 'tibetan'
+
+export type Subtask = { id: string; title: string; completed: boolean }
+export type FocusRadarSettings = {
+  enabled: boolean
+  interval: number
+  message: string
+  soundProfile: SoundProfile
+}
 
 export type HydrationLog = { id: string; date: string; amount: number; timestamp: string }
 export type MoodLog = {
@@ -21,7 +39,6 @@ export type DigestionLog = {
   note: string
   timestamp: string
 }
-
 export type UrineLog = {
   id: string
   date: string
@@ -29,7 +46,6 @@ export type UrineLog = {
   note: string
   timestamp: string
 }
-
 export type HealthRecord = {
   date: string
   hydration: number
@@ -42,18 +58,38 @@ export type Task = {
   id: string
   title: string
   dueDate: string
+  energyLevel: EnergyLevel
   priority: Priority
   estimatedTime: number
   tagId: string
   completed: boolean
+  subtasks: Subtask[]
+}
+export type NewTask = {
+  title: string
+  dueDate: string
+  energyLevel: EnergyLevel
+  estimatedTime: number
+  tagId: string
+  subtasks?: Subtask[]
 }
 export type Habit = {
   id: string
   title: string
   frequency: FrequencyType
   weekDays: number[]
+  weeklyGoal: number
   tagId: string
   completions: string[]
+  escudos: number
+  frozenDates: string[]
+}
+export type NewHabit = {
+  title: string
+  frequency: FrequencyType
+  weekDays: number[]
+  weeklyGoal: number
+  tagId: string
 }
 export type User = { name: string; avatar: string; dailyGoal: number; waterGoal: number }
 
@@ -67,14 +103,16 @@ interface AppState {
   digestionLogs: DigestionLog[]
   urineLogs: UrineLog[]
   healthRecords: Record<string, HealthRecord>
+  focusRadar: FocusRadarSettings
   updateUser: (u: Partial<User>) => void
   addTag: (name: string, color: string) => void
   updateTag: (id: string, updates: Partial<Pick<Tag, 'name' | 'color'>>) => void
   deleteTag: (id: string) => void
-  addTask: (t: Omit<Task, 'id' | 'completed'>) => void
+  addTask: (t: NewTask) => void
   toggleTask: (id: string) => void
   deleteTask: (id: string) => void
-  addHabit: (h: Omit<Habit, 'id' | 'completions'>) => void
+  toggleSubtask: (taskId: string, subtaskId: string) => void
+  addHabit: (h: NewHabit) => void
   toggleHabitCompletion: (id: string, date: string) => void
   deleteHabit: (id: string) => void
   addHydrationLog: (date: string, amount: number) => void
@@ -88,6 +126,7 @@ interface AppState {
   setWaterGoal: (goal: number) => void
   updateHealthRecord: (date: string, updates: Partial<HealthRecord>) => void
   getHealthRecord: (date: string) => HealthRecord
+  updateFocusRadar: (settings: Partial<FocusRadarSettings>) => void
 }
 
 const AppStoreContext = createContext<AppState | undefined>(undefined)
@@ -203,28 +242,54 @@ const initialTasks: Task[] = [
     id: 't1',
     title: 'Meditação Matinal (10 min)',
     dueDate: todayStr(),
-    priority: 'medium',
+    energyLevel: 1,
+    priority: 'low',
     estimatedTime: 10,
     tagId: '1',
     completed: false,
+    subtasks: [],
   },
   {
     id: 't2',
     title: 'Avançar no Projeto Principal',
     dueDate: todayStr(),
+    energyLevel: 3,
     priority: 'high',
     estimatedTime: 120,
     tagId: '2',
     completed: false,
+    subtasks: [
+      { id: 'st1', title: 'Definir escopo do sprint', completed: true },
+      { id: 'st2', title: 'Criar protótipo inicial', completed: true },
+      { id: 'st3', title: 'Revisar com a equipe', completed: false },
+      { id: 'st4', title: 'Documentar decisões', completed: false },
+      { id: 'st5', title: 'Preparar demo', completed: false },
+    ],
   },
   {
     id: 't3',
     title: 'Ler documentação técnica',
     dueDate: todayStr(),
-    priority: 'low',
+    energyLevel: 2,
+    priority: 'medium',
     estimatedTime: 30,
     tagId: '3',
     completed: true,
+    subtasks: [],
+  },
+  {
+    id: 't4',
+    title: 'Revisar código do colega',
+    dueDate: todayStr(),
+    energyLevel: 2,
+    priority: 'medium',
+    estimatedTime: 45,
+    tagId: '2',
+    completed: false,
+    subtasks: [
+      { id: 'st6', title: 'Clonar branch', completed: true },
+      { id: 'st7', title: 'Rodar testes locais', completed: false },
+    ],
   },
 ]
 
@@ -234,24 +299,44 @@ const initialHabits: Habit[] = [
     title: 'Beber 2L de água',
     frequency: 'daily',
     weekDays: [],
+    weeklyGoal: 0,
     tagId: '1',
     completions: genCompletions(0.8),
+    escudos: 2,
+    frozenDates: [],
   },
   {
     id: 'h2',
     title: 'Exercícios matinais',
     frequency: 'weekly',
     weekDays: [1, 3, 5],
+    weeklyGoal: 0,
     tagId: '1',
     completions: genCompletions(0.6),
+    escudos: 1,
+    frozenDates: [],
   },
   {
     id: 'h3',
     title: 'Leitura noturna',
     frequency: 'daily',
     weekDays: [],
+    weeklyGoal: 0,
     tagId: '3',
     completions: genCompletions(0.5),
+    escudos: 2,
+    frozenDates: [],
+  },
+  {
+    id: 'h4',
+    title: 'Caminhada ao ar livre',
+    frequency: 'weekly',
+    weekDays: [],
+    weeklyGoal: 3,
+    tagId: '4',
+    completions: genCompletions(0.4),
+    escudos: 2,
+    frozenDates: [],
   },
 ]
 
@@ -268,11 +353,30 @@ export const AppStoreProvider = ({ children }: { children: ReactNode }) => {
   })
   const [tasks, setTasks] = useState<Task[]>(() => {
     const s = localStorage.getItem('vt_tasks')
-    return s ? JSON.parse(s) : initialTasks
+    if (s) {
+      const parsed = JSON.parse(s)
+      return parsed.map((t: any) => ({
+        ...t,
+        energyLevel: t.energyLevel || (t.priority === 'high' ? 3 : t.priority === 'medium' ? 2 : 1),
+        priority:
+          t.priority || (t.energyLevel === 3 ? 'high' : t.energyLevel === 2 ? 'medium' : 'low'),
+        subtasks: t.subtasks || [],
+      }))
+    }
+    return initialTasks
   })
   const [habits, setHabits] = useState<Habit[]>(() => {
     const s = localStorage.getItem('vt_habits')
-    return s ? JSON.parse(s) : initialHabits
+    if (s) {
+      const parsed = JSON.parse(s)
+      return parsed.map((h: any) => ({
+        ...h,
+        escudos: h.escudos !== undefined ? h.escudos : 2,
+        frozenDates: h.frozenDates || [],
+        weeklyGoal: h.weeklyGoal || 0,
+      }))
+    }
+    return initialHabits
   })
   const [hydrationLogs, setHydrationLogs] = useState<HydrationLog[]>(() => {
     const s = localStorage.getItem('vt_hydration_logs')
@@ -290,6 +394,19 @@ export const AppStoreProvider = ({ children }: { children: ReactNode }) => {
     const s = localStorage.getItem('vt_urine_logs')
     return s ? JSON.parse(s) : genUrineMock()
   })
+  const [focusRadar, setFocusRadar] = useState<FocusRadarSettings>(() => {
+    const s = localStorage.getItem('vt_focus_radar')
+    return s
+      ? JSON.parse(s)
+      : {
+          enabled: false,
+          interval: 30,
+          message: 'Ainda focado? 👀',
+          soundProfile: 'ding' as SoundProfile,
+        }
+  })
+
+  const escudoCheckRef = useRef(false)
 
   useEffect(() => {
     localStorage.setItem('vt_user', JSON.stringify(user))
@@ -315,6 +432,34 @@ export const AppStoreProvider = ({ children }: { children: ReactNode }) => {
   useEffect(() => {
     localStorage.setItem('vt_urine_logs', JSON.stringify(urineLogs))
   }, [urineLogs])
+  useEffect(() => {
+    localStorage.setItem('vt_focus_radar', JSON.stringify(focusRadar))
+  }, [focusRadar])
+
+  useEffect(() => {
+    if (escudoCheckRef.current) return
+    escudoCheckRef.current = true
+    const yesterday = new Date()
+    yesterday.setDate(yesterday.getDate() - 1)
+    const yesterdayStr = yesterday.toISOString().split('T')[0]
+    setHabits((prev) =>
+      prev.map((h) => {
+        if (h.escudos <= 0) return h
+        if (h.completions.includes(yesterdayStr)) return h
+        if (h.frozenDates?.includes(yesterdayStr)) return h
+        const isScheduled =
+          h.frequency === 'daily' ||
+          (h.weeklyGoal && h.weeklyGoal > 0) ||
+          h.weekDays.includes(yesterday.getDay())
+        if (!isScheduled) return h
+        return {
+          ...h,
+          escudos: h.escudos - 1,
+          frozenDates: [...(h.frozenDates || []), yesterdayStr],
+        }
+      }),
+    )
+  }, [])
 
   const healthRecords = useMemo(() => {
     const result: Record<string, HealthRecord> = {}
@@ -344,20 +489,52 @@ export const AppStoreProvider = ({ children }: { children: ReactNode }) => {
 
   const getHealthRecord = (date: string): HealthRecord =>
     healthRecords[date] || { date, hydration: 0, mood: { level: 3 }, bowel: { type: null } }
-
   const updateUser = (u: Partial<User>) => setUser((p) => ({ ...p, ...u }))
   const addTag = (name: string, color: string) =>
     setTags((p) => [...p, { id: genId(), name, color }])
   const updateTag = (id: string, updates: Partial<Pick<Tag, 'name' | 'color'>>) =>
     setTags((p) => p.map((t) => (t.id === id ? { ...t, ...updates } : t)))
   const deleteTag = (id: string) => setTags((p) => p.filter((t) => t.id !== id))
-  const addTask = (t: Omit<Task, 'id' | 'completed'>) =>
-    setTasks((p) => [...p, { ...t, id: genId(), completed: false }])
+  const addTask = (t: NewTask) => {
+    const priority: Priority = t.energyLevel === 1 ? 'low' : t.energyLevel === 2 ? 'medium' : 'high'
+    const subtasks: Subtask[] = (t.subtasks || []).map((s) => ({
+      id: s.id || genId(),
+      title: s.title,
+      completed: s.completed || false,
+    }))
+    setTasks((p) => [
+      ...p,
+      {
+        id: genId(),
+        title: t.title,
+        dueDate: t.dueDate,
+        energyLevel: t.energyLevel,
+        priority,
+        estimatedTime: t.estimatedTime,
+        tagId: t.tagId,
+        completed: false,
+        subtasks,
+      },
+    ])
+  }
   const toggleTask = (id: string) =>
     setTasks((p) => p.map((t) => (t.id === id ? { ...t, completed: !t.completed } : t)))
   const deleteTask = (id: string) => setTasks((p) => p.filter((t) => t.id !== id))
-  const addHabit = (h: Omit<Habit, 'id' | 'completions'>) =>
-    setHabits((p) => [...p, { ...h, id: genId(), completions: [] }])
+  const toggleSubtask = (taskId: string, subtaskId: string) =>
+    setTasks((p) =>
+      p.map((t) =>
+        t.id !== taskId
+          ? t
+          : {
+              ...t,
+              subtasks: t.subtasks.map((s) =>
+                s.id === subtaskId ? { ...s, completed: !s.completed } : s,
+              ),
+            },
+      ),
+    )
+  const addHabit = (h: NewHabit) =>
+    setHabits((p) => [...p, { ...h, id: genId(), completions: [], escudos: 2, frozenDates: [] }])
   const toggleHabitCompletion = (id: string, date: string) =>
     setHabits((p) =>
       p.map((h) => {
@@ -370,7 +547,6 @@ export const AppStoreProvider = ({ children }: { children: ReactNode }) => {
       }),
     )
   const deleteHabit = (id: string) => setHabits((p) => p.filter((h) => h.id !== id))
-
   const addHydrationLog = (date: string, amount: number) =>
     setHydrationLogs((p) => [...p, { id: genId(), date, amount, timestamp: nowIso() }])
   const deleteHydrationLog = (id: string) => setHydrationLogs((p) => p.filter((l) => l.id !== id))
@@ -384,15 +560,15 @@ export const AppStoreProvider = ({ children }: { children: ReactNode }) => {
     setUrineLogs((p) => [...p, { id: genId(), date, colorType, note, timestamp: nowIso() }])
   const deleteUrineLog = (id: string) => setUrineLogs((p) => p.filter((l) => l.id !== id))
   const setWaterGoal = (goal: number) => setUser((p) => ({ ...p, waterGoal: goal }))
-
+  const updateFocusRadar = (settings: Partial<FocusRadarSettings>) =>
+    setFocusRadar((p) => ({ ...p, ...settings }))
   const updateHealthRecord = (date: string, updates: Partial<HealthRecord>) => {
-    if (updates.hydration !== undefined) {
+    if (updates.hydration !== undefined)
       setHydrationLogs((prev) => [
         ...prev.filter((l) => l.date !== date),
         { id: genId(), date, amount: updates.hydration!, timestamp: nowIso() },
       ])
-    }
-    if (updates.mood !== undefined) {
+    if (updates.mood !== undefined)
       setMoodLogs((prev) => [
         ...prev.filter((l) => l.date !== date),
         {
@@ -404,16 +580,14 @@ export const AppStoreProvider = ({ children }: { children: ReactNode }) => {
           timestamp: nowIso(),
         },
       ])
-    }
     if (updates.bowel !== undefined) {
-      if (updates.bowel!.type === null) {
+      if (updates.bowel!.type === null)
         setDigestionLogs((prev) => prev.filter((l) => l.date !== date))
-      } else {
+      else
         setDigestionLogs((prev) => [
           ...prev.filter((l) => l.date !== date),
           { id: genId(), date, bristolType: updates.bowel!.type!, note: '', timestamp: nowIso() },
         ])
-      }
     }
   }
 
@@ -427,6 +601,7 @@ export const AppStoreProvider = ({ children }: { children: ReactNode }) => {
     digestionLogs,
     urineLogs,
     healthRecords,
+    focusRadar,
     updateUser,
     addTag,
     updateTag,
@@ -434,6 +609,7 @@ export const AppStoreProvider = ({ children }: { children: ReactNode }) => {
     addTask,
     toggleTask,
     deleteTask,
+    toggleSubtask,
     addHabit,
     toggleHabitCompletion,
     deleteHabit,
@@ -448,6 +624,7 @@ export const AppStoreProvider = ({ children }: { children: ReactNode }) => {
     setWaterGoal,
     updateHealthRecord,
     getHealthRecord,
+    updateFocusRadar,
   }
 
   return <AppStoreContext.Provider value={value}>{children}</AppStoreContext.Provider>

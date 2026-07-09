@@ -1,6 +1,7 @@
 import { Outlet } from 'react-router-dom'
 import { Sidebar } from '@/components/layout/sidebar'
 import { BottomNav } from '@/components/layout/bottom-nav'
+import { FocusRadarToggle } from '@/components/focus-radar/focus-radar-toggle'
 
 export default function Layout() {
   return (
@@ -12,6 +13,7 @@ export default function Layout() {
         </main>
       </div>
       <BottomNav />
+      <FocusRadarToggle />
     </div>
   )
 }

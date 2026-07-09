@@ -17,10 +17,11 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { useAppStore } from '@/stores/useAppStore'
-import { Plus } from 'lucide-react'
+import { Plus, Shield } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 const DAYS = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb']
+const WEEKLY_GOALS = [1, 2, 3, 4, 5, 6, 7]
 
 export function HabitForm() {
   const { tags, addHabit } = useAppStore()
@@ -29,6 +30,7 @@ export function HabitForm() {
   const [tagId, setTagId] = useState(tags[0]?.id || '')
   const [frequency, setFrequency] = useState<'daily' | 'weekly'>('daily')
   const [weekDays, setWeekDays] = useState<number[]>([1, 3, 5])
+  const [weeklyGoal, setWeeklyGoal] = useState(3)
 
   const toggleDay = (day: number) => {
     setWeekDays((prev) => (prev.includes(day) ? prev.filter((d) => d !== day) : [...prev, day]))
@@ -37,7 +39,13 @@ export function HabitForm() {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
     if (!title.trim()) return
-    addHabit({ title, tagId, frequency, weekDays: frequency === 'daily' ? [] : weekDays })
+    addHabit({
+      title,
+      tagId,
+      frequency,
+      weekDays: frequency === 'daily' ? [] : weekDays,
+      weeklyGoal: frequency === 'weekly' ? weeklyGoal : 0,
+    })
     setTitle('')
     setOpen(false)
   }
@@ -74,7 +82,7 @@ export function HabitForm() {
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                {tags.map((t: any) => (
+                {tags.map((t) => (
                   <SelectItem key={t.id} value={t.id}>
                     {t.name}
                   </SelectItem>
@@ -89,7 +97,7 @@ export function HabitForm() {
                 type="button"
                 onClick={() => setFrequency('daily')}
                 className={cn(
-                  'p-3 rounded-2xl text-sm font-bold border-2 border-b-4 transition-all active:translate-y-0.5 active:border-b-2',
+                  'p-3 rounded-2xl text-sm font-bold border-2 border-b-4 transition-all active:translate-y-1 active:border-b-0',
                   frequency === 'daily'
                     ? 'border-[#FFC800] bg-[#FFC800]/10 text-[#374151]'
                     : 'border-[#E5E5E5] dark:border-[#3B4A55] bg-muted/50',
@@ -101,7 +109,7 @@ export function HabitForm() {
                 type="button"
                 onClick={() => setFrequency('weekly')}
                 className={cn(
-                  'p-3 rounded-2xl text-sm font-bold border-2 border-b-4 transition-all active:translate-y-0.5 active:border-b-2',
+                  'p-3 rounded-2xl text-sm font-bold border-2 border-b-4 transition-all active:translate-y-1 active:border-b-0',
                   frequency === 'weekly'
                     ? 'border-[#FFC800] bg-[#FFC800]/10 text-[#374151]'
                     : 'border-[#E5E5E5] dark:border-[#3B4A55] bg-muted/50',
@@ -112,24 +120,53 @@ export function HabitForm() {
             </div>
           </div>
           {frequency === 'weekly' && (
-            <div className="flex gap-1.5">
-              {DAYS.map((d, i) => (
-                <button
-                  key={i}
-                  type="button"
-                  onClick={() => toggleDay(i)}
-                  className={cn(
-                    'flex-1 py-2 rounded-xl text-xs font-bold transition-all',
-                    weekDays.includes(i)
-                      ? 'bg-[#FFC800] text-[#374151]'
-                      : 'bg-muted/50 text-muted-foreground',
-                  )}
-                >
-                  {d}
-                </button>
-              ))}
-            </div>
+            <>
+              <div className="space-y-2">
+                <Label className="font-bold">Meta semanal</Label>
+                <div className="grid grid-cols-4 gap-2">
+                  {WEEKLY_GOALS.map((g) => (
+                    <button
+                      key={g}
+                      type="button"
+                      onClick={() => setWeeklyGoal(g)}
+                      className={cn(
+                        'py-2.5 rounded-2xl text-sm font-bold border-2 border-b-4 transition-all active:translate-y-1 active:border-b-0',
+                        weeklyGoal === g
+                          ? 'border-[#FFC800] bg-[#FFC800]/10 text-[#374151]'
+                          : 'border-[#E5E5E5] dark:border-[#3B4A55] bg-muted/50',
+                      )}
+                    >
+                      {g}x
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div className="flex gap-1.5">
+                {DAYS.map((d, i) => (
+                  <button
+                    key={i}
+                    type="button"
+                    onClick={() => toggleDay(i)}
+                    className={cn(
+                      'flex-1 py-2 rounded-xl text-xs font-bold transition-all',
+                      weekDays.includes(i)
+                        ? 'bg-[#FFC800] text-[#374151]'
+                        : 'bg-muted/50 text-muted-foreground',
+                    )}
+                  >
+                    {d}
+                  </button>
+                ))}
+              </div>
+            </>
           )}
+          <div className="flex items-center gap-2 p-3 rounded-2xl bg-[#1CB0F6]/10">
+            <Shield className="w-5 h-5 text-[#1CB0F6] shrink-0" strokeWidth={2.5} />
+            <p className="text-xs font-semibold text-muted-foreground">
+              Você começa com <span className="text-[#1CB0F6] font-bold">2 Escudos</span> de
+              proteção de streak.
+            </p>
+          </div>
           <GameButton type="submit" variant="gold" size="lg" className="w-full">
             Criar Hábito
           </GameButton>
