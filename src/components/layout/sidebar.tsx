@@ -6,6 +6,7 @@ import {
   Settings,
   Sparkles,
   HeartPulse,
+  UserCircle,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
@@ -14,6 +15,7 @@ const navItems = [
   { icon: CheckSquare, label: 'Tarefas', path: '/tasks' },
   { icon: HeartPulse, label: 'Saúde', path: '/health' },
   { icon: BarChart2, label: 'Relatórios', path: '/analytics' },
+  { icon: UserCircle, label: 'Perfil', path: '/profile' },
 ]
 
 export function Sidebar() {

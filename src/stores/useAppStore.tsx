@@ -91,7 +91,16 @@ export type NewHabit = {
   weeklyGoal: number
   tagId: string
 }
-export type User = { name: string; avatar: string; dailyGoal: number; waterGoal: number }
+export type SocialLink = { id: string; platform: string; url: string }
+export type User = {
+  name: string
+  avatar: string
+  dailyGoal: number
+  waterGoal: number
+  handle: string
+  bio: string
+  socialLinks: SocialLink[]
+}
 
 interface AppState {
   user: User
@@ -346,7 +355,7 @@ const initialHabits: Habit[] = [
     id: 'h4',
     title: 'Caminhada ao ar livre',
     frequency: 'weekly',
-    weekDays: [],
+    weekDays: [2, 4, 6],
     weeklyGoal: 3,
     tagId: '4',
     completions: genCompletions(0.4),
@@ -357,10 +366,17 @@ const initialHabits: Habit[] = [
 
 export const AppStoreProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<User>(() => {
+    const defaults: User = {
+      name: 'Viajante',
+      avatar: '',
+      dailyGoal: 5,
+      waterGoal: 2000,
+      handle: '@viajante',
+      bio: 'Em busca de evolução contínua 🌱',
+      socialLinks: [],
+    }
     const s = localStorage.getItem('vt_user')
-    return s
-      ? { waterGoal: 2000, ...JSON.parse(s) }
-      : { name: 'Viajante', avatar: '', dailyGoal: 5, waterGoal: 2000 }
+    return s ? { ...defaults, ...JSON.parse(s) } : defaults
   })
   const [tags, setTags] = useState<Tag[]>(() => {
     const s = localStorage.getItem('vt_tags')

@@ -2,7 +2,6 @@ import { Habit } from '@/stores/useAppStore'
 
 export function isHabitScheduledOn(habit: Habit, date: Date): boolean {
   if (habit.frequency === 'daily') return true
-  if (habit.weeklyGoal && habit.weeklyGoal > 0) return true
   return habit.weekDays.includes(date.getDay())
 }
 

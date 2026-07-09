@@ -1,12 +1,12 @@
 import { Link, useLocation } from 'react-router-dom'
-import { LayoutDashboard, CheckSquare, BarChart2, Settings, HeartPulse } from 'lucide-react'
+import { LayoutDashboard, CheckSquare, Settings, HeartPulse, UserCircle } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 const navItems = [
   { icon: LayoutDashboard, label: 'Início', path: '/dashboard' },
   { icon: CheckSquare, label: 'Tarefas', path: '/tasks' },
   { icon: HeartPulse, label: 'Saúde', path: '/health' },
-  { icon: BarChart2, label: 'Estatísticas', path: '/analytics' },
+  { icon: UserCircle, label: 'Perfil', path: '/profile' },
   { icon: Settings, label: 'Ajustes', path: '/settings' },
 ]
 

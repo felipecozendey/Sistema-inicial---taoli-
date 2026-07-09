@@ -1,24 +1,13 @@
-import { useAppStore } from '@/stores/useAppStore'
 import { useTheme } from 'next-themes'
 import { useColorTheme } from '@/components/ThemeProvider'
-import { Label } from '@/components/ui/label'
-import { Input } from '@/components/ui/input'
-import { GameButton } from '@/components/ui/game-button'
 import { TagManager } from '@/components/tags/tag-manager'
-import { Moon, Sun, Monitor, Check } from 'lucide-react'
+import { Moon, Sun, Monitor, Check, UserCircle } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { useToast } from '@/hooks/use-toast'
+import { Link } from 'react-router-dom'
 
 export default function Settings() {
-  const { user, updateUser } = useAppStore()
   const { theme, setTheme } = useTheme()
   const { colorTheme, setColorTheme } = useColorTheme()
-  const { toast } = useToast()
-
-  const handleSave = (e: React.FormEvent) => {
-    e.preventDefault()
-    toast({ title: 'Ajustes salvos!', description: 'Seu perfil foi atualizado com sucesso.' })
-  }
 
   const themeOptions = [
     { value: 'light' as const, label: 'Claro', icon: Sun },
@@ -94,39 +83,20 @@ export default function Settings() {
         </div>
       </section>
 
-      <section className="bg-card rounded-3xl p-6 md:p-8 shadow-sm border">
-        <h3 className="text-xl font-extrabold mb-6">Seu Perfil</h3>
-        <form onSubmit={handleSave} className="space-y-6">
-          <div className="space-y-2">
-            <Label htmlFor="name" className="font-bold">
-              Como prefere ser chamado?
-            </Label>
-            <Input
-              id="name"
-              value={user.name}
-              onChange={(e) => updateUser({ name: e.target.value })}
-              className="rounded-2xl h-12 bg-muted/50 border-transparent focus:bg-background font-semibold"
-            />
+      <Link
+        to="/profile"
+        className="flex items-center gap-3 bg-card rounded-3xl p-6 shadow-sm border border-b-4 hover:shadow-md transition-all active:translate-y-0.5"
+      >
+        <div className="w-12 h-12 rounded-2xl bg-[#1CB0F6]/15 flex items-center justify-center">
+          <UserCircle className="w-6 h-6 text-[#1CB0F6]" strokeWidth={2} />
+        </div>
+        <div>
+          <div className="font-extrabold">Gerenciar Perfil</div>
+          <div className="text-sm text-muted-foreground font-semibold">
+            Edite seu perfil, bio e links sociais
           </div>
-          <div className="space-y-2">
-            <Label htmlFor="goal" className="font-bold">
-              Meta de Tarefas Diárias
-            </Label>
-            <Input
-              id="goal"
-              type="number"
-              min="1"
-              max="50"
-              value={user.dailyGoal}
-              onChange={(e) => updateUser({ dailyGoal: parseInt(e.target.value) || 1 })}
-              className="rounded-2xl h-12 bg-muted/50 border-transparent focus:bg-background font-semibold"
-            />
-          </div>
-          <GameButton type="submit" variant="primary" size="lg" className="w-full">
-            Salvar Alterações
-          </GameButton>
-        </form>
-      </section>
+        </div>
+      </Link>
 
       <TagManager />
     </div>
