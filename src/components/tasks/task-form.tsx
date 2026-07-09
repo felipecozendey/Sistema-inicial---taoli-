@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import {
   Dialog,
   DialogContent,
@@ -16,8 +16,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { useAppStore, EnergyLevel } from '@/stores/useAppStore'
-import { Plus, X, Zap } from 'lucide-react'
+import { useAppStore, EnergyLevel, Task, Subtask } from '@/stores/useAppStore'
+import { Plus, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 const ENERGY_LEVELS: { value: EnergyLevel; label: string; bolts: number; color: string }[] = [
@@ -26,54 +26,92 @@ const ENERGY_LEVELS: { value: EnergyLevel; label: string; bolts: number; color: 
   { value: 3, label: 'Alta', bolts: 3, color: '#FF4B4B' },
 ]
 
-export function TaskForm() {
-  const { tags, addTask } = useAppStore()
-  const [open, setOpen] = useState(false)
+interface TaskFormProps {
+  editTask?: Task
+  open?: boolean
+  onOpenChange?: (open: boolean) => void
+  hideTrigger?: boolean
+}
+
+export function TaskForm({
+  editTask,
+  open: controlledOpen,
+  onOpenChange,
+  hideTrigger,
+}: TaskFormProps) {
+  const { tags, addTask, updateTask } = useAppStore()
+  const [internalOpen, setInternalOpen] = useState(false)
+  const isControlled = controlledOpen !== undefined
+  const open = isControlled ? controlledOpen : internalOpen
+  const setOpen = (v: boolean) => {
+    if (isControlled) onOpenChange?.(v)
+    else setInternalOpen(v)
+  }
+
   const [title, setTitle] = useState('')
   const [tagId, setTagId] = useState(tags[0]?.id || '')
   const [energyLevel, setEnergyLevel] = useState<EnergyLevel>(2)
   const [dueDate, setDueDate] = useState(new Date().toISOString().split('T')[0])
   const [estimatedTime, setEstimatedTime] = useState(30)
-  const [subtasks, setSubtasks] = useState<{ title: string }[]>([])
+  const [subtasks, setSubtasks] = useState<Subtask[]>([])
   const [subtaskInput, setSubtaskInput] = useState('')
+
+  useEffect(() => {
+    if (editTask && open) {
+      setTitle(editTask.title)
+      setTagId(editTask.tagId)
+      setEnergyLevel(editTask.energyLevel)
+      setDueDate(editTask.dueDate)
+      setEstimatedTime(editTask.estimatedTime)
+      setSubtasks(editTask.subtasks.map((s) => ({ ...s })))
+    } else if (!open && !editTask) {
+      setTitle('')
+      setTagId(tags[0]?.id || '')
+      setEnergyLevel(2)
+      setDueDate(new Date().toISOString().split('T')[0])
+      setEstimatedTime(30)
+      setSubtasks([])
+      setSubtaskInput('')
+    }
+  }, [editTask, open])
 
   const addSubtask = () => {
     if (!subtaskInput.trim()) return
-    setSubtasks((prev) => [...prev, { title: subtaskInput.trim() }])
+    setSubtasks((prev) => [...prev, { id: '', title: subtaskInput.trim(), completed: false }])
     setSubtaskInput('')
   }
-
-  const removeSubtask = (index: number) => {
-    setSubtasks((prev) => prev.filter((_, i) => i !== index))
-  }
+  const removeSubtask = (i: number) => setSubtasks((prev) => prev.filter((_, idx) => idx !== i))
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
     if (!title.trim()) return
-    addTask({
+    const data = {
       title,
       dueDate,
       energyLevel,
       estimatedTime,
       tagId,
-      subtasks: subtasks.map((s) => ({ id: '', title: s.title, completed: false })),
-    })
-    setTitle('')
-    setSubtasks([])
-    setSubtaskInput('')
+      subtasks: subtasks.map((s) => ({ id: s.id, title: s.title, completed: s.completed })),
+    }
+    if (editTask) updateTask(editTask.id, data)
+    else addTask(data)
     setOpen(false)
   }
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        <GameButton variant="primary" size="md" className="gap-2">
-          <Plus className="w-5 h-5" strokeWidth={2.5} /> Nova Tarefa
-        </GameButton>
-      </DialogTrigger>
+      {!hideTrigger && (
+        <DialogTrigger asChild>
+          <GameButton variant="primary" size="md" className="gap-2">
+            <Plus className="w-5 h-5" strokeWidth={2.5} /> {editTask ? 'Editar' : 'Nova'} Tarefa
+          </GameButton>
+        </DialogTrigger>
+      )}
       <DialogContent className="sm:max-w-[425px] rounded-3xl">
         <DialogHeader>
-          <DialogTitle className="text-2xl font-extrabold">Criar Nova Tarefa</DialogTitle>
+          <DialogTitle className="text-2xl font-extrabold">
+            {editTask ? 'Editar Tarefa' : 'Criar Nova Tarefa'}
+          </DialogTitle>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-6 mt-4">
           <div className="space-y-2">
@@ -138,11 +176,15 @@ export function TaskForm() {
                       ? 'border-current'
                       : 'border-[#E5E5E5] dark:border-[#3B4A55] bg-muted/50',
                   )}
-                  style={{
-                    borderColor: energyLevel === level.value ? level.color : undefined,
-                    backgroundColor: energyLevel === level.value ? `${level.color}15` : undefined,
-                    color: energyLevel === level.value ? level.color : undefined,
-                  }}
+                  style={
+                    energyLevel === level.value
+                      ? {
+                          borderColor: level.color,
+                          backgroundColor: `${level.color}15`,
+                          color: level.color,
+                        }
+                      : undefined
+                  }
                 >
                   <span className="text-lg font-extrabold leading-none">
                     {'⚡'.repeat(level.bolts)}
@@ -206,7 +248,7 @@ export function TaskForm() {
             )}
           </div>
           <GameButton type="submit" variant="primary" size="lg" className="w-full">
-            Criar Tarefa
+            {editTask ? 'Salvar' : 'Criar Tarefa'}
           </GameButton>
         </form>
       </DialogContent>

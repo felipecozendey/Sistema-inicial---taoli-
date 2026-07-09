@@ -1,8 +1,10 @@
+import { useState } from 'react'
 import { Task, useAppStore } from '@/stores/useAppStore'
 import { Checkbox } from '@/components/ui/checkbox'
 import { GameProgress } from '@/components/ui/game-progress'
+import { TaskForm } from '@/components/tasks/task-form'
 import { cn } from '@/lib/utils'
-import { Zap, Trash2, Clock } from 'lucide-react'
+import { Zap, Trash2, Clock, Pencil } from 'lucide-react'
 import { formatTime } from '@/lib/habit-utils'
 
 const ENERGY_COLORS = ['#58CC02', '#FFC800', '#FF4B4B']
@@ -20,6 +22,7 @@ function EnergyLevelDisplay({ level }: { level: number }) {
 
 export function TaskCard({ task }: TaskCardProps) {
   const { tags, toggleTask, deleteTask, toggleSubtask } = useAppStore()
+  const [editOpen, setEditOpen] = useState(false)
   const tag = tags.find((c) => c.id === task.tagId)
   const completedSubtasks = task.subtasks.filter((s) => s.completed).length
   const totalSubtasks = task.subtasks.length
@@ -63,13 +66,22 @@ export function TaskCard({ task }: TaskCardProps) {
             </span>
           </div>
         </div>
-        <button
-          onClick={() => deleteTask(task.id)}
-          className="opacity-0 group-hover:opacity-100 transition-opacity p-2 text-muted-foreground hover:text-[#FF4B4B] rounded-full hover:bg-[#FF4B4B]/10"
-          aria-label="Delete task"
-        >
-          <Trash2 className="w-4 h-4" strokeWidth={2.5} />
-        </button>
+        <div className="flex items-center opacity-0 group-hover:opacity-100 transition-opacity">
+          <button
+            onClick={() => setEditOpen(true)}
+            className="p-2 text-muted-foreground hover:text-[#1CB0F6] rounded-full hover:bg-[#1CB0F6]/10 transition-colors"
+            aria-label="Edit task"
+          >
+            <Pencil className="w-4 h-4" strokeWidth={2.5} />
+          </button>
+          <button
+            onClick={() => deleteTask(task.id)}
+            className="p-2 text-muted-foreground hover:text-[#FF4B4B] rounded-full hover:bg-[#FF4B4B]/10 transition-colors"
+            aria-label="Delete task"
+          >
+            <Trash2 className="w-4 h-4" strokeWidth={2.5} />
+          </button>
+        </div>
       </div>
       {totalSubtasks > 0 && (
         <div className="space-y-2 pl-10">
@@ -100,6 +112,7 @@ export function TaskCard({ task }: TaskCardProps) {
           </div>
         </div>
       )}
+      <TaskForm editTask={task} hideTrigger open={editOpen} onOpenChange={setEditOpen} />
     </div>
   )
 }

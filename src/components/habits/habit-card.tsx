@@ -1,11 +1,14 @@
+import { useState } from 'react'
 import { Habit, useAppStore } from '@/stores/useAppStore'
-import { Check, Flame, Trash2, Shield } from 'lucide-react'
+import { Check, Flame, Trash2, Shield, Pencil } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { calculateStreak, getHabitEvolution, getHabitWeeklyProgress } from '@/lib/habit-utils'
 import { GameProgress } from '@/components/ui/game-progress'
+import { HabitForm } from '@/components/habits/habit-form'
 
 export function HabitCard({ habit }: { habit: Habit }) {
   const { tags, toggleHabitCompletion, deleteHabit } = useAppStore()
+  const [editOpen, setEditOpen] = useState(false)
   const tag = tags.find((t) => t.id === habit.tagId)
   const today = new Date().toISOString().split('T')[0]
   const completedToday = habit.completions.includes(today)
@@ -78,13 +81,22 @@ export function HabitCard({ habit }: { habit: Habit }) {
             </span>
           </div>
         </div>
-        <button
-          onClick={() => deleteHabit(habit.id)}
-          className="opacity-0 group-hover:opacity-100 transition-opacity p-2 text-muted-foreground hover:text-[#FF4B4B] rounded-full hover:bg-[#FF4B4B]/10"
-          aria-label="Delete habit"
-        >
-          <Trash2 className="w-4 h-4" strokeWidth={2.5} />
-        </button>
+        <div className="flex items-center opacity-0 group-hover:opacity-100 transition-opacity">
+          <button
+            onClick={() => setEditOpen(true)}
+            className="p-2 text-muted-foreground hover:text-[#1CB0F6] rounded-full hover:bg-[#1CB0F6]/10 transition-colors"
+            aria-label="Edit habit"
+          >
+            <Pencil className="w-4 h-4" strokeWidth={2.5} />
+          </button>
+          <button
+            onClick={() => deleteHabit(habit.id)}
+            className="p-2 text-muted-foreground hover:text-[#FF4B4B] rounded-full hover:bg-[#FF4B4B]/10 transition-colors"
+            aria-label="Delete habit"
+          >
+            <Trash2 className="w-4 h-4" strokeWidth={2.5} />
+          </button>
+        </div>
       </div>
       <div className="flex items-center gap-2">
         <GameProgress value={percent} variant={isWeeklyMeta ? 'gold' : 'success'} height="sm" />
@@ -92,6 +104,7 @@ export function HabitCard({ habit }: { habit: Habit }) {
           {isWeeklyMeta ? `${current}/${goal}` : `${percent}%`}
         </span>
       </div>
+      <HabitForm editHabit={habit} hideTrigger open={editOpen} onOpenChange={setEditOpen} />
     </div>
   )
 }

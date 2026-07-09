@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import {
   Dialog,
   DialogContent,
@@ -16,50 +16,89 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { useAppStore } from '@/stores/useAppStore'
+import { useAppStore, Habit } from '@/stores/useAppStore'
 import { Plus, Shield } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 const DAYS = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb']
 const WEEKLY_GOALS = [1, 2, 3, 4, 5, 6, 7]
 
-export function HabitForm() {
-  const { tags, addHabit } = useAppStore()
-  const [open, setOpen] = useState(false)
+interface HabitFormProps {
+  editHabit?: Habit
+  open?: boolean
+  onOpenChange?: (open: boolean) => void
+  hideTrigger?: boolean
+}
+
+export function HabitForm({
+  editHabit,
+  open: controlledOpen,
+  onOpenChange,
+  hideTrigger,
+}: HabitFormProps) {
+  const { tags, addHabit, updateHabit } = useAppStore()
+  const [internalOpen, setInternalOpen] = useState(false)
+  const isControlled = controlledOpen !== undefined
+  const open = isControlled ? controlledOpen : internalOpen
+  const setOpen = (v: boolean) => {
+    if (isControlled) onOpenChange?.(v)
+    else setInternalOpen(v)
+  }
+
   const [title, setTitle] = useState('')
   const [tagId, setTagId] = useState(tags[0]?.id || '')
   const [frequency, setFrequency] = useState<'daily' | 'weekly'>('daily')
   const [weekDays, setWeekDays] = useState<number[]>([1, 3, 5])
   const [weeklyGoal, setWeeklyGoal] = useState(3)
 
-  const toggleDay = (day: number) => {
+  useEffect(() => {
+    if (editHabit && open) {
+      setTitle(editHabit.title)
+      setTagId(editHabit.tagId)
+      setFrequency(editHabit.frequency)
+      setWeekDays(editHabit.weekDays)
+      setWeeklyGoal(editHabit.weeklyGoal)
+    } else if (!open && !editHabit) {
+      setTitle('')
+      setTagId(tags[0]?.id || '')
+      setFrequency('daily')
+      setWeekDays([1, 3, 5])
+      setWeeklyGoal(3)
+    }
+  }, [editHabit, open])
+
+  const toggleDay = (day: number) =>
     setWeekDays((prev) => (prev.includes(day) ? prev.filter((d) => d !== day) : [...prev, day]))
-  }
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
     if (!title.trim()) return
-    addHabit({
+    const data = {
       title,
       tagId,
       frequency,
       weekDays: frequency === 'daily' ? [] : weekDays,
       weeklyGoal: frequency === 'weekly' ? weeklyGoal : 0,
-    })
-    setTitle('')
+    }
+    if (editHabit) updateHabit(editHabit.id, data)
+    else addHabit(data)
     setOpen(false)
   }
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        <GameButton variant="outline" size="md" className="gap-2">
-          <Plus className="w-5 h-5" strokeWidth={2.5} /> Novo Hábito
-        </GameButton>
-      </DialogTrigger>
+      {!hideTrigger && (
+        <DialogTrigger asChild>
+          <GameButton variant="outline" size="md" className="gap-2">
+            <Plus className="w-5 h-5" strokeWidth={2.5} /> {editHabit ? 'Editar' : 'Novo'} Hábito
+          </GameButton>
+        </DialogTrigger>
+      )}
       <DialogContent className="sm:max-w-[425px] rounded-3xl">
         <DialogHeader>
-          <DialogTitle className="text-2xl font-extrabold">Criar Hábito</DialogTitle>
+          <DialogTitle className="text-2xl font-extrabold">
+            {editHabit ? 'Editar Hábito' : 'Criar Hábito'}
+          </DialogTitle>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-6 mt-4">
           <div className="space-y-2">
@@ -160,15 +199,17 @@ export function HabitForm() {
               </div>
             </>
           )}
-          <div className="flex items-center gap-2 p-3 rounded-2xl bg-[#1CB0F6]/10">
-            <Shield className="w-5 h-5 text-[#1CB0F6] shrink-0" strokeWidth={2.5} />
-            <p className="text-xs font-semibold text-muted-foreground">
-              Você começa com <span className="text-[#1CB0F6] font-bold">2 Escudos</span> de
-              proteção de streak.
-            </p>
-          </div>
+          {!editHabit && (
+            <div className="flex items-center gap-2 p-3 rounded-2xl bg-[#1CB0F6]/10">
+              <Shield className="w-5 h-5 text-[#1CB0F6] shrink-0" strokeWidth={2.5} />
+              <p className="text-xs font-semibold text-muted-foreground">
+                Você começa com <span className="text-[#1CB0F6] font-bold">2 Escudos</span> de
+                proteção de streak.
+              </p>
+            </div>
+          )}
           <GameButton type="submit" variant="gold" size="lg" className="w-full">
-            Criar Hábito
+            {editHabit ? 'Salvar' : 'Criar Hábito'}
           </GameButton>
         </form>
       </DialogContent>

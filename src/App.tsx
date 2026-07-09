@@ -9,7 +9,7 @@ import { FocusRadarProvider } from '@/components/focus-radar/focus-radar-provide
 import Layout from './components/Layout'
 import NotFound from './pages/NotFound'
 import Dashboard from './pages/Dashboard'
-import Tasks from './pages/Tasks'
+import Tasks from './pages/TasksAndHabits'
 import Analytics from './pages/Analytics'
 import Settings from './pages/Settings'
 import Health from './pages/Health'

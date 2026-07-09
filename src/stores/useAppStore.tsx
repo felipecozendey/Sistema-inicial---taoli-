@@ -111,18 +111,33 @@ interface AppState {
   addTask: (t: NewTask) => void
   toggleTask: (id: string) => void
   deleteTask: (id: string) => void
+  updateTask: (id: string, updates: Partial<NewTask>) => void
   toggleSubtask: (taskId: string, subtaskId: string) => void
   addHabit: (h: NewHabit) => void
   toggleHabitCompletion: (id: string, date: string) => void
   deleteHabit: (id: string) => void
+  updateHabit: (id: string, updates: Partial<NewHabit>) => void
   addHydrationLog: (date: string, amount: number) => void
   deleteHydrationLog: (id: string) => void
+  updateHydrationLog: (id: string, updates: Partial<Pick<HydrationLog, 'amount' | 'date'>>) => void
   addMoodLog: (date: string, moodLevel: MoodLevel, note: string, tagId: string) => void
   deleteMoodLog: (id: string) => void
+  updateMoodLog: (
+    id: string,
+    updates: Partial<Pick<MoodLog, 'moodLevel' | 'note' | 'tagId' | 'date'>>,
+  ) => void
   addDigestionLog: (date: string, bristolType: BowelType, note: string) => void
   deleteDigestionLog: (id: string) => void
+  updateDigestionLog: (
+    id: string,
+    updates: Partial<Pick<DigestionLog, 'bristolType' | 'note' | 'date'>>,
+  ) => void
   addUrineLog: (date: string, colorType: number, note: string) => void
   deleteUrineLog: (id: string) => void
+  updateUrineLog: (
+    id: string,
+    updates: Partial<Pick<UrineLog, 'colorType' | 'note' | 'date'>>,
+  ) => void
   setWaterGoal: (goal: number) => void
   updateHealthRecord: (date: string, updates: Partial<HealthRecord>) => void
   getHealthRecord: (date: string) => HealthRecord
@@ -520,6 +535,22 @@ export const AppStoreProvider = ({ children }: { children: ReactNode }) => {
   const toggleTask = (id: string) =>
     setTasks((p) => p.map((t) => (t.id === id ? { ...t, completed: !t.completed } : t)))
   const deleteTask = (id: string) => setTasks((p) => p.filter((t) => t.id !== id))
+  const updateTask = (id: string, updates: Partial<NewTask>) =>
+    setTasks((p) =>
+      p.map((t) => {
+        if (t.id !== id) return t
+        const energyLevel = updates.energyLevel ?? t.energyLevel
+        const priority: Priority = energyLevel === 1 ? 'low' : energyLevel === 2 ? 'medium' : 'high'
+        const subtasks = updates.subtasks
+          ? updates.subtasks.map((s) => ({
+              id: s.id || genId(),
+              title: s.title,
+              completed: s.completed || false,
+            }))
+          : t.subtasks
+        return { ...t, ...updates, energyLevel, priority, subtasks }
+      }),
+    )
   const toggleSubtask = (taskId: string, subtaskId: string) =>
     setTasks((p) =>
       p.map((t) =>
@@ -547,18 +578,36 @@ export const AppStoreProvider = ({ children }: { children: ReactNode }) => {
       }),
     )
   const deleteHabit = (id: string) => setHabits((p) => p.filter((h) => h.id !== id))
+  const updateHabit = (id: string, updates: Partial<NewHabit>) =>
+    setHabits((p) => p.map((h) => (h.id === id ? { ...h, ...updates } : h)))
   const addHydrationLog = (date: string, amount: number) =>
     setHydrationLogs((p) => [...p, { id: genId(), date, amount, timestamp: nowIso() }])
   const deleteHydrationLog = (id: string) => setHydrationLogs((p) => p.filter((l) => l.id !== id))
+  const updateHydrationLog = (
+    id: string,
+    updates: Partial<Pick<HydrationLog, 'amount' | 'date'>>,
+  ) => setHydrationLogs((p) => p.map((l) => (l.id === id ? { ...l, ...updates } : l)))
   const addMoodLog = (date: string, moodLevel: MoodLevel, note: string, tagId: string) =>
     setMoodLogs((p) => [...p, { id: genId(), date, moodLevel, note, tagId, timestamp: nowIso() }])
   const deleteMoodLog = (id: string) => setMoodLogs((p) => p.filter((l) => l.id !== id))
+  const updateMoodLog = (
+    id: string,
+    updates: Partial<Pick<MoodLog, 'moodLevel' | 'note' | 'tagId' | 'date'>>,
+  ) => setMoodLogs((p) => p.map((l) => (l.id === id ? { ...l, ...updates } : l)))
   const addDigestionLog = (date: string, bristolType: BowelType, note: string) =>
     setDigestionLogs((p) => [...p, { id: genId(), date, bristolType, note, timestamp: nowIso() }])
   const deleteDigestionLog = (id: string) => setDigestionLogs((p) => p.filter((l) => l.id !== id))
+  const updateDigestionLog = (
+    id: string,
+    updates: Partial<Pick<DigestionLog, 'bristolType' | 'note' | 'date'>>,
+  ) => setDigestionLogs((p) => p.map((l) => (l.id === id ? { ...l, ...updates } : l)))
   const addUrineLog = (date: string, colorType: number, note: string) =>
     setUrineLogs((p) => [...p, { id: genId(), date, colorType, note, timestamp: nowIso() }])
   const deleteUrineLog = (id: string) => setUrineLogs((p) => p.filter((l) => l.id !== id))
+  const updateUrineLog = (
+    id: string,
+    updates: Partial<Pick<UrineLog, 'colorType' | 'note' | 'date'>>,
+  ) => setUrineLogs((p) => p.map((l) => (l.id === id ? { ...l, ...updates } : l)))
   const setWaterGoal = (goal: number) => setUser((p) => ({ ...p, waterGoal: goal }))
   const updateFocusRadar = (settings: Partial<FocusRadarSettings>) =>
     setFocusRadar((p) => ({ ...p, ...settings }))
@@ -609,18 +658,24 @@ export const AppStoreProvider = ({ children }: { children: ReactNode }) => {
     addTask,
     toggleTask,
     deleteTask,
+    updateTask,
     toggleSubtask,
     addHabit,
     toggleHabitCompletion,
     deleteHabit,
+    updateHabit,
     addHydrationLog,
     deleteHydrationLog,
+    updateHydrationLog,
     addMoodLog,
     deleteMoodLog,
+    updateMoodLog,
     addDigestionLog,
     deleteDigestionLog,
+    updateDigestionLog,
     addUrineLog,
     deleteUrineLog,
+    updateUrineLog,
     setWaterGoal,
     updateHealthRecord,
     getHealthRecord,
