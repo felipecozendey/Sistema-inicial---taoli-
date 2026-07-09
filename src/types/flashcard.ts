@@ -3,9 +3,8 @@ export type ReviewFeedback = 'AGAIN' | 'HARD' | 'GOOD'
 export interface Deck {
   id: string
   title: string
-  icon: string
+  emoji: string
   color: string
-  tagId: string | null
 }
 
 export interface Flashcard {
@@ -14,7 +13,7 @@ export interface Flashcard {
   noteId: string | null
   front: string
   back: string
-  nextReviewDate: number
+  nextReviewDate: string
   interval: number
   easeFactor: number
 }

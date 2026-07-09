@@ -1,6 +1,10 @@
 import type { Notebook, Note } from '@/stores/useStudiesStore'
+import type { Deck, Flashcard } from '@/types/flashcard'
 
 const now = Date.now()
+const todayIso = new Date(now).toISOString()
+const yesterdayIso = new Date(now - 86400000).toISOString()
+const tomorrowIso = new Date(now + 86400000).toISOString()
 
 export const mockNotebooks: Notebook[] = [
   { id: 'nb1', title: 'Mindset & Produtividade', emoji: '🧠', coverColor: '#1CB0F6' },
@@ -61,5 +65,74 @@ export const mockNotes: Note[] = [
     tags: ['leitura', 'resumo'],
     linkedNoteIds: ['n1', 'n2'],
     lastEdited: new Date(now).toISOString(),
+  },
+]
+
+export const mockDecks: Deck[] = [
+  { id: 'deck1', title: 'Hábitos & Produtividade', emoji: '🧠', color: '#1CB0F6' },
+  { id: 'deck2', title: 'Mindset & Psicologia', emoji: '🌱', color: '#58CC02' },
+  { id: 'deck3', title: 'Leituras', emoji: '📚', color: '#CE82FF' },
+]
+
+export const mockFlashcards: Flashcard[] = [
+  {
+    id: 'fc1',
+    deckId: 'deck1',
+    noteId: 'n1',
+    front: 'Qual o princípio do 1% melhor a cada dia?',
+    back: 'Pequenos hábitos consistentes geram grandes resultados compostos ao longo do tempo.',
+    nextReviewDate: todayIso,
+    interval: 0,
+    easeFactor: 2.5,
+  },
+  {
+    id: 'fc2',
+    deckId: 'deck1',
+    noteId: 'n2',
+    front: 'Qual é o loop do hábito?',
+    back: 'Gatilho → Rotina → Recompensa',
+    nextReviewDate: todayIso,
+    interval: 2,
+    easeFactor: 2.5,
+  },
+  {
+    id: 'fc3',
+    deckId: 'deck1',
+    noteId: 'n4',
+    front: 'Como funciona a Técnica Pomodoro?',
+    back: '25 minutos de foco seguidos de 5 minutos de descanso.',
+    nextReviewDate: yesterdayIso,
+    interval: 3,
+    easeFactor: 2.6,
+  },
+  {
+    id: 'fc4',
+    deckId: 'deck2',
+    noteId: 'n3',
+    front: 'O que é Growth Mindset?',
+    back: 'Acreditar que habilidades podem ser desenvolvidas com esforço e dedicação.',
+    nextReviewDate: todayIso,
+    interval: 0,
+    easeFactor: 2.5,
+  },
+  {
+    id: 'fc5',
+    deckId: 'deck2',
+    noteId: null,
+    front: 'O que é o efeito Dunning-Kruger?',
+    back: 'Tendência de pessoas com baixa habilidade superestimarem sua competência.',
+    nextReviewDate: tomorrowIso,
+    interval: 5,
+    easeFactor: 2.7,
+  },
+  {
+    id: 'fc6',
+    deckId: 'deck3',
+    noteId: 'n5',
+    front: 'Qual a ideia central de "O Poder do Hábito"?',
+    back: 'Hábitos moldam destinos através de loops automáticos no cérebro.',
+    nextReviewDate: todayIso,
+    interval: 1,
+    easeFactor: 2.5,
   },
 ]
