@@ -20,7 +20,7 @@ export function Sidebar() {
   const location = useLocation()
 
   return (
-    <aside className="hidden md:flex flex-col w-64 h-screen fixed left-0 top-0 border-r bg-card px-4 py-6 z-40">
+    <aside className="hidden md:flex flex-col w-64 h-screen fixed left-0 top-0 border-r bg-card px-4 py-6 z-40 print:hidden">
       <div className="flex items-center gap-3 px-2 mb-10 text-primary">
         <Sparkles className="w-8 h-8" strokeWidth={1.5} />
         <span className="font-bold text-xl tracking-tight text-foreground">Zenith</span>

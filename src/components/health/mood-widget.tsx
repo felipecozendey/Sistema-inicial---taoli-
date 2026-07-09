@@ -108,7 +108,8 @@ export function MoodWidget() {
 
       {todayLogs.length > 0 && (
         <div className="space-y-2 mt-1">
-          {todayLogs.map((log) => {
+          {(() => {
+            const log = todayLogs[0]
             const mood = MOODS.find((m) => m.level === log.moodLevel)
             const tag = tags.find((t) => t.id === log.tagId)
             return (
@@ -146,7 +147,12 @@ export function MoodWidget() {
                 </div>
               </div>
             )
-          })}
+          })()}
+          {todayLogs.length > 1 && (
+            <p className="text-xs font-semibold text-muted-foreground text-center">
+              Ver histórico completo na aba ao lado
+            </p>
+          )}
         </div>
       )}
     </div>

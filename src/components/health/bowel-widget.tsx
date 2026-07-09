@@ -126,7 +126,8 @@ export function BowelWidget() {
 
       {todayLogs.length > 0 && (
         <div className="space-y-2 mt-1">
-          {todayLogs.map((log) => {
+          {(() => {
+            const log = todayLogs[0]
             const item = BRISTOL_TYPES.find((b) => b.type === log.bristolType)
             return (
               <div
@@ -153,7 +154,12 @@ export function BowelWidget() {
                 </div>
               </div>
             )
-          })}
+          })()}
+          {todayLogs.length > 1 && (
+            <p className="text-xs font-semibold text-muted-foreground text-center">
+              Ver histórico completo na aba ao lado
+            </p>
+          )}
         </div>
       )}
     </div>

@@ -22,6 +22,14 @@ export type DigestionLog = {
   timestamp: string
 }
 
+export type UrineLog = {
+  id: string
+  date: string
+  colorType: number
+  note: string
+  timestamp: string
+}
+
 export type HealthRecord = {
   date: string
   hydration: number
@@ -47,7 +55,7 @@ export type Habit = {
   tagId: string
   completions: string[]
 }
-export type User = { name: string; avatar: string; dailyGoal: number }
+export type User = { name: string; avatar: string; dailyGoal: number; waterGoal: number }
 
 interface AppState {
   user: User
@@ -57,6 +65,7 @@ interface AppState {
   hydrationLogs: HydrationLog[]
   moodLogs: MoodLog[]
   digestionLogs: DigestionLog[]
+  urineLogs: UrineLog[]
   healthRecords: Record<string, HealthRecord>
   updateUser: (u: Partial<User>) => void
   addTag: (name: string, color: string) => void
@@ -74,6 +83,9 @@ interface AppState {
   deleteMoodLog: (id: string) => void
   addDigestionLog: (date: string, bristolType: BowelType, note: string) => void
   deleteDigestionLog: (id: string) => void
+  addUrineLog: (date: string, colorType: number, note: string) => void
+  deleteUrineLog: (id: string) => void
+  setWaterGoal: (goal: number) => void
   updateHealthRecord: (date: string, updates: Partial<HealthRecord>) => void
   getHealthRecord: (date: string) => HealthRecord
 }
@@ -159,6 +171,26 @@ function genDigestionMock(): DigestionLog[] {
   return logs
 }
 
+function genUrineMock(): UrineLog[] {
+  const logs: UrineLog[] = []
+  const types = [2, 2, 3, 1, 2, 3, 2]
+  for (let i = 0; i < 7; i++) {
+    const d = new Date()
+    d.setDate(d.getDate() - i)
+    const ds = d.toISOString().split('T')[0]
+    const ts = new Date(d)
+    ts.setHours(10, 0, 0, 0)
+    logs.push({
+      id: `ul${i}`,
+      date: ds,
+      colorType: types[i],
+      note: '',
+      timestamp: ts.toISOString(),
+    })
+  }
+  return logs
+}
+
 const initialTags: Tag[] = [
   { id: '1', name: 'Saúde', color: '#10b981' },
   { id: '2', name: 'Trabalho', color: '#3b82f6' },
@@ -226,7 +258,9 @@ const initialHabits: Habit[] = [
 export const AppStoreProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<User>(() => {
     const s = localStorage.getItem('vt_user')
-    return s ? JSON.parse(s) : { name: 'Viajante', avatar: '', dailyGoal: 5 }
+    return s
+      ? { waterGoal: 2000, ...JSON.parse(s) }
+      : { name: 'Viajante', avatar: '', dailyGoal: 5, waterGoal: 2000 }
   })
   const [tags, setTags] = useState<Tag[]>(() => {
     const s = localStorage.getItem('vt_tags')
@@ -252,6 +286,10 @@ export const AppStoreProvider = ({ children }: { children: ReactNode }) => {
     const s = localStorage.getItem('vt_digestion_logs')
     return s ? JSON.parse(s) : genDigestionMock()
   })
+  const [urineLogs, setUrineLogs] = useState<UrineLog[]>(() => {
+    const s = localStorage.getItem('vt_urine_logs')
+    return s ? JSON.parse(s) : genUrineMock()
+  })
 
   useEffect(() => {
     localStorage.setItem('vt_user', JSON.stringify(user))
@@ -274,6 +312,9 @@ export const AppStoreProvider = ({ children }: { children: ReactNode }) => {
   useEffect(() => {
     localStorage.setItem('vt_digestion_logs', JSON.stringify(digestionLogs))
   }, [digestionLogs])
+  useEffect(() => {
+    localStorage.setItem('vt_urine_logs', JSON.stringify(urineLogs))
+  }, [urineLogs])
 
   const healthRecords = useMemo(() => {
     const result: Record<string, HealthRecord> = {}
@@ -339,6 +380,10 @@ export const AppStoreProvider = ({ children }: { children: ReactNode }) => {
   const addDigestionLog = (date: string, bristolType: BowelType, note: string) =>
     setDigestionLogs((p) => [...p, { id: genId(), date, bristolType, note, timestamp: nowIso() }])
   const deleteDigestionLog = (id: string) => setDigestionLogs((p) => p.filter((l) => l.id !== id))
+  const addUrineLog = (date: string, colorType: number, note: string) =>
+    setUrineLogs((p) => [...p, { id: genId(), date, colorType, note, timestamp: nowIso() }])
+  const deleteUrineLog = (id: string) => setUrineLogs((p) => p.filter((l) => l.id !== id))
+  const setWaterGoal = (goal: number) => setUser((p) => ({ ...p, waterGoal: goal }))
 
   const updateHealthRecord = (date: string, updates: Partial<HealthRecord>) => {
     if (updates.hydration !== undefined) {
@@ -380,6 +425,7 @@ export const AppStoreProvider = ({ children }: { children: ReactNode }) => {
     hydrationLogs,
     moodLogs,
     digestionLogs,
+    urineLogs,
     healthRecords,
     updateUser,
     addTag,
@@ -397,6 +443,9 @@ export const AppStoreProvider = ({ children }: { children: ReactNode }) => {
     deleteMoodLog,
     addDigestionLog,
     deleteDigestionLog,
+    addUrineLog,
+    deleteUrineLog,
+    setWaterGoal,
     updateHealthRecord,
     getHealthRecord,
   }

@@ -14,12 +14,13 @@ const MOOD_EMOJIS: Record<number, { emoji: string; label: string; color: string 
 const HYDRATION_GOAL = 2000
 
 export function HealthSummary() {
-  const { getHealthRecord } = useAppStore()
+  const { getHealthRecord, user } = useAppStore()
   const today = new Date().toISOString().split('T')[0]
   const record = getHealthRecord(today)
 
+  const hydrationGoal = user.waterGoal || HYDRATION_GOAL
   const hydration = record.hydration || 0
-  const hydrationPercent = Math.min(100, Math.round((hydration / HYDRATION_GOAL) * 100))
+  const hydrationPercent = Math.min(100, Math.round((hydration / hydrationGoal) * 100))
   const moodLevel = record.mood?.level || 3
   const moodInfo = MOOD_EMOJIS[moodLevel]
 

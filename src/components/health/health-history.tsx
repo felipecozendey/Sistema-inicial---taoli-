@@ -1,15 +1,16 @@
 import { useState, useMemo } from 'react'
-import { useAppStore, HydrationLog, MoodLog, DigestionLog } from '@/stores/useAppStore'
+import { useAppStore, HydrationLog, MoodLog, DigestionLog, UrineLog } from '@/stores/useAppStore'
 import { Calendar } from '@/components/ui/calendar'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
-import { Droplets, Trash2, CalendarIcon } from 'lucide-react'
+import { Trash2, CalendarIcon, FileDown } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
-type LogType = 'hydration' | 'mood' | 'digestion'
+type LogType = 'hydration' | 'mood' | 'digestion' | 'urine'
 type UnionLog =
   | (HydrationLog & { type: LogType })
   | (MoodLog & { type: LogType })
   | (DigestionLog & { type: LogType })
+  | (UrineLog & { type: LogType })
 
 const MOOD_EMOJIS: Record<number, { emoji: string; label: string }> = {
   1: { emoji: '😩', label: 'Péssimo' },
@@ -19,10 +20,20 @@ const MOOD_EMOJIS: Record<number, { emoji: string; label: string }> = {
   5: { emoji: '😄', label: 'Excelente' },
 }
 
+const URINE_LABELS: Record<number, { label: string; color: string }> = {
+  1: { label: 'Transparente', color: '#FFF9C4' },
+  2: { label: 'Amarelo Claro', color: '#FFF176' },
+  3: { label: 'Amarelo', color: '#FFEE58' },
+  4: { label: 'Amarelo Escuro', color: '#FBC02D' },
+  5: { label: 'Âmbar', color: '#EF6C00' },
+  6: { label: 'Marrom', color: '#6D4C41' },
+}
+
 const CATEGORY_LABELS: Record<LogType, string> = {
   hydration: 'Hidratação',
   mood: 'Humor',
   digestion: 'Digestão',
+  urine: 'Urina',
 }
 
 export function HealthHistory() {
@@ -30,10 +41,12 @@ export function HealthHistory() {
     hydrationLogs,
     moodLogs,
     digestionLogs,
+    urineLogs,
     tags,
     deleteHydrationLog,
     deleteMoodLog,
     deleteDigestionLog,
+    deleteUrineLog,
   } = useAppStore()
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(undefined)
   const [category, setCategory] = useState<'all' | LogType>('all')
@@ -44,9 +57,10 @@ export function HealthHistory() {
       ...hydrationLogs.map((l) => ({ ...l, type: 'hydration' as LogType })),
       ...moodLogs.map((l) => ({ ...l, type: 'mood' as LogType })),
       ...digestionLogs.map((l) => ({ ...l, type: 'digestion' as LogType })),
+      ...urineLogs.map((l) => ({ ...l, type: 'urine' as LogType })),
     ]
     return merged.sort((a, b) => b.timestamp.localeCompare(a.timestamp))
-  }, [hydrationLogs, moodLogs, digestionLogs])
+  }, [hydrationLogs, moodLogs, digestionLogs, urineLogs])
 
   const filteredLogs = allLogs.filter((log) => {
     if (selectedDate && log.date !== selectedDate.toISOString().split('T')[0]) return false
@@ -57,7 +71,8 @@ export function HealthHistory() {
   const handleDelete = (log: UnionLog) => {
     if (log.type === 'hydration') deleteHydrationLog(log.id)
     else if (log.type === 'mood') deleteMoodLog(log.id)
-    else deleteDigestionLog(log.id)
+    else if (log.type === 'digestion') deleteDigestionLog(log.id)
+    else deleteUrineLog(log.id)
   }
 
   const renderLogContent = (log: UnionLog) => {
@@ -74,6 +89,15 @@ export function HealthHistory() {
         tag,
       }
     }
+    if (log.type === 'urine') {
+      const urine = URINE_LABELS[log.colorType]
+      return {
+        icon: '🧪',
+        title: `Urina: ${urine?.label || 'Tipo ' + log.colorType}`,
+        color: '#FFC800',
+        note: log.note,
+      }
+    }
     return {
       icon: '🚽',
       title: `Digestão: Tipo ${log.bristolType}`,
@@ -82,11 +106,23 @@ export function HealthHistory() {
     }
   }
 
-  const categoryOptions: ('all' | LogType)[] = ['all', 'hydration', 'mood', 'digestion']
+  const categoryOptions: ('all' | LogType)[] = ['all', 'hydration', 'mood', 'digestion', 'urine']
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-col sm:flex-row gap-3">
+      <div className="hidden print:block mb-6">
+        <h1 className="text-2xl font-extrabold">Relatório de Saúde</h1>
+        <p className="text-sm text-muted-foreground">
+          Gerado em{' '}
+          {new Date().toLocaleDateString('pt-BR', {
+            day: '2-digit',
+            month: 'long',
+            year: 'numeric',
+          })}
+        </p>
+      </div>
+
+      <div className="flex flex-col sm:flex-row gap-3 print:hidden">
         <Popover open={calendarOpen} onOpenChange={setCalendarOpen}>
           <PopoverTrigger asChild>
             <button className="flex items-center gap-2 px-4 py-2.5 rounded-2xl border-2 border-b-4 border-[#E5E5E5] dark:border-[#3B4A55] bg-card font-bold text-sm hover:bg-muted/50 transition-colors">
@@ -134,11 +170,18 @@ export function HealthHistory() {
             </button>
           ))}
         </div>
+
+        <button
+          onClick={() => window.print()}
+          className="ml-auto flex items-center gap-2 px-5 py-2.5 rounded-2xl bg-[#58CC02] text-white font-extrabold border-b-4 border-[#46A302] active:translate-y-1 active:border-b-0 transition-all duration-150"
+        >
+          <FileDown className="w-4 h-4" strokeWidth={2.5} /> Exportar Relatório em PDF
+        </button>
       </div>
 
       <div className="space-y-2">
         {filteredLogs.length === 0 ? (
-          <div className="text-center py-12 text-muted-foreground font-semibold">
+          <div className="text-center py-12 text-muted-foreground font-semibold print:hidden">
             Nenhum registro encontrado.
           </div>
         ) : (
@@ -155,7 +198,7 @@ export function HealthHistory() {
             return (
               <div
                 key={`${log.type}-${log.id}`}
-                className="flex items-center gap-3 bg-card border-2 border-b-4 border-[#E5E5E5] dark:border-[#3B4A55] rounded-2xl p-4"
+                className="flex items-center gap-3 bg-card border-2 border-b-4 border-[#E5E5E5] dark:border-[#3B4A55] rounded-2xl p-4 print:border print:border-b print:border-gray-300"
               >
                 <div
                   className="w-10 h-10 rounded-xl flex items-center justify-center text-xl shrink-0"
@@ -166,7 +209,7 @@ export function HealthHistory() {
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
                     <span className="text-sm font-extrabold">{content.title}</span>
-                    <span className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground bg-muted/50 px-2 py-0.5 rounded-full">
+                    <span className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground bg-muted/50 px-2 py-0.5 rounded-full print:bg-transparent print:border print:border-gray-400">
                       {CATEGORY_LABELS[log.type]}
                     </span>
                   </div>
@@ -188,7 +231,7 @@ export function HealthHistory() {
                   </div>
                   <button
                     onClick={() => handleDelete(log)}
-                    className="p-1.5 hover:bg-[#FF4B4B]/10 hover:text-[#FF4B4B] rounded-full transition-colors"
+                    className="p-1.5 hover:bg-[#FF4B4B]/10 hover:text-[#FF4B4B] rounded-full transition-colors print:hidden"
                   >
                     <Trash2 className="w-4 h-4" strokeWidth={2.5} />
                   </button>

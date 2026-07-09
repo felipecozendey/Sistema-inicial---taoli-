@@ -14,7 +14,7 @@ export function BottomNav() {
   const location = useLocation()
 
   return (
-    <nav className="md:hidden fixed bottom-0 left-0 right-0 h-16 bg-card border-t flex items-center justify-around px-1 pb-safe z-40">
+    <nav className="md:hidden fixed bottom-0 left-0 right-0 h-16 bg-card border-t flex items-center justify-around px-1 pb-safe z-40 print:hidden">
       {navItems.map((item) => {
         const isActive = location.pathname === item.path
         return (
