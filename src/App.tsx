@@ -15,32 +15,37 @@ import Analytics from './pages/Analytics'
 import Settings from './pages/Settings'
 import Profile from './pages/Profile'
 import Health from './pages/Health'
+import Studies from './pages/Studies'
+import { StudiesStoreProvider } from '@/stores/useStudiesStore'
 
 const App = () => {
   useServiceWorker()
   return (
     <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
       <AppStoreProvider>
-        <FocusRadarProvider>
-          <BrowserRouter>
-            <TooltipProvider>
-              <Toaster />
-              <Sonner />
-              <Routes>
-                <Route element={<Layout />}>
-                  <Route path="/" element={<Navigate to="/dashboard" replace />} />
-                  <Route path="/dashboard" element={<Dashboard />} />
-                  <Route path="/tasks" element={<Tasks />} />
-                  <Route path="/health" element={<Health />} />
-                  <Route path="/analytics" element={<Analytics />} />
-                  <Route path="/profile" element={<Profile />} />
-                  <Route path="/settings" element={<Settings />} />
-                </Route>
-                <Route path="*" element={<NotFound />} />
-              </Routes>
-            </TooltipProvider>
-          </BrowserRouter>
-        </FocusRadarProvider>
+        <StudiesStoreProvider>
+          <FocusRadarProvider>
+            <BrowserRouter>
+              <TooltipProvider>
+                <Toaster />
+                <Sonner />
+                <Routes>
+                  <Route element={<Layout />}>
+                    <Route path="/" element={<Navigate to="/dashboard" replace />} />
+                    <Route path="/dashboard" element={<Dashboard />} />
+                    <Route path="/tasks" element={<Tasks />} />
+                    <Route path="/health" element={<Health />} />
+                    <Route path="/studies" element={<Studies />} />
+                    <Route path="/analytics" element={<Analytics />} />
+                    <Route path="/profile" element={<Profile />} />
+                    <Route path="/settings" element={<Settings />} />
+                  </Route>
+                  <Route path="*" element={<NotFound />} />
+                </Routes>
+              </TooltipProvider>
+            </BrowserRouter>
+          </FocusRadarProvider>
+        </StudiesStoreProvider>
       </AppStoreProvider>
     </ThemeProvider>
   )

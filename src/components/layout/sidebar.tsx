@@ -7,6 +7,7 @@ import {
   Sparkles,
   HeartPulse,
   UserCircle,
+  GraduationCap,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
@@ -14,6 +15,7 @@ const navItems = [
   { icon: LayoutDashboard, label: 'Dashboard', path: '/dashboard' },
   { icon: CheckSquare, label: 'Tarefas', path: '/tasks' },
   { icon: HeartPulse, label: 'Saúde', path: '/health' },
+  { icon: GraduationCap, label: 'Estudos', path: '/studies' },
   { icon: BarChart2, label: 'Relatórios', path: '/analytics' },
   { icon: UserCircle, label: 'Perfil', path: '/profile' },
 ]
