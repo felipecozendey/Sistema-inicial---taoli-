@@ -202,7 +202,12 @@ interface AppState {
   updateHealthRecord: (date: string, updates: Partial<HealthRecord>) => void
   getHealthRecord: (date: string) => HealthRecord
   updateFocusRadar: (settings: Partial<FocusRadarSettings>) => void
-  addMealLog: (date: string, mealType: MealType, quality: MealQuality, items: Record<string, boolean>) => void
+  addMealLog: (
+    date: string,
+    mealType: MealType,
+    quality: MealQuality,
+    items: Record<string, boolean>,
+  ) => void
   deleteMealLog: (id: string) => void
   fetchMealLogs: () => Promise<void>
   addWorkoutRoutine: (title: string, exercises: WorkoutExercise[]) => void
@@ -735,8 +740,7 @@ export const AppStoreProvider = ({ children }: { children: ReactNode }) => {
     updates: Partial<Pick<UrineLog, 'colorType' | 'note' | 'date'>>,
   ) => setUrineLogs((p) => p.map((l) => (l.id === id ? { ...l, ...updates } : l)))
   const setWaterGoal = (goal: number) => setUser((p) => ({ ...p, waterGoal: goal }))
-  const addCoins = (amount: number) =>
-    setUser((p) => ({ ...p, coins: (p.coins || 0) + amount }))
+  const addCoins = (amount: number) => setUser((p) => ({ ...p, coins: (p.coins || 0) + amount }))
   const addMealLog = (
     date: string,
     mealType: MealType,
@@ -744,10 +748,7 @@ export const AppStoreProvider = ({ children }: { children: ReactNode }) => {
     items: Record<string, boolean>,
   ) => {
     const log: MealLog = { id: genId(), date, mealType, quality, items, timestamp: nowIso() }
-    setMealLogs((p) => [
-      ...p.filter((l) => !(l.date === date && l.mealType === mealType)),
-      log,
-    ])
+    setMealLogs((p) => [...p.filter((l) => !(l.date === date && l.mealType === mealType)), log])
     supabase.auth.getUser().then(({ data: { user: u } }) => {
       if (u)
         (supabase as any)
@@ -758,7 +759,9 @@ export const AppStoreProvider = ({ children }: { children: ReactNode }) => {
   }
   const deleteMealLog = (id: string) => setMealLogs((p) => p.filter((l) => l.id !== id))
   const fetchMealLogs = async () => {
-    const { data: { user: authUser } } = await supabase.auth.getUser()
+    const {
+      data: { user: authUser },
+    } = await supabase.auth.getUser()
     if (!authUser) return
     const { data } = await (supabase as any)
       .from('meal_logs')
@@ -791,7 +794,9 @@ export const AppStoreProvider = ({ children }: { children: ReactNode }) => {
   const deleteWorkoutRoutine = (id: string) =>
     setWorkoutRoutines((p) => p.filter((r) => r.id !== id))
   const fetchWorkoutRoutines = async () => {
-    const { data: { user: authUser } } = await supabase.auth.getUser()
+    const {
+      data: { user: authUser },
+    } = await supabase.auth.getUser()
     if (!authUser) return
     const { data } = await (supabase as any)
       .from('workout_routines')
@@ -834,11 +839,24 @@ export const AppStoreProvider = ({ children }: { children: ReactNode }) => {
       supabase.from('flashcards').delete().neq('id', '00000000-0000-0000-0000-000000000000'),
       supabase.from('decks').delete().neq('id', '00000000-0000-0000-0000-000000000000'),
       supabase.from('notes').delete().neq('id', '00000000-0000-0000-0000-000000000000'),
-      (supabase as any).from('meal_logs').delete().neq('id', '00000000-0000-0000-0000-000000000000'),
-      (supabase as any).from('workout_routines').delete().neq('id', '00000000-0000-0000-0000-000000000000'),
-      (supabase as any).from('workout_history').delete().neq('id', '00000000-0000-0000-0000-000000000000'),
-      (supabase as any).from('personal_records').delete().neq('id', '00000000-0000-0000-0000-000000000000'),
-    ])    localStorage.clear()
+      (supabase as any)
+        .from('meal_logs')
+        .delete()
+        .neq('id', '00000000-0000-0000-0000-000000000000'),
+      (supabase as any)
+        .from('workout_routines')
+        .delete()
+        .neq('id', '00000000-0000-0000-0000-000000000000'),
+      (supabase as any)
+        .from('workout_history')
+        .delete()
+        .neq('id', '00000000-0000-0000-0000-000000000000'),
+      (supabase as any)
+        .from('personal_records')
+        .delete()
+        .neq('id', '00000000-0000-0000-0000-000000000000'),
+    ])
+    localStorage.clear()
     window.location.href = '/'
   }
   const updateHealthRecord = (date: string, updates: Partial<HealthRecord>) => {
