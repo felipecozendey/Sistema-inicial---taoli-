@@ -93,6 +93,25 @@ export type PersonalRecord = {
   squat: string
   runTime: string
 }
+export type BodyMetric = {
+  id: string
+  date: string
+  weight: number
+  bodyFatPercentage: number
+  muscleMass: number
+  measurements: Record<string, number>
+  photoUrls: string[]
+}
+export type PatientGoal = {
+  targetWeight: number
+  targetBodyFat: number
+}
+export type MedicalExam = {
+  id: string
+  date: string
+  title: string
+  fileUrl: string
+}
 export type Tag = { id: string; name: string; color: string }
 export type Task = {
   id: string
@@ -163,6 +182,9 @@ interface AppState {
   workoutRoutines: WorkoutRoutine[]
   workoutHistory: WorkoutHistory[]
   personalRecords: PersonalRecord
+  bodyMetrics: BodyMetric[]
+  patientGoals: PatientGoal
+  medicalExams: MedicalExam[]
   focusRadar: FocusRadarSettings
   updateUser: (u: Partial<User>) => void
   addTag: (name: string, color: string) => void
@@ -216,6 +238,13 @@ interface AppState {
   addWorkoutHistory: (routineId: string, data: Record<string, any>) => void
   completeWorkoutSet: () => void
   updatePersonalRecords: (updates: Partial<PersonalRecord>) => void
+  fetchBodyMetrics: () => Promise<void>
+  addBodyMetric: (metric: Omit<BodyMetric, 'id'>) => void
+  fetchPatientGoals: () => Promise<void>
+  updatePatientGoals: (updates: Partial<PatientGoal>) => void
+  fetchMedicalExams: () => Promise<void>
+  addMedicalExam: (title: string, fileUrl: string) => void
+  deleteMedicalExam: (id: string) => void
   addCoins: (amount: number) => void
   offlineQueue: OfflineAction[]
   addToOfflineQueue: (action: OfflineAction) => void
@@ -323,6 +352,50 @@ function genUrineMock(): UrineLog[] {
   }
   return logs
 }
+
+const initialBodyMetrics: BodyMetric[] = [
+  {
+    id: 'bm1',
+    date: '2026-06-10',
+    weight: 85,
+    bodyFatPercentage: 22,
+    muscleMass: 62,
+    measurements: { waist: 92, hip: 98, chest: 100 },
+    photoUrls: [],
+  },
+  {
+    id: 'bm2',
+    date: '2026-06-20',
+    weight: 83.5,
+    bodyFatPercentage: 21,
+    muscleMass: 63,
+    measurements: { waist: 90, hip: 97, chest: 99 },
+    photoUrls: [],
+  },
+  {
+    id: 'bm3',
+    date: '2026-06-30',
+    weight: 82,
+    bodyFatPercentage: 19.5,
+    muscleMass: 64,
+    measurements: { waist: 88, hip: 96, chest: 98 },
+    photoUrls: ['https://img.usecurling.com/p/400/500?q=before%20fitness&dpr=2'],
+  },
+  {
+    id: 'bm4',
+    date: '2026-07-08',
+    weight: 81,
+    bodyFatPercentage: 18,
+    muscleMass: 64.5,
+    measurements: { waist: 86, hip: 95, chest: 97 },
+    photoUrls: ['https://img.usecurling.com/p/400/500?q=after%20fitness&dpr=2'],
+  },
+]
+const initialPatientGoals: PatientGoal = { targetWeight: 75, targetBodyFat: 15 }
+const initialMedicalExams: MedicalExam[] = [
+  { id: 'me1', date: '2026-06-15', title: 'Hemograma Completo', fileUrl: '' },
+  { id: 'me2', date: '2026-07-01', title: 'Check-up Cardiológico', fileUrl: '' },
+]
 
 const initialTags: Tag[] = [
   { id: '1', name: 'Saúde', color: '#10b981' },
@@ -517,6 +590,18 @@ export const AppStoreProvider = ({ children }: { children: ReactNode }) => {
     const s = localStorage.getItem('vt_personal_records')
     return s ? JSON.parse(s) : { benchPress: '', squat: '', runTime: '' }
   })
+  const [bodyMetrics, setBodyMetrics] = useState<BodyMetric[]>(() => {
+    const s = localStorage.getItem('vt_body_metrics')
+    return s ? JSON.parse(s) : initialBodyMetrics
+  })
+  const [patientGoals, setPatientGoals] = useState<PatientGoal>(() => {
+    const s = localStorage.getItem('vt_patient_goals')
+    return s ? JSON.parse(s) : initialPatientGoals
+  })
+  const [medicalExams, setMedicalExams] = useState<MedicalExam[]>(() => {
+    const s = localStorage.getItem('vt_medical_exams')
+    return s ? JSON.parse(s) : initialMedicalExams
+  })
   const [focusRadar, setFocusRadar] = useState<FocusRadarSettings>(() => {
     const s = localStorage.getItem('vt_focus_radar')
     return s
@@ -571,6 +656,15 @@ export const AppStoreProvider = ({ children }: { children: ReactNode }) => {
   useEffect(() => {
     localStorage.setItem('vt_personal_records', JSON.stringify(personalRecords))
   }, [personalRecords])
+  useEffect(() => {
+    localStorage.setItem('vt_body_metrics', JSON.stringify(bodyMetrics))
+  }, [bodyMetrics])
+  useEffect(() => {
+    localStorage.setItem('vt_patient_goals', JSON.stringify(patientGoals))
+  }, [patientGoals])
+  useEffect(() => {
+    localStorage.setItem('vt_medical_exams', JSON.stringify(medicalExams))
+  }, [medicalExams])
   useEffect(() => {
     localStorage.setItem('vt_focus_radar', JSON.stringify(focusRadar))
   }, [focusRadar])
@@ -828,6 +922,119 @@ export const AppStoreProvider = ({ children }: { children: ReactNode }) => {
   const completeWorkoutSet = () => addCoins(2)
   const updatePersonalRecords = (updates: Partial<PersonalRecord>) =>
     setPersonalRecords((p) => ({ ...p, ...updates }))
+  const fetchBodyMetrics = async () => {
+    const {
+      data: { user: authUser },
+    } = await supabase.auth.getUser()
+    if (!authUser) return
+    const { data } = await (supabase as any)
+      .from('body_metrics')
+      .select('*')
+      .eq('user_id', authUser.id)
+      .order('date', { ascending: true })
+    if (data)
+      setBodyMetrics(
+        data.map((d: any) => ({
+          id: d.id,
+          date: (d.date || '').split('T')[0],
+          weight: d.weight || 0,
+          bodyFatPercentage: d.body_fat_percentage || 0,
+          muscleMass: d.muscle_mass || 0,
+          measurements: d.measurements || {},
+          photoUrls: d.photo_urls || [],
+        })),
+      )
+  }
+  const addBodyMetric = (metric: Omit<BodyMetric, 'id'>) => {
+    setBodyMetrics((p) => [...p, { ...metric, id: genId() }])
+    supabase.auth.getUser().then(({ data: { user: u } }) => {
+      if (u)
+        (supabase as any)
+          .from('body_metrics')
+          .insert({
+            date: metric.date,
+            weight: metric.weight,
+            body_fat_percentage: metric.bodyFatPercentage,
+            muscle_mass: metric.muscleMass,
+            measurements: metric.measurements,
+            photo_urls: metric.photoUrls,
+            user_id: u.id,
+          })
+          .then()
+    })
+  }
+  const fetchPatientGoals = async () => {
+    const {
+      data: { user: authUser },
+    } = await supabase.auth.getUser()
+    if (!authUser) return
+    const { data } = await (supabase as any)
+      .from('patient_goals')
+      .select('*')
+      .eq('user_id', authUser.id)
+      .limit(1)
+      .maybeSingle()
+    if (data)
+      setPatientGoals({
+        targetWeight: data.target_weight || 0,
+        targetBodyFat: data.target_body_fat || 0,
+      })
+  }
+  const updatePatientGoals = (updates: Partial<PatientGoal>) => {
+    setPatientGoals((p) => {
+      const newGoals = { ...p, ...updates }
+      supabase.auth.getUser().then(({ data: { user: u } }) => {
+        if (u)
+          (supabase as any)
+            .from('patient_goals')
+            .upsert(
+              {
+                target_weight: newGoals.targetWeight,
+                target_body_fat: newGoals.targetBodyFat,
+                user_id: u.id,
+              },
+              { onConflict: 'user_id' },
+            )
+            .then()
+      })
+      return newGoals
+    })
+  }
+  const fetchMedicalExams = async () => {
+    const {
+      data: { user: authUser },
+    } = await supabase.auth.getUser()
+    if (!authUser) return
+    const { data } = await (supabase as any)
+      .from('medical_exams')
+      .select('*')
+      .eq('user_id', authUser.id)
+      .order('date', { ascending: false })
+    if (data)
+      setMedicalExams(
+        data.map((d: any) => ({
+          id: d.id,
+          date: (d.date || '').split('T')[0],
+          title: d.title || '',
+          fileUrl: d.file_url || '',
+        })),
+      )
+  }
+  const addMedicalExam = (title: string, fileUrl: string) => {
+    const exam: MedicalExam = { id: genId(), date: todayStr(), title, fileUrl }
+    setMedicalExams((p) => [exam, ...p])
+    supabase.auth.getUser().then(({ data: { user: u } }) => {
+      if (u)
+        (supabase as any)
+          .from('medical_exams')
+          .insert({ title, file_url: fileUrl, user_id: u.id })
+          .then()
+    })
+  }
+  const deleteMedicalExam = (id: string) => {
+    setMedicalExams((p) => p.filter((e) => e.id !== id))
+    ;(supabase as any).from('medical_exams').delete().eq('id', id).then()
+  }
   const updateFocusRadar = (settings: Partial<FocusRadarSettings>) =>
     setFocusRadar((p) => ({ ...p, ...settings }))
   const addToOfflineQueue = (action: OfflineAction) => setOfflineQueue((p) => [...p, action])
@@ -853,6 +1060,18 @@ export const AppStoreProvider = ({ children }: { children: ReactNode }) => {
         .neq('id', '00000000-0000-0000-0000-000000000000'),
       (supabase as any)
         .from('personal_records')
+        .delete()
+        .neq('id', '00000000-0000-0000-0000-000000000000'),
+      (supabase as any)
+        .from('body_metrics')
+        .delete()
+        .neq('id', '00000000-0000-0000-0000-000000000000'),
+      (supabase as any)
+        .from('patient_goals')
+        .delete()
+        .neq('id', '00000000-0000-0000-0000-000000000000'),
+      (supabase as any)
+        .from('medical_exams')
         .delete()
         .neq('id', '00000000-0000-0000-0000-000000000000'),
     ])
@@ -902,6 +1121,9 @@ export const AppStoreProvider = ({ children }: { children: ReactNode }) => {
     workoutRoutines,
     workoutHistory,
     personalRecords,
+    bodyMetrics,
+    patientGoals,
+    medicalExams,
     focusRadar,
     updateUser,
     addTag,
@@ -941,6 +1163,13 @@ export const AppStoreProvider = ({ children }: { children: ReactNode }) => {
     addWorkoutHistory,
     completeWorkoutSet,
     updatePersonalRecords,
+    fetchBodyMetrics,
+    addBodyMetric,
+    fetchPatientGoals,
+    updatePatientGoals,
+    fetchMedicalExams,
+    addMedicalExam,
+    deleteMedicalExam,
     addCoins,
     offlineQueue,
     addToOfflineQueue,

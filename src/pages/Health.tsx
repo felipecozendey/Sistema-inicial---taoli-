@@ -3,9 +3,9 @@ import { HydrationWidget } from '@/components/health/hydration-widget'
 import { MoodWidget } from '@/components/health/mood-widget'
 import { BowelWidget } from '@/components/health/bowel-widget'
 import { UrineWidget } from '@/components/health/urine-widget'
-import { HealthHistory } from '@/components/health/health-history'
 import { NutritionWidget } from '@/components/health/nutrition-widget'
 import { ExerciseWidget } from '@/components/health/exercise-widget'
+import { BodyXrayTab } from '@/components/health/body-xray-tab'
 
 export default function HealthPage() {
   return (
@@ -28,8 +28,8 @@ export default function HealthPage() {
           <TabsTrigger value="exercicios" className="rounded-xl font-bold">
             Exercícios
           </TabsTrigger>
-          <TabsTrigger value="history" className="rounded-xl font-bold">
-            Histórico
+          <TabsTrigger value="raio-x" className="rounded-xl font-bold">
+            Raio-X Corporal
           </TabsTrigger>
         </TabsList>
 
@@ -50,8 +50,8 @@ export default function HealthPage() {
           <ExerciseWidget />
         </TabsContent>
 
-        <TabsContent value="history" className="mt-6 print:block">
-          <HealthHistory />
+        <TabsContent value="raio-x" className="mt-6 print:hidden">
+          <BodyXrayTab />
         </TabsContent>
       </Tabs>
     </div>

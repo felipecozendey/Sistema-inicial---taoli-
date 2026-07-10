@@ -128,6 +128,33 @@ export type Database = {
         }
         Relationships: []
       }
+      meal_logs: {
+        Row: {
+          created_at: string
+          id: string
+          items: Json
+          meal_type: string
+          quality: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          items?: Json
+          meal_type: string
+          quality: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          items?: Json
+          meal_type?: string
+          quality?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       note_references: {
         Row: {
           created_at: string
@@ -227,6 +254,36 @@ export type Database = {
         }
         Relationships: []
       }
+      personal_records: {
+        Row: {
+          bench_press: string
+          created_at: string
+          id: string
+          run_time: string
+          squat: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          bench_press?: string
+          created_at?: string
+          id?: string
+          run_time?: string
+          squat?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          bench_press?: string
+          created_at?: string
+          id?: string
+          run_time?: string
+          squat?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       tasks: {
         Row: {
           completed: boolean
@@ -270,6 +327,62 @@ export type Database = {
           subtasks?: Json
           tag_id?: string | null
           tag_ids?: string[] | null
+          title?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      workout_history: {
+        Row: {
+          completed_at: string
+          data: Json
+          id: string
+          routine_id: string | null
+          user_id: string
+        }
+        Insert: {
+          completed_at?: string
+          data?: Json
+          id?: string
+          routine_id?: string | null
+          user_id: string
+        }
+        Update: {
+          completed_at?: string
+          data?: Json
+          id?: string
+          routine_id?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: 'workout_history_routine_id_fkey'
+            columns: ['routine_id']
+            isOneToOne: false
+            referencedRelation: 'workout_routines'
+            referencedColumns: ['id']
+          },
+        ]
+      }
+      workout_routines: {
+        Row: {
+          created_at: string
+          exercises: Json
+          id: string
+          title: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          exercises?: Json
+          id?: string
+          title: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          exercises?: Json
+          id?: string
           title?: string
           user_id?: string
         }
