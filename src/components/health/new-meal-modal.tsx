@@ -9,7 +9,6 @@ import {
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Textarea } from '@/components/ui/textarea'
 import {
   Select,
   SelectContent,
@@ -17,23 +16,23 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { useAppStore, MealType } from '@/stores/useAppStore'
+import { useAppStore } from '@/stores/useAppStore'
 import { uploadImage } from '@/lib/image-upload'
 import { cn } from '@/lib/utils'
-import { Camera, X, Loader2 } from 'lucide-react'
+import { Camera, X, Loader2, Flame } from 'lucide-react'
 import { toast } from 'sonner'
 
-const MEAL_TYPES: { type: MealType; label: string; emoji: string }[] = [
-  { type: 'breakfast', label: 'Café da Manhã', emoji: '☀️' },
-  { type: 'lunch', label: 'Almoço', emoji: '🍽️' },
-  { type: 'snack', label: 'Lanche', emoji: '🥪' },
-  { type: 'dinner', label: 'Jantar', emoji: '🌙' },
+const MEAL_TYPES = [
+  { value: 'Café da Manhã', label: 'Café da Manhã', emoji: '☀️' },
+  { value: 'Almoço', label: 'Almoço', emoji: '🍽️' },
+  { value: 'Jantar', label: 'Jantar', emoji: '🌙' },
+  { value: 'Lanche', label: 'Lanche', emoji: '🥪' },
 ]
 
 const ADHERENCE_OPTIONS = [
-  { value: 'on_plan', label: 'No Plano', emoji: '🟢', color: '#58CC02' },
-  { value: 'adapted', label: 'Adaptado', emoji: '🟡', color: '#FFC800' },
-  { value: 'free', label: 'Livre', emoji: '🔴', color: '#FF4B4B' },
+  { value: 'perfect', label: 'No Plano', emoji: '🟢' },
+  { value: 'adapted', label: 'Adaptado', emoji: '🟡' },
+  { value: 'cheat', label: 'Livre', emoji: '🔴' },
 ]
 
 interface NewMealModalProps {
@@ -43,23 +42,26 @@ interface NewMealModalProps {
 
 export function NewMealModal({ open, onOpenChange }: NewMealModalProps) {
   const { addMealLog } = useAppStore()
-  const [date, setDate] = useState('')
-  const [time, setTime] = useState('')
-  const [mealType, setMealType] = useState<MealType>('breakfast')
-  const [adherence, setAdherence] = useState('on_plan')
-  const [notes, setNotes] = useState('')
+  const [mealType, setMealType] = useState('Café da Manhã')
+  const [description, setDescription] = useState('')
+  const [calories, setCalories] = useState('')
+  const [protein, setProtein] = useState('')
+  const [carbs, setCarbs] = useState('')
+  const [fat, setFat] = useState('')
+  const [adherence, setAdherence] = useState('perfect')
   const [photoUrl, setPhotoUrl] = useState('')
   const [uploading, setUploading] = useState(false)
+  const [saving, setSaving] = useState(false)
 
   useEffect(() => {
-    if (open) {
-      const n = new Date()
-      setDate(n.toISOString().split('T')[0])
-      setTime(n.toTimeString().slice(0, 5))
-    } else {
-      setMealType('breakfast')
-      setAdherence('on_plan')
-      setNotes('')
+    if (!open) {
+      setMealType('Café da Manhã')
+      setDescription('')
+      setCalories('')
+      setProtein('')
+      setCarbs('')
+      setFat('')
+      setAdherence('perfect')
       setPhotoUrl('')
     }
   }, [open])
@@ -79,17 +81,30 @@ export function NewMealModal({ open, onOpenChange }: NewMealModalProps) {
     }
   }
 
-  const handleSubmit = () => {
-    addMealLog({
-      date,
-      time,
-      mealType,
-      quality: adherence,
-      description: notes,
-      photoUrl,
-      items: [],
-    })
-    onOpenChange(false)
+  const handleSubmit = async () => {
+    if (!description.trim()) {
+      toast.error('Adicione uma descrição para a refeição')
+      return
+    }
+    setSaving(true)
+    try {
+      await addMealLog({
+        mealType,
+        description: description.trim(),
+        calories: parseFloat(calories) || 0,
+        protein: parseFloat(protein) || 0,
+        carbs: parseFloat(carbs) || 0,
+        fat: parseFloat(fat) || 0,
+        adherence,
+        photoUrl: photoUrl || undefined,
+      })
+      toast.success('Refeição registrada! 🎉')
+      onOpenChange(false)
+    } catch {
+      toast.error('Erro ao salvar refeição')
+    } finally {
+      setSaving(false)
+    }
   }
 
   return (
@@ -101,41 +116,92 @@ export function NewMealModal({ open, onOpenChange }: NewMealModalProps) {
         </DialogHeader>
 
         <div className="space-y-5">
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-2">
-              <Label className="text-sm font-extrabold">Data</Label>
-              <Input
-                type="date"
-                value={date}
-                onChange={(e) => setDate(e.target.value)}
-                className="rounded-xl"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label className="text-sm font-extrabold">Hora</Label>
-              <Input
-                type="time"
-                value={time}
-                onChange={(e) => setTime(e.target.value)}
-                className="rounded-xl"
-              />
-            </div>
-          </div>
-
           <div className="space-y-2">
             <Label className="text-sm font-extrabold">Tipo de Refeição</Label>
-            <Select value={mealType} onValueChange={(v) => setMealType(v as MealType)}>
+            <Select value={mealType} onValueChange={setMealType}>
               <SelectTrigger className="rounded-xl font-bold">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
                 {MEAL_TYPES.map((meal) => (
-                  <SelectItem key={meal.type} value={meal.type}>
+                  <SelectItem key={meal.value} value={meal.value}>
                     {meal.emoji} {meal.label}
                   </SelectItem>
                 ))}
               </SelectContent>
             </Select>
+          </div>
+
+          <div className="space-y-2">
+            <Label className="text-sm font-extrabold">Descrição</Label>
+            <Input
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              placeholder="Ex: Frango grelhado com arroz"
+              className="rounded-xl"
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label className="text-sm font-extrabold">Nutrientes</Label>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <div className="flex items-center gap-1.5">
+                  <Flame className="w-4 h-4 text-[#FF4B4B]" />
+                  <span className="text-xs font-extrabold">Calorias (kcal)</span>
+                </div>
+                <Input
+                  type="number"
+                  inputMode="decimal"
+                  value={calories}
+                  onChange={(e) => setCalories(e.target.value)}
+                  placeholder="0"
+                  className="rounded-xl text-center font-extrabold text-lg h-14 border-2 border-b-4"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <div className="flex items-center gap-1.5">
+                  <span className="text-sm">🥩</span>
+                  <span className="text-xs font-extrabold">Proteína (g)</span>
+                </div>
+                <Input
+                  type="number"
+                  inputMode="decimal"
+                  value={protein}
+                  onChange={(e) => setProtein(e.target.value)}
+                  placeholder="0"
+                  className="rounded-xl text-center font-extrabold text-lg h-14 border-2 border-b-4"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <div className="flex items-center gap-1.5">
+                  <span className="text-sm">🍞</span>
+                  <span className="text-xs font-extrabold">Carbo (g)</span>
+                </div>
+                <Input
+                  type="number"
+                  inputMode="decimal"
+                  value={carbs}
+                  onChange={(e) => setCarbs(e.target.value)}
+                  placeholder="0"
+                  className="rounded-xl text-center font-extrabold text-lg h-14 border-2 border-b-4"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <div className="flex items-center gap-1.5">
+                  <span className="text-sm">🥑</span>
+                  <span className="text-xs font-extrabold">Gordura (g)</span>
+                </div>
+                <Input
+                  type="number"
+                  inputMode="decimal"
+                  value={fat}
+                  onChange={(e) => setFat(e.target.value)}
+                  placeholder="0"
+                  className="rounded-xl text-center font-extrabold text-lg h-14 border-2 border-b-4"
+                />
+              </div>
+            </div>
           </div>
 
           <div className="space-y-2">
@@ -196,24 +262,12 @@ export function NewMealModal({ open, onOpenChange }: NewMealModalProps) {
             )}
           </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="notes" className="text-sm font-extrabold">
-              Observações
-            </Label>
-            <Textarea
-              id="notes"
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-              placeholder="Como você se sentiu? Alguma observação..."
-              className="rounded-xl min-h-[80px]"
-            />
-          </div>
-
           <Button
             onClick={handleSubmit}
-            className="w-full py-6 rounded-2xl bg-[#58CC02] hover:bg-[#46B302] text-white font-extrabold border-b-4 border-[#46A602] active:translate-y-1 active:border-b-0 transition-all duration-150"
+            disabled={saving}
+            className="w-full py-6 rounded-2xl bg-[#58CC02] hover:bg-[#46B302] text-white font-extrabold border-b-4 border-[#46A602] active:translate-y-1 active:border-b-0 transition-all duration-150 disabled:opacity-50"
           >
-            Salvar Refeição
+            {saving ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Salvar Refeição'}
           </Button>
         </div>
       </DialogContent>
