@@ -159,8 +159,10 @@ export type Database = {
         Row: {
           content: string
           created_at: string
+          emoji: string
           id: string
           notebook_id: string | null
+          tag_ids: string[] | null
           title: string
           updated_at: string
           user_id: string
@@ -168,8 +170,10 @@ export type Database = {
         Insert: {
           content?: string
           created_at?: string
+          emoji?: string
           id?: string
           notebook_id?: string | null
+          tag_ids?: string[] | null
           title?: string
           updated_at?: string
           user_id: string
@@ -177,8 +181,10 @@ export type Database = {
         Update: {
           content?: string
           created_at?: string
+          emoji?: string
           id?: string
           notebook_id?: string | null
+          tag_ids?: string[] | null
           title?: string
           updated_at?: string
           user_id?: string
@@ -197,6 +203,7 @@ export type Database = {
           scheduled_date: string | null
           subtasks: Json
           tag_id: string | null
+          tag_ids: string[] | null
           title: string
           user_id: string
         }
@@ -211,6 +218,7 @@ export type Database = {
           scheduled_date?: string | null
           subtasks?: Json
           tag_id?: string | null
+          tag_ids?: string[] | null
           title: string
           user_id: string
         }
@@ -225,6 +233,7 @@ export type Database = {
           scheduled_date?: string | null
           subtasks?: Json
           tag_id?: string | null
+          tag_ids?: string[] | null
           title?: string
           user_id?: string
         }

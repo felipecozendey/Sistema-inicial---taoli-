@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
-import { extractLinkTitles } from '@/lib/link-parser'
+import { extractLinkTitles, extractNoteIds } from '@/lib/link-parser'
 import { mockNotebooks, mockNotes, mockDecks, mockFlashcards } from '@/lib/studies-mock-data'
 import { calculateSRS } from '@/lib/srs'
 import { supabase } from '@/lib/supabase/client'
@@ -32,9 +32,29 @@ const genId = () =>
 const nowIso = () => new Date().toISOString()
 
 function computeLinkedIds(content: string, notes: Note[], selfId: string): string[] {
-  return extractLinkTitles(content)
+  const ids = extractNoteIds(content).filter((id) => id !== selfId)
+  const titleIds = extractLinkTitles(content)
     .map((t) => notes.find((n) => n.title === t && n.id !== selfId)?.id)
     .filter((id): id is string => !!id)
+  return [...new Set([...ids, ...titleIds])]
+}
+
+async function syncRefsInternal(noteId: string, content: string) {
+  const ids = extractNoteIds(content)
+  const refsTable = (supabase as any).from('note_references')
+  try {
+    await refsTable.delete().eq('source_note_id', noteId)
+    if (ids.length > 0) {
+      await refsTable.insert(
+        ids.map((targetId) => ({
+          source_note_id: noteId,
+          target_note_id: targetId,
+        })),
+      )
+    }
+  } catch {
+    /* intentionally ignored */
+  }
 }
 
 interface StudiesState {
@@ -80,6 +100,7 @@ interface StudiesState {
   ) => Promise<void>
   deleteFlashcard: (id: string) => Promise<void>
   reviewCard: (cardId: string, feedback: ReviewFeedback) => Promise<void>
+  syncNoteReferences: (noteId: string, content: string) => Promise<void>
   loadStudiesData: () => Promise<void>
 }
 
@@ -116,10 +137,25 @@ export const useStudiesStore = create<StudiesState>()(
           }))
           return { notes: withLinks }
         })
+        supabase.auth.getUser().then(({ data: { user } }) => {
+          if (!user)
+            return supabase
+              .from('notes')
+              .insert({
+                id,
+                user_id: user.id,
+                notebook_id: data.notebookId || null,
+                title: data.title,
+                content: data.content,
+                emoji: data.emoji,
+                tag_ids: data.tags,
+              })
+              .then(() => syncRefsInternal(id, data.content))
+        })
         return id
       },
 
-      updateNote: (id, updates) =>
+      updateNote: (id, updates) => {
         set((s) => {
           const updatedNotes = s.notes.map((n) =>
             n.id === id ? { ...n, ...updates, lastEdited: nowIso() } : n,
@@ -129,13 +165,43 @@ export const useStudiesStore = create<StudiesState>()(
             linkedNoteIds: computeLinkedIds(n.content, updatedNotes, n.id),
           }))
           return { notes: withLinks }
-        }),
+        })
+        supabase.auth.getUser().then(({ data: { user } }) => {
+          if (!user) return
+          const updateData: {
+            updated_at?: string
+            title?: string
+            content?: string
+            emoji?: string
+            notebook_id?: string | null
+            tag_ids?: string[]
+          } = { updated_at: nowIso() }
+          if (updates.title !== undefined) updateData.title = updates.title
+          if (updates.content !== undefined) updateData.content = updates.content
+          if (updates.emoji !== undefined) updateData.emoji = updates.emoji
+          if (updates.notebookId !== undefined) updateData.notebook_id = updates.notebookId || null
+          if (updates.tags !== undefined) updateData.tag_ids = updates.tags
+          supabase
+            .from('notes')
+            .update(updateData)
+            .eq('id', id)
+            .then(() => {
+              if (updates.content !== undefined) syncRefsInternal(id, updates.content)
+            })
+        })
+      },
 
-      deleteNote: (id) =>
+      deleteNote: (id) => {
         set((s) => ({
           notes: s.notes.filter((n) => n.id !== id),
           flashcards: s.flashcards.map((fc) => (fc.noteId === id ? { ...fc, noteId: null } : fc)),
-        })),
+        }))
+        supabase
+          .from('notes')
+          .delete()
+          .eq('id', id)
+          .then(() => {})
+      },
 
       getNoteByTitle: (title) => get().notes.find((n) => n.title === title),
       getBacklinks: (noteId) => {
@@ -232,10 +298,45 @@ export const useStudiesStore = create<StudiesState>()(
 
       loadStudiesData: async () => {
         try {
-          const [{ data: decksData }, { data: cardsData }] = await Promise.all([
+          const [
+            { data: notebooksData },
+            { data: notesData },
+            { data: decksData },
+            { data: cardsData },
+          ] = await Promise.all([
+            supabase.from('notebooks').select('*').order('created_at', { ascending: true }),
+            supabase.from('notes').select('*').order('updated_at', { ascending: false }),
             supabase.from('decks').select('*').order('created_at', { ascending: true }),
             supabase.from('flashcards').select('*').order('created_at', { ascending: true }),
           ])
+          if (notebooksData && notebooksData.length > 0) {
+            set({
+              notebooks: notebooksData.map((nb) => ({
+                id: nb.id,
+                title: nb.name,
+                emoji: nb.emoji,
+                coverColor: nb.color,
+              })),
+            })
+          }
+          if (notesData && notesData.length > 0) {
+            const mapped: Note[] = notesData.map((n) => ({
+              id: n.id,
+              notebookId: n.notebook_id || '',
+              title: n.title,
+              content: n.content,
+              emoji: n.emoji,
+              tags: n.tag_ids || [],
+              linkedNoteIds: [],
+              lastEdited: n.updated_at,
+            }))
+            set({
+              notes: mapped.map((n) => ({
+                ...n,
+                linkedNoteIds: computeLinkedIds(n.content, mapped, n.id),
+              })),
+            })
+          }
           if (decksData && decksData.length > 0) {
             set({
               decks: decksData.map((d) => ({
@@ -289,6 +390,10 @@ export const useStudiesStore = create<StudiesState>()(
             /* intentionally ignored */
           }
         }
+      },
+
+      syncNoteReferences: async (noteId, content) => {
+        await syncRefsInternal(noteId, content)
       },
     }),
     { name: 'taoli-studies-storage' },

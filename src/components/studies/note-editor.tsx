@@ -83,6 +83,16 @@ export function NoteEditor({
     onNavigateToNote(id)
   }
 
+  const handleCreateNote = (noteTitle: string) => {
+    return addNote({
+      title: noteTitle,
+      content: '',
+      emoji: '📝',
+      notebookId: notebookId || notebooks[0]?.id || '',
+      tags: [],
+    })
+  }
+
   const handleSave = () => {
     if (!title.trim()) return
     if (editNote) updateNote(editNote.id, { title, content, emoji, notebookId, tags })
@@ -226,6 +236,7 @@ export function NoteEditor({
           content={content}
           onChange={setContent}
           onLinkClick={handleLinkClick}
+          onCreateNote={handleCreateNote}
           notes={suggestions}
           currentNoteId={noteId}
           placeholder="Escreva sua nota... Use [[ para vincular a outras notas."

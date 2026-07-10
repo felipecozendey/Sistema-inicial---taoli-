@@ -11,6 +11,7 @@ import {
   Pilcrow,
   Palette,
   Highlighter,
+  Plus,
 } from 'lucide-react'
 import './rich-text-editor.css'
 
@@ -18,6 +19,7 @@ interface RichTextEditorProps {
   content: string
   onChange: (html: string) => void
   onLinkClick: (noteTitle: string) => void
+  onCreateNote: (title: string) => string
   notes: Array<{ id: string; title: string; emoji: string }>
   currentNoteId: string | null
   placeholder?: string
@@ -26,26 +28,27 @@ interface RichTextEditorProps {
 const TEXT_COLORS = ['#1a1a1a', '#FF4B4B', '#1CB0F6', '#58CC02', '#FF9600', '#CE82FF']
 const HIGHLIGHT_COLORS = ['#FFF700', '#58CC02', '#1CB0F6', '#FF9600', '#FF4B4B', 'transparent']
 const LINK_STYLE =
-  'display:inline-block;padding:1px 8px;border-radius:9999px;background-color:rgba(28,176,246,0.15);color:#1CB0F6;font-weight:600;font-size:0.875rem;cursor:pointer;margin:0 2px;'
+  'display:inline-block;padding:2px 12px;border-radius:1.5rem;background-color:rgba(28,176,246,0.15);color:#1CB0F6;font-weight:700;font-size:0.875rem;cursor:pointer;margin:0 2px;border:2px solid rgba(28,176,246,0.2);transition:all 0.15s ease;'
 
-function convertToHtml(content: string): string {
+function convertToHtml(content: string, notes: Array<{ id: string; title: string }>): string {
   if (/<[a-z][\s\S]*>/i.test(content)) return content
   return content
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
     .replace(/\n/g, '<br>')
-    .replace(
-      /\[\[([^\]]+)\]\]/g,
-      (_, title) =>
-        `<span class="note-link" contenteditable="false" data-note-title="${title}" style="${LINK_STYLE}">${title}</span>`,
-    )
+    .replace(/\[\[([^\]]+)\]\]/g, (_, title) => {
+      const note = notes.find((n) => n.title === title)
+      const noteId = note?.id || ''
+      return `<span class="note-link" contenteditable="false" data-note-title="${title}"${noteId ? ` data-note-id="${noteId}"` : ''} style="${LINK_STYLE}">${title}</span>`
+    })
 }
 
 export function RichTextEditor({
   content,
   onChange,
   onLinkClick,
+  onCreateNote,
   notes,
   currentNoteId,
   placeholder,
@@ -60,10 +63,14 @@ export function RichTextEditor({
     .filter((n) => n.title.toLowerCase().includes(query.toLowerCase()))
     .slice(0, 6)
 
+  const exactMatch = notes.some((n) => n.title.toLowerCase() === query.toLowerCase().trim())
+  const showCreateOption = query.trim().length > 0 && !exactMatch
+  const totalOptions = (showCreateOption ? 1 : 0) + suggestions.length
+
   useEffect(() => {
     const editor = editorRef.current
     if (!editor) return
-    editor.innerHTML = convertToHtml(content)
+    editor.innerHTML = convertToHtml(content, notes)
   }, [currentNoteId])
 
   const getTextBeforeCursor = (): string => {
@@ -99,6 +106,7 @@ export function RichTextEditor({
     span.className = 'note-link'
     span.setAttribute('contenteditable', 'false')
     span.setAttribute('data-note-title', note.title)
+    span.setAttribute('data-note-id', note.id)
     span.style.cssText = LINK_STYLE
     span.textContent = note.title
     range.insertNode(span)
@@ -113,17 +121,31 @@ export function RichTextEditor({
     onChange(editorRef.current?.innerHTML || '')
   }
 
+  const handleCreateNote = () => {
+    const id = onCreateNote(query.trim())
+    insertNoteLink({ id, title: query.trim(), emoji: '📝' })
+  }
+
+  const selectOption = (index: number) => {
+    if (showCreateOption && index === 0) {
+      handleCreateNote()
+    } else {
+      const noteIdx = showCreateOption ? index - 1 : index
+      if (suggestions[noteIdx]) insertNoteLink(suggestions[noteIdx])
+    }
+  }
+
   const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (!showAutocomplete || suggestions.length === 0) return
+    if (!showAutocomplete || totalOptions === 0) return
     if (e.key === 'ArrowDown') {
       e.preventDefault()
-      setSelectedIndex((p) => (p + 1) % suggestions.length)
+      setSelectedIndex((p) => (p + 1) % totalOptions)
     } else if (e.key === 'ArrowUp') {
       e.preventDefault()
-      setSelectedIndex((p) => (p - 1 + suggestions.length) % suggestions.length)
+      setSelectedIndex((p) => (p - 1 + totalOptions) % totalOptions)
     } else if (e.key === 'Enter' || e.key === 'Tab') {
       e.preventDefault()
-      if (suggestions[selectedIndex]) insertNoteLink(suggestions[selectedIndex])
+      selectOption(selectedIndex)
     } else if (e.key === 'Escape') {
       e.preventDefault()
       setShowAutocomplete(false)
@@ -221,25 +243,47 @@ export function RichTextEditor({
         </Popover>
       </div>
       <div className="relative">
-        {showAutocomplete && suggestions.length > 0 && (
-          <div className="absolute z-50 bottom-full left-0 right-0 mb-2 bg-popover border rounded-2xl shadow-lg overflow-hidden max-h-48 overflow-y-auto">
-            {suggestions.map((n, i) => (
+        {showAutocomplete && totalOptions > 0 && (
+          <div className="absolute z-50 bottom-full left-0 right-0 mb-2 bg-popover border-2 rounded-3xl shadow-lg overflow-hidden max-h-60 overflow-y-auto">
+            {showCreateOption && (
               <button
-                key={n.id}
                 type="button"
                 onMouseDown={(e) => {
                   e.preventDefault()
-                  insertNoteLink(n)
+                  handleCreateNote()
                 }}
                 className={cn(
-                  'w-full flex items-center gap-2 px-3 py-2 text-left text-sm transition-colors',
-                  i === selectedIndex ? 'bg-primary/15 text-primary' : 'hover:bg-muted',
+                  'w-full flex items-center gap-2 px-3 py-2.5 text-left text-sm transition-colors border-b-2 border-border',
+                  selectedIndex === 0 ? 'bg-primary/15 text-primary' : 'hover:bg-muted',
                 )}
               >
-                <span>{n.emoji}</span>
-                <span className="font-semibold">{n.title}</span>
+                <Plus className="w-4 h-4 flex-shrink-0" />
+                <span className="font-bold">Criar nova nota:</span>
+                <span className="font-semibold text-primary truncate">
+                  &ldquo;{query.trim()}&rdquo;
+                </span>
               </button>
-            ))}
+            )}
+            {suggestions.map((n, i) => {
+              const idx = showCreateOption ? i + 1 : i
+              return (
+                <button
+                  key={n.id}
+                  type="button"
+                  onMouseDown={(e) => {
+                    e.preventDefault()
+                    insertNoteLink(n)
+                  }}
+                  className={cn(
+                    'w-full flex items-center gap-2 px-3 py-2.5 text-left text-sm transition-colors',
+                    idx === selectedIndex ? 'bg-primary/15 text-primary' : 'hover:bg-muted',
+                  )}
+                >
+                  <span>{n.emoji}</span>
+                  <span className="font-semibold">{n.title}</span>
+                </button>
+              )
+            })}
           </div>
         )}
         <div

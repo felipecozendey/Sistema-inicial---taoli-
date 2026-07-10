@@ -32,6 +32,16 @@ export function parseContentWithLinks(
   return segments
 }
 
+export function extractNoteIds(content: string): string[] {
+  const ids: string[] = []
+  let match
+  const regex = /data-note-id="([^"]+)"/g
+  while ((match = regex.exec(content)) !== null) {
+    ids.push(match[1].trim())
+  }
+  return ids
+}
+
 export function detectAutocompleteQuery(textBeforeCursor: string): string | null {
   const lastOpen = textBeforeCursor.lastIndexOf('[[')
   const lastClose = textBeforeCursor.lastIndexOf(']]')

@@ -24,3 +24,7 @@
   list-style: decimal;
   padding-left: 1.5em;
 }
+.rte-editor .note-link:hover {
+  filter: brightness(0.92);
+  transform: translateY(-1px);
+}
