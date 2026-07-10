@@ -3,6 +3,9 @@ import { useAppStore, MealType } from '@/stores/useAppStore'
 import { cn } from '@/lib/utils'
 
 const QUALITY_STYLES: Record<string, { bg: string; text: string; label: string }> = {
+  on_plan: { bg: 'bg-[#58CC02]/10', text: 'text-[#58CC02]', label: 'No Plano' },
+  adapted: { bg: 'bg-[#FFC800]/10', text: 'text-[#FFC800]', label: 'Adaptado' },
+  free: { bg: 'bg-[#FF4B4B]/10', text: 'text-[#FF4B4B]', label: 'Livre' },
   great: { bg: 'bg-[#58CC02]/10', text: 'text-[#58CC02]', label: 'Ótima' },
   good: { bg: 'bg-[#1CB0F6]/10', text: 'text-[#1CB0F6]', label: 'Boa' },
   okay: { bg: 'bg-[#FFC800]/10', text: 'text-[#FFC800]', label: 'Razoável' },
@@ -125,6 +128,13 @@ export function MealHistory() {
                         )}
                         {log.description && (
                           <p className="text-sm text-muted-foreground mt-1">{log.description}</p>
+                        )}
+                        {(log.photoUrl || log.photo_url) && (
+                          <img
+                            src={log.photoUrl || log.photo_url}
+                            alt="Refeição"
+                            className="w-full h-32 rounded-xl object-cover mt-2"
+                          />
                         )}
                       </div>
                     </div>

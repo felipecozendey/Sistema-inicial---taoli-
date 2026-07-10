@@ -11,35 +11,50 @@ export type Database = {
     Tables: {
       body_metrics: {
         Row: {
+          blood_pressure: string | null
           body_fat_percentage: number | null
           created_at: string
           date: string
+          heart_rate_rest: number | null
           id: string
           measurements: Json
           muscle_mass: number | null
           photo_urls: string[]
+          primary_goal: string | null
+          sleep_quality: number | null
+          stress_level: number | null
           user_id: string
           weight: number | null
         }
         Insert: {
+          blood_pressure?: string | null
           body_fat_percentage?: number | null
           created_at?: string
           date?: string
+          heart_rate_rest?: number | null
           id?: string
           measurements?: Json
           muscle_mass?: number | null
           photo_urls?: string[]
+          primary_goal?: string | null
+          sleep_quality?: number | null
+          stress_level?: number | null
           user_id: string
           weight?: number | null
         }
         Update: {
+          blood_pressure?: string | null
           body_fat_percentage?: number | null
           created_at?: string
           date?: string
+          heart_rate_rest?: number | null
           id?: string
           measurements?: Json
           muscle_mass?: number | null
           photo_urls?: string[]
+          primary_goal?: string | null
+          sleep_quality?: number | null
+          stress_level?: number | null
           user_id?: string
           weight?: number | null
         }
@@ -69,6 +84,65 @@ export type Database = {
           id?: string
           title?: string
           user_id?: string | null
+        }
+        Relationships: []
+      }
+      diet_plan_items: {
+        Row: {
+          created_at: string
+          description: string
+          id: string
+          plan_id: string
+          quantity: string
+        }
+        Insert: {
+          created_at?: string
+          description: string
+          id?: string
+          plan_id: string
+          quantity?: string
+        }
+        Update: {
+          created_at?: string
+          description?: string
+          id?: string
+          plan_id?: string
+          quantity?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: 'diet_plan_items_plan_id_fkey'
+            columns: ['plan_id']
+            isOneToOne: false
+            referencedRelation: 'diet_plans'
+            referencedColumns: ['id']
+          },
+        ]
+      }
+      diet_plans: {
+        Row: {
+          created_at: string
+          id: string
+          name: string
+          order_index: number
+          time: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          name: string
+          order_index?: number
+          time?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          name?: string
+          order_index?: number
+          time?: string
+          user_id?: string
         }
         Relationships: []
       }
@@ -170,6 +244,7 @@ export type Database = {
           id: string
           items: Json
           meal_type: string
+          photo_url: string | null
           quality: string
           user_id: string
         }
@@ -178,6 +253,7 @@ export type Database = {
           id?: string
           items?: Json
           meal_type: string
+          photo_url?: string | null
           quality: string
           user_id: string
         }
@@ -186,6 +262,7 @@ export type Database = {
           id?: string
           items?: Json
           meal_type?: string
+          photo_url?: string | null
           quality?: string
           user_id?: string
         }
@@ -313,6 +390,30 @@ export type Database = {
           tag_ids?: string[] | null
           title?: string
           updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      nutrition_micro_goals: {
+        Row: {
+          created_at: string
+          id: string
+          is_active: boolean
+          title: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          title: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          title?: string
           user_id?: string
         }
         Relationships: []
