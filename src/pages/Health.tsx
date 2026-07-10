@@ -4,7 +4,8 @@ import { MoodWidget } from '@/components/health/mood-widget'
 import { BowelWidget } from '@/components/health/bowel-widget'
 import { UrineWidget } from '@/components/health/urine-widget'
 import { HealthHistory } from '@/components/health/health-history'
-import { NutritionPlaceholder, ExercisePlaceholder } from '@/components/health/health-placeholders'
+import { NutritionWidget } from '@/components/health/nutrition-widget'
+import { ExerciseWidget } from '@/components/health/exercise-widget'
 
 export default function HealthPage() {
   return (
@@ -16,31 +17,37 @@ export default function HealthPage() {
         </p>
       </header>
 
-      <Tabs defaultValue="daily">
+      <Tabs defaultValue="geral">
         <TabsList className="w-full rounded-2xl print:hidden">
-          <TabsTrigger value="daily" className="rounded-xl font-bold">
-            Registro Diário
+          <TabsTrigger value="geral" className="rounded-xl font-bold">
+            Geral
+          </TabsTrigger>
+          <TabsTrigger value="nutricao" className="rounded-xl font-bold">
+            Nutrição
+          </TabsTrigger>
+          <TabsTrigger value="exercicios" className="rounded-xl font-bold">
+            Exercícios
           </TabsTrigger>
           <TabsTrigger value="history" className="rounded-xl font-bold">
-            Histórico Completo
+            Histórico
           </TabsTrigger>
         </TabsList>
 
-        <TabsContent value="daily" className="space-y-6 mt-6 print:hidden">
+        <TabsContent value="geral" className="space-y-6 mt-6 print:hidden">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <HydrationWidget />
             <MoodWidget />
             <BowelWidget />
             <UrineWidget />
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <NutritionPlaceholder />
-            <ExercisePlaceholder />
-          </div>
-          <p className="text-xs text-muted-foreground font-semibold text-center">
-            ⚠️ Os dados são armazenados localmente no navegador. Conecte um backend para
-            persistência permanente.
-          </p>
+        </TabsContent>
+
+        <TabsContent value="nutricao" className="mt-6 print:hidden">
+          <NutritionWidget />
+        </TabsContent>
+
+        <TabsContent value="exercicios" className="mt-6 print:hidden">
+          <ExerciseWidget />
         </TabsContent>
 
         <TabsContent value="history" className="mt-6 print:block">

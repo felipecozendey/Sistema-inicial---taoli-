@@ -60,6 +60,39 @@ export type HealthRecord = {
   bowel: { type: BowelType | null }
 }
 
+export type MealType = 'breakfast' | 'lunch' | 'dinner' | 'snack'
+export type MealQuality = 'clean' | 'balanced' | 'cheat'
+export type MealLog = {
+  id: string
+  date: string
+  mealType: MealType
+  quality: MealQuality
+  items: Record<string, boolean>
+  timestamp: string
+}
+export type WorkoutExercise = {
+  id: string
+  name: string
+  sets: number
+  reps: number
+  weight: number
+}
+export type WorkoutRoutine = {
+  id: string
+  title: string
+  exercises: WorkoutExercise[]
+}
+export type WorkoutHistory = {
+  id: string
+  routineId: string
+  completedAt: string
+  data: Record<string, any>
+}
+export type PersonalRecord = {
+  benchPress: string
+  squat: string
+  runTime: string
+}
 export type Tag = { id: string; name: string; color: string }
 export type Task = {
   id: string
@@ -113,6 +146,7 @@ export type User = {
   handle: string
   bio: string
   socialLinks: SocialLink[]
+  coins: number
 }
 
 interface AppState {
@@ -125,6 +159,10 @@ interface AppState {
   digestionLogs: DigestionLog[]
   urineLogs: UrineLog[]
   healthRecords: Record<string, HealthRecord>
+  mealLogs: MealLog[]
+  workoutRoutines: WorkoutRoutine[]
+  workoutHistory: WorkoutHistory[]
+  personalRecords: PersonalRecord
   focusRadar: FocusRadarSettings
   updateUser: (u: Partial<User>) => void
   addTag: (name: string, color: string) => void
@@ -164,6 +202,16 @@ interface AppState {
   updateHealthRecord: (date: string, updates: Partial<HealthRecord>) => void
   getHealthRecord: (date: string) => HealthRecord
   updateFocusRadar: (settings: Partial<FocusRadarSettings>) => void
+  addMealLog: (date: string, mealType: MealType, quality: MealQuality, items: Record<string, boolean>) => void
+  deleteMealLog: (id: string) => void
+  fetchMealLogs: () => Promise<void>
+  addWorkoutRoutine: (title: string, exercises: WorkoutExercise[]) => void
+  deleteWorkoutRoutine: (id: string) => void
+  fetchWorkoutRoutines: () => Promise<void>
+  addWorkoutHistory: (routineId: string, data: Record<string, any>) => void
+  completeWorkoutSet: () => void
+  updatePersonalRecords: (updates: Partial<PersonalRecord>) => void
+  addCoins: (amount: number) => void
   offlineQueue: OfflineAction[]
   addToOfflineQueue: (action: OfflineAction) => void
   clearOfflineQueue: () => void
@@ -395,6 +443,7 @@ export const AppStoreProvider = ({ children }: { children: ReactNode }) => {
       handle: '@viajante',
       bio: 'Em busca de evolução contínua 🌱',
       socialLinks: [],
+      coins: 0,
     }
     const s = localStorage.getItem('vt_user')
     return s ? { ...defaults, ...JSON.parse(s) } : defaults
@@ -447,6 +496,22 @@ export const AppStoreProvider = ({ children }: { children: ReactNode }) => {
     const s = localStorage.getItem('vt_urine_logs')
     return s ? JSON.parse(s) : genUrineMock()
   })
+  const [mealLogs, setMealLogs] = useState<MealLog[]>(() => {
+    const s = localStorage.getItem('vt_meal_logs')
+    return s ? JSON.parse(s) : []
+  })
+  const [workoutRoutines, setWorkoutRoutines] = useState<WorkoutRoutine[]>(() => {
+    const s = localStorage.getItem('vt_workout_routines')
+    return s ? JSON.parse(s) : []
+  })
+  const [workoutHistory, setWorkoutHistory] = useState<WorkoutHistory[]>(() => {
+    const s = localStorage.getItem('vt_workout_history')
+    return s ? JSON.parse(s) : []
+  })
+  const [personalRecords, setPersonalRecords] = useState<PersonalRecord>(() => {
+    const s = localStorage.getItem('vt_personal_records')
+    return s ? JSON.parse(s) : { benchPress: '', squat: '', runTime: '' }
+  })
   const [focusRadar, setFocusRadar] = useState<FocusRadarSettings>(() => {
     const s = localStorage.getItem('vt_focus_radar')
     return s
@@ -489,6 +554,18 @@ export const AppStoreProvider = ({ children }: { children: ReactNode }) => {
   useEffect(() => {
     localStorage.setItem('vt_urine_logs', JSON.stringify(urineLogs))
   }, [urineLogs])
+  useEffect(() => {
+    localStorage.setItem('vt_meal_logs', JSON.stringify(mealLogs))
+  }, [mealLogs])
+  useEffect(() => {
+    localStorage.setItem('vt_workout_routines', JSON.stringify(workoutRoutines))
+  }, [workoutRoutines])
+  useEffect(() => {
+    localStorage.setItem('vt_workout_history', JSON.stringify(workoutHistory))
+  }, [workoutHistory])
+  useEffect(() => {
+    localStorage.setItem('vt_personal_records', JSON.stringify(personalRecords))
+  }, [personalRecords])
   useEffect(() => {
     localStorage.setItem('vt_focus_radar', JSON.stringify(focusRadar))
   }, [focusRadar])
@@ -658,6 +735,94 @@ export const AppStoreProvider = ({ children }: { children: ReactNode }) => {
     updates: Partial<Pick<UrineLog, 'colorType' | 'note' | 'date'>>,
   ) => setUrineLogs((p) => p.map((l) => (l.id === id ? { ...l, ...updates } : l)))
   const setWaterGoal = (goal: number) => setUser((p) => ({ ...p, waterGoal: goal }))
+  const addCoins = (amount: number) =>
+    setUser((p) => ({ ...p, coins: (p.coins || 0) + amount }))
+  const addMealLog = (
+    date: string,
+    mealType: MealType,
+    quality: MealQuality,
+    items: Record<string, boolean>,
+  ) => {
+    const log: MealLog = { id: genId(), date, mealType, quality, items, timestamp: nowIso() }
+    setMealLogs((p) => [
+      ...p.filter((l) => !(l.date === date && l.mealType === mealType)),
+      log,
+    ])
+    supabase.auth.getUser().then(({ data: { user: u } }) => {
+      if (u)
+        (supabase as any)
+          .from('meal_logs')
+          .insert({ meal_type: mealType, quality, items, user_id: u.id })
+          .then()
+    })
+  }
+  const deleteMealLog = (id: string) => setMealLogs((p) => p.filter((l) => l.id !== id))
+  const fetchMealLogs = async () => {
+    const { data: { user: authUser } } = await supabase.auth.getUser()
+    if (!authUser) return
+    const { data } = await (supabase as any)
+      .from('meal_logs')
+      .select('*')
+      .eq('user_id', authUser.id)
+      .order('created_at', { ascending: false })
+    if (data)
+      setMealLogs(
+        data.map((d: any) => ({
+          id: d.id,
+          date: (d.created_at || '').split('T')[0],
+          mealType: d.meal_type,
+          quality: d.quality,
+          items: d.items || {},
+          timestamp: d.created_at,
+        })),
+      )
+  }
+  const addWorkoutRoutine = (title: string, exercises: WorkoutExercise[]) => {
+    const routine: WorkoutRoutine = { id: genId(), title, exercises }
+    setWorkoutRoutines((p) => [...p, routine])
+    supabase.auth.getUser().then(({ data: { user: u } }) => {
+      if (u)
+        (supabase as any)
+          .from('workout_routines')
+          .insert({ title, exercises, user_id: u.id })
+          .then()
+    })
+  }
+  const deleteWorkoutRoutine = (id: string) =>
+    setWorkoutRoutines((p) => p.filter((r) => r.id !== id))
+  const fetchWorkoutRoutines = async () => {
+    const { data: { user: authUser } } = await supabase.auth.getUser()
+    if (!authUser) return
+    const { data } = await (supabase as any)
+      .from('workout_routines')
+      .select('*')
+      .eq('user_id', authUser.id)
+      .order('created_at', { ascending: false })
+    if (data)
+      setWorkoutRoutines(
+        data.map((d: any) => ({
+          id: d.id,
+          title: d.title,
+          exercises: d.exercises || [],
+        })),
+      )
+  }
+  const addWorkoutHistory = (routineId: string, sessionData: Record<string, any>) => {
+    setWorkoutHistory((p) => [
+      ...p,
+      { id: genId(), routineId, completedAt: nowIso(), data: sessionData },
+    ])
+    supabase.auth.getUser().then(({ data: { user: u } }) => {
+      if (u)
+        (supabase as any)
+          .from('workout_history')
+          .insert({ routine_id: routineId, data: sessionData, user_id: u.id })
+          .then()
+    })
+  }
+  const completeWorkoutSet = () => addCoins(2)
+  const updatePersonalRecords = (updates: Partial<PersonalRecord>) =>
+    setPersonalRecords((p) => ({ ...p, ...updates }))
   const updateFocusRadar = (settings: Partial<FocusRadarSettings>) =>
     setFocusRadar((p) => ({ ...p, ...settings }))
   const addToOfflineQueue = (action: OfflineAction) => setOfflineQueue((p) => [...p, action])
@@ -669,8 +834,11 @@ export const AppStoreProvider = ({ children }: { children: ReactNode }) => {
       supabase.from('flashcards').delete().neq('id', '00000000-0000-0000-0000-000000000000'),
       supabase.from('decks').delete().neq('id', '00000000-0000-0000-0000-000000000000'),
       supabase.from('notes').delete().neq('id', '00000000-0000-0000-0000-000000000000'),
-    ])
-    localStorage.clear()
+      (supabase as any).from('meal_logs').delete().neq('id', '00000000-0000-0000-0000-000000000000'),
+      (supabase as any).from('workout_routines').delete().neq('id', '00000000-0000-0000-0000-000000000000'),
+      (supabase as any).from('workout_history').delete().neq('id', '00000000-0000-0000-0000-000000000000'),
+      (supabase as any).from('personal_records').delete().neq('id', '00000000-0000-0000-0000-000000000000'),
+    ])    localStorage.clear()
     window.location.href = '/'
   }
   const updateHealthRecord = (date: string, updates: Partial<HealthRecord>) => {
@@ -712,6 +880,10 @@ export const AppStoreProvider = ({ children }: { children: ReactNode }) => {
     digestionLogs,
     urineLogs,
     healthRecords,
+    mealLogs,
+    workoutRoutines,
+    workoutHistory,
+    personalRecords,
     focusRadar,
     updateUser,
     addTag,
@@ -742,6 +914,16 @@ export const AppStoreProvider = ({ children }: { children: ReactNode }) => {
     updateHealthRecord,
     getHealthRecord,
     updateFocusRadar,
+    addMealLog,
+    deleteMealLog,
+    fetchMealLogs,
+    addWorkoutRoutine,
+    deleteWorkoutRoutine,
+    fetchWorkoutRoutines,
+    addWorkoutHistory,
+    completeWorkoutSet,
+    updatePersonalRecords,
+    addCoins,
     offlineQueue,
     addToOfflineQueue,
     clearOfflineQueue,
