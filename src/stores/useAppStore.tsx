@@ -1549,6 +1549,11 @@ export const AppStoreProvider = ({ children }: { children: ReactNode }) => {
     addDietPlanItem,
     updateDietPlanItem,
     deleteDietPlanItem,
+    addDietMeal: addDietPlan,
+    deleteDietMeal: deleteDietPlan,
+    addDietMealItem: (mealId: string, description: string) =>
+      addDietPlanItem(mealId, { description, quantity: '' }),
+    deleteDietMealItem: deleteDietPlanItem,
     fetchNutritionMicroGoals,
     addNutritionMicroGoal,
     updateNutritionMicroGoal,
