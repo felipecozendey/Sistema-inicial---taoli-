@@ -6,6 +6,7 @@ import { UrineWidget } from '@/components/health/urine-widget'
 import { NutritionWidget } from '@/components/health/nutrition-widget'
 import { ExerciseWidget } from '@/components/health/exercise-widget'
 import { BodyXrayTab } from '@/components/health/body-xray-tab'
+import { HealthHistory } from '@/components/health/health-history'
 
 export default function HealthPage() {
   return (
@@ -33,13 +34,14 @@ export default function HealthPage() {
           </TabsTrigger>
         </TabsList>
 
-        <TabsContent value="geral" className="space-y-6 mt-6 print:hidden">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <TabsContent value="geral" className="space-y-6 mt-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 print:hidden">
             <HydrationWidget />
             <MoodWidget />
             <BowelWidget />
             <UrineWidget />
           </div>
+          <HealthHistory />
         </TabsContent>
 
         <TabsContent value="nutricao" className="mt-6 print:hidden">

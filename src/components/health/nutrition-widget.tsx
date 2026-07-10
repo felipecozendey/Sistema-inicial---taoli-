@@ -6,22 +6,29 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from '@/components/ui/accordion'
+import { MicroGoalsChecklist } from '@/components/health/micro-goals-checklist'
 import { cn } from '@/lib/utils'
 import { toast } from 'sonner'
 import { Camera } from 'lucide-react'
 
-const MEALS: { type: MealType; label: string; query: string }[] = [
-  { type: 'breakfast', label: 'Café', query: 'breakfast food' },
-  { type: 'lunch', label: 'Almoço', query: 'lunch plate' },
-  { type: 'dinner', label: 'Jantar', query: 'dinner meal' },
-  { type: 'snack', label: 'Lanche', query: 'healthy snack' },
+const MEALS: { type: MealType; label: string; query: string; emoji: string }[] = [
+  { type: 'breakfast', label: 'Café', query: 'breakfast food', emoji: '☀️' },
+  { type: 'lunch', label: 'Almoço', query: 'lunch plate', emoji: '🍽️' },
+  { type: 'dinner', label: 'Jantar', query: 'dinner meal', emoji: '🌙' },
+  { type: 'snack', label: 'Lanche', query: 'healthy snack', emoji: '🥪' },
 ]
 
-const QUALITY_INFO: Record<MealQuality, { label: string; emoji: string; color: string }> = {
-  clean: { label: 'Limpo', emoji: '🍏', color: '#58CC02' },
-  balanced: { label: 'Moderado', emoji: '🍲', color: '#FFC800' },
-  cheat: { label: 'Livre', emoji: '🍕', color: '#FF4B4B' },
-}
+const QUALITIES: {
+  value: MealQuality
+  label: string
+  emoji: string
+  color: string
+  border: string
+}[] = [
+  { value: 'clean', label: 'Limpo', emoji: '🍏', color: '#58CC02', border: '#46A302' },
+  { value: 'balanced', label: 'Moderado', emoji: '🍲', color: '#FFC800', border: '#CC9F00' },
+  { value: 'cheat', label: 'Livre', emoji: '🍕', color: '#FF4B4B', border: '#CC3C3C' },
+]
 
 const DIET_PLAN = [
   {
@@ -63,8 +70,9 @@ const DIET_PLAN = [
 ]
 
 export function NutritionWidget() {
-  const { mealLogs, addMealLog, fetchMealLogs } = useAppStore()
+  const { mealLogs, addMealLog, fetchMealLogs, fetchDailyChecklist } = useAppStore()
   const today = new Date().toISOString().split('T')[0]
+  const [selectedMealType, setSelectedMealType] = useState<MealType | null>(null)
   const [checkedItems, setCheckedItems] = useState<Record<string, boolean>>(() => {
     const s = localStorage.getItem(`vt_diet_plan_${today}`)
     return s ? JSON.parse(s) : {}
@@ -72,18 +80,24 @@ export function NutritionWidget() {
 
   useEffect(() => {
     fetchMealLogs()
-  }, [fetchMealLogs])
+    fetchDailyChecklist()
+  }, [fetchMealLogs, fetchDailyChecklist])
+
   useEffect(() => {
     localStorage.setItem(`vt_diet_plan_${today}`, JSON.stringify(checkedItems))
   }, [checkedItems, today])
 
-  const todayMeals = mealLogs.filter((l) => l.date === today)
+  const todayMeals = mealLogs.filter(
+    (l) => l.date === today && l.mealType !== ('checklist' as MealType),
+  )
 
-  const handleQuickAdd = (mealType: MealType) => {
-    addMealLog(today, mealType, 'balanced', {})
-    toast.success(`${MEALS.find((m) => m.type === mealType)?.label} registrado!`, {
-      duration: 1500,
-    })
+  const handleQualitySelect = (quality: MealQuality) => {
+    if (!selectedMealType) return
+    addMealLog(today, selectedMealType, quality, {})
+    const mealLabel = MEALS.find((m) => m.type === selectedMealType)?.label
+    const q = QUALITIES.find((qq) => qq.value === quality)
+    toast.success(`${mealLabel}: ${q?.emoji} ${q?.label}!`, { duration: 2000 })
+    setSelectedMealType(null)
   }
 
   const toggleItem = (key: string) => setCheckedItems((p) => ({ ...p, [key]: !p[key] }))
@@ -97,45 +111,58 @@ export function NutritionWidget() {
           </div>
           <h3 className="text-lg font-extrabold">Diário Alimentar</h3>
         </div>
+
         <div className="grid grid-cols-2 gap-3 mb-4">
           {MEALS.map((meal) => {
             const logged = todayMeals.find((l) => l.mealType === meal.type)
-            const quality = logged?.quality ? QUALITY_INFO[logged.quality] : null
+            const isSelected = selectedMealType === meal.type
             return (
               <button
                 key={meal.type}
-                onClick={() => handleQuickAdd(meal.type)}
+                onClick={() => setSelectedMealType(isSelected ? null : meal.type)}
                 className={cn(
                   'flex flex-col items-center gap-1 py-4 rounded-2xl border-2 border-b-4 transition-all duration-150 active:translate-y-1 active:border-b-0',
-                  logged
-                    ? 'bg-muted/30 border-transparent'
-                    : 'border-[#E5E5E5] dark:border-[#3B4A55] hover:bg-muted/30',
+                  isSelected
+                    ? 'bg-[#FF9600]/10 border-[#FF9600]'
+                    : logged
+                      ? 'bg-muted/30 border-transparent'
+                      : 'border-[#E5E5E5] dark:border-[#3B4A55] hover:bg-muted/30',
                 )}
               >
-                <img
-                  src={`https://img.usecurling.com/p/120/120?q=${meal.query}`}
-                  alt={meal.label}
-                  className="w-14 h-14 rounded-xl object-cover"
-                />
+                <span className="text-2xl">{meal.emoji}</span>
                 <span className="text-sm font-extrabold">{meal.label}</span>
-                {quality ? (
-                  <span className="text-xs font-bold" style={{ color: quality.color }}>
-                    {quality.emoji} {quality.label}
-                  </span>
-                ) : (
-                  <span className="text-xs font-bold text-muted-foreground">
-                    Tocar p/ registrar
-                  </span>
-                )}
+                {logged && <span className="text-xs font-bold text-[#58CC02]">✓ Registrado</span>}
               </button>
             )
           })}
         </div>
+
+        {selectedMealType && (
+          <div className="space-y-3 animate-fade-in-up">
+            <p className="text-xs font-extrabold text-muted-foreground text-center">
+              Como foi sua refeição?
+            </p>
+            <div className="grid grid-cols-3 gap-3">
+              {QUALITIES.map((q) => (
+                <button
+                  key={q.value}
+                  onClick={() => handleQualitySelect(q.value)}
+                  className="flex flex-col items-center gap-1 py-5 rounded-3xl text-white font-extrabold border-b-4 active:translate-y-1 active:border-b-0 transition-all duration-150 shadow-sm"
+                  style={{ backgroundColor: q.color, borderBottomColor: q.border }}
+                >
+                  <span className="text-3xl">{q.emoji}</span>
+                  <span className="text-sm">{q.label}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
         {todayMeals.length > 0 ? (
-          <div className="flex gap-3 overflow-x-auto pb-2">
+          <div className="flex gap-3 overflow-x-auto pb-2 mt-4">
             {todayMeals.map((meal) => {
               const mealInfo = MEALS.find((m) => m.type === meal.mealType)
-              const quality = QUALITY_INFO[meal.quality]
+              const q = QUALITIES.find((qq) => qq.value === meal.quality)
               return (
                 <div
                   key={meal.id}
@@ -148,8 +175,8 @@ export function NutritionWidget() {
                   />
                   <div className="p-2">
                     <p className="text-xs font-extrabold">{mealInfo?.label}</p>
-                    <p className="text-xs font-bold" style={{ color: quality.color }}>
-                      {quality.emoji} {quality.label}
+                    <p className="text-xs font-bold" style={{ color: q?.color }}>
+                      {q?.emoji} {q?.label}
                     </p>
                   </div>
                 </div>
@@ -157,11 +184,15 @@ export function NutritionWidget() {
             })}
           </div>
         ) : (
-          <p className="text-sm text-muted-foreground font-bold text-center py-2">
-            Nenhuma refeição registrada hoje 📸
-          </p>
+          !selectedMealType && (
+            <p className="text-sm text-muted-foreground font-bold text-center py-2">
+              Selecione uma refeição para registrar 📸
+            </p>
+          )
         )}
       </div>
+
+      <MicroGoalsChecklist />
 
       <div className="bg-card border-2 border-b-4 border-[#E5E5E5] dark:border-[#3B4A55] rounded-3xl p-6 shadow-sm">
         <div className="flex items-center gap-2 mb-4">

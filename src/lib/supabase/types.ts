@@ -9,6 +9,42 @@ export type Database = {
   }
   public: {
     Tables: {
+      body_metrics: {
+        Row: {
+          body_fat_percentage: number | null
+          created_at: string
+          date: string
+          id: string
+          measurements: Json
+          muscle_mass: number | null
+          photo_urls: string[]
+          user_id: string
+          weight: number | null
+        }
+        Insert: {
+          body_fat_percentage?: number | null
+          created_at?: string
+          date?: string
+          id?: string
+          measurements?: Json
+          muscle_mass?: number | null
+          photo_urls?: string[]
+          user_id: string
+          weight?: number | null
+        }
+        Update: {
+          body_fat_percentage?: number | null
+          created_at?: string
+          date?: string
+          id?: string
+          measurements?: Json
+          muscle_mass?: number | null
+          photo_urls?: string[]
+          user_id?: string
+          weight?: number | null
+        }
+        Relationships: []
+      }
       decks: {
         Row: {
           color: string
@@ -155,6 +191,33 @@ export type Database = {
         }
         Relationships: []
       }
+      medical_exams: {
+        Row: {
+          created_at: string
+          date: string
+          file_url: string
+          id: string
+          title: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          date?: string
+          file_url?: string
+          id?: string
+          title: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          date?: string
+          file_url?: string
+          id?: string
+          title?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       note_references: {
         Row: {
           created_at: string
@@ -250,6 +313,30 @@ export type Database = {
           tag_ids?: string[] | null
           title?: string
           updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      patient_goals: {
+        Row: {
+          created_at: string
+          id: string
+          target_body_fat: number | null
+          target_weight: number | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          target_body_fat?: number | null
+          target_weight?: number | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          target_body_fat?: number | null
+          target_weight?: number | null
           user_id?: string
         }
         Relationships: []

@@ -232,6 +232,9 @@ interface AppState {
   ) => void
   deleteMealLog: (id: string) => void
   fetchMealLogs: () => Promise<void>
+  dailyChecklist: Record<string, boolean>
+  fetchDailyChecklist: () => Promise<void>
+  toggleChecklistItem: (key: string) => void
   addWorkoutRoutine: (title: string, exercises: WorkoutExercise[]) => void
   deleteWorkoutRoutine: (id: string) => void
   fetchWorkoutRoutines: () => Promise<void>
@@ -578,6 +581,10 @@ export const AppStoreProvider = ({ children }: { children: ReactNode }) => {
     const s = localStorage.getItem('vt_meal_logs')
     return s ? JSON.parse(s) : []
   })
+  const [dailyChecklist, setDailyChecklist] = useState<Record<string, boolean>>(() => {
+    const s = localStorage.getItem('vt_daily_checklist')
+    return s ? JSON.parse(s) : {}
+  })
   const [workoutRoutines, setWorkoutRoutines] = useState<WorkoutRoutine[]>(() => {
     const s = localStorage.getItem('vt_workout_routines')
     return s ? JSON.parse(s) : []
@@ -647,6 +654,9 @@ export const AppStoreProvider = ({ children }: { children: ReactNode }) => {
   useEffect(() => {
     localStorage.setItem('vt_meal_logs', JSON.stringify(mealLogs))
   }, [mealLogs])
+  useEffect(() => {
+    localStorage.setItem('vt_daily_checklist', JSON.stringify(dailyChecklist))
+  }, [dailyChecklist])
   useEffect(() => {
     localStorage.setItem('vt_workout_routines', JSON.stringify(workoutRoutines))
   }, [workoutRoutines])
@@ -861,6 +871,7 @@ export const AppStoreProvider = ({ children }: { children: ReactNode }) => {
       .from('meal_logs')
       .select('*')
       .eq('user_id', authUser.id)
+      .neq('meal_type', 'checklist')
       .order('created_at', { ascending: false })
     if (data)
       setMealLogs(
@@ -873,6 +884,57 @@ export const AppStoreProvider = ({ children }: { children: ReactNode }) => {
           timestamp: d.created_at,
         })),
       )
+  }
+  const fetchDailyChecklist = async () => {
+    const {
+      data: { user: authUser },
+    } = await supabase.auth.getUser()
+    if (!authUser) return
+    const { data } = await (supabase as any)
+      .from('meal_logs')
+      .select('*')
+      .eq('user_id', authUser.id)
+      .eq('meal_type', 'checklist')
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+    if (data?.items) {
+      setDailyChecklist(data.items as Record<string, boolean>)
+    } else {
+      setDailyChecklist({})
+    }
+  }
+  const toggleChecklistItem = (key: string) => {
+    setDailyChecklist((prev) => {
+      const newChecklist = { ...prev, [key]: !prev[key] }
+      supabase.auth.getUser().then(({ data: { user: u } }) => {
+        if (!u) return
+        ;(async () => {
+          const { data: existing } = await (supabase as any)
+            .from('meal_logs')
+            .select('id')
+            .eq('user_id', u.id)
+            .eq('meal_type', 'checklist')
+            .order('created_at', { ascending: false })
+            .limit(1)
+            .maybeSingle()
+          if (existing) {
+            await (supabase as any)
+              .from('meal_logs')
+              .update({ items: newChecklist })
+              .eq('id', existing.id)
+          } else {
+            await (supabase as any).from('meal_logs').insert({
+              meal_type: 'checklist',
+              quality: 'checklist',
+              items: newChecklist,
+              user_id: u.id,
+            })
+          }
+        })()
+      })
+      return newChecklist
+    })
   }
   const addWorkoutRoutine = (title: string, exercises: WorkoutExercise[]) => {
     const routine: WorkoutRoutine = { id: genId(), title, exercises }
@@ -1157,6 +1219,9 @@ export const AppStoreProvider = ({ children }: { children: ReactNode }) => {
     addMealLog,
     deleteMealLog,
     fetchMealLogs,
+    dailyChecklist,
+    fetchDailyChecklist,
+    toggleChecklistItem,
     addWorkoutRoutine,
     deleteWorkoutRoutine,
     fetchWorkoutRoutines,
