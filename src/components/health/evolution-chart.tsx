@@ -1,10 +1,18 @@
 import { useMemo } from 'react'
 import { useAppStore } from '@/stores/useAppStore'
-import { LineChart, Line, XAxis, YAxis, ResponsiveContainer, Tooltip, Legend } from 'recharts'
+import {
+  AreaChart,
+  Area,
+  XAxis,
+  YAxis,
+  ResponsiveContainer,
+  Tooltip,
+  ReferenceLine,
+} from 'recharts'
 import { ChartContainer } from '@/components/ui/chart'
 
 export function EvolutionChart() {
-  const { bodyMetrics } = useAppStore()
+  const { bodyMetrics, patientGoals } = useAppStore()
 
   const chartData = useMemo(() => {
     return [...bodyMetrics]
@@ -33,7 +41,17 @@ export function EvolutionChart() {
           className="h-full"
         >
           <ResponsiveContainer width="100%" height="100%">
-            <LineChart data={chartData}>
+            <AreaChart data={chartData}>
+              <defs>
+                <linearGradient id="weightGradient" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%" stopColor="#1CB0F6" stopOpacity={0.3} />
+                  <stop offset="95%" stopColor="#1CB0F6" stopOpacity={0} />
+                </linearGradient>
+                <linearGradient id="fatGradient" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%" stopColor="#FF9600" stopOpacity={0.3} />
+                  <stop offset="95%" stopColor="#FF9600" stopOpacity={0} />
+                </linearGradient>
+              </defs>
               <XAxis dataKey="date" tick={{ fontSize: 11 }} axisLine={false} tickLine={false} />
               <YAxis
                 yAxisId="left"
@@ -53,28 +71,47 @@ export function EvolutionChart() {
               <Tooltip
                 contentStyle={{ borderRadius: '12px', border: '1px solid hsl(var(--border))' }}
               />
-              <Legend wrapperStyle={{ fontSize: 12 }} />
-              <Line
+              {patientGoals.targetWeight > 0 && (
+                <ReferenceLine
+                  yAxisId="left"
+                  y={patientGoals.targetWeight}
+                  stroke="#1CB0F6"
+                  strokeDasharray="5 5"
+                  label={{ value: 'Meta', fontSize: 10, fill: '#1CB0F6' }}
+                />
+              )}
+              {patientGoals.targetBodyFat > 0 && (
+                <ReferenceLine
+                  yAxisId="right"
+                  y={patientGoals.targetBodyFat}
+                  stroke="#FF9600"
+                  strokeDasharray="5 5"
+                  label={{ value: 'Meta', fontSize: 10, fill: '#FF9600' }}
+                />
+              )}
+              <Area
                 yAxisId="left"
                 type="monotone"
                 dataKey="weight"
                 name="Peso (kg)"
                 stroke="#1CB0F6"
                 strokeWidth={3}
+                fill="url(#weightGradient)"
                 dot={{ fill: '#1CB0F6', r: 4 }}
                 activeDot={{ r: 6 }}
               />
-              <Line
+              <Area
                 yAxisId="right"
                 type="monotone"
                 dataKey="bodyFat"
                 name="Gordura (%)"
                 stroke="#FF9600"
                 strokeWidth={3}
+                fill="url(#fatGradient)"
                 dot={{ fill: '#FF9600', r: 4 }}
                 activeDot={{ r: 6 }}
               />
-            </LineChart>
+            </AreaChart>
           </ResponsiveContainer>
         </ChartContainer>
       </div>

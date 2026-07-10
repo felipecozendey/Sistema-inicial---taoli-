@@ -2,11 +2,19 @@ import { useState } from 'react'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import { GameButton } from '@/components/ui/game-button'
 import { useAppStore } from '@/stores/useAppStore'
 import { uploadImage } from '@/lib/image-upload'
 import { toast } from 'sonner'
 import { Camera, X } from 'lucide-react'
+import { cn } from '@/lib/utils'
 
 const MEASUREMENTS = [
   { key: 'waist', label: 'Cintura', emoji: '📏' },
@@ -17,6 +25,10 @@ const MEASUREMENTS = [
   { key: 'leftThigh', label: 'Coxa E.', emoji: '🦵' },
   { key: 'rightThigh', label: 'Coxa D.', emoji: '🦵' },
 ]
+
+const PRIMARY_GOALS = ['Hipertrofia', 'Emagrecimento', 'Manutenção']
+const SLEEP_EMOJIS = ['😴', '😪', '😐', '🙂', '😄']
+const STRESS_EMOJIS = ['😌', '🙂', '😐', '😟', '😰']
 
 export function AnthropometryModal({
   open,
@@ -33,6 +45,11 @@ export function AnthropometryModal({
   const [measurements, setMeasurements] = useState<Record<string, string>>({})
   const [photos, setPhotos] = useState<string[]>([])
   const [uploading, setUploading] = useState(false)
+  const [heartRate, setHeartRate] = useState('')
+  const [bloodPressure, setBloodPressure] = useState('')
+  const [sleepQuality, setSleepQuality] = useState(3)
+  const [stressLevel, setStressLevel] = useState(3)
+  const [primaryGoal, setPrimaryGoal] = useState('')
 
   const handlePhotos = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files
@@ -64,12 +81,22 @@ export function AnthropometryModal({
       muscleMass: parseFloat(muscleMass) || 0,
       measurements: numericMeasurements,
       photoUrls: photos,
+      heartRateRest: parseInt(heartRate) || undefined,
+      bloodPressure: bloodPressure || undefined,
+      sleepQuality,
+      stressLevel,
+      primaryGoal: primaryGoal || undefined,
     })
     setWeight('')
     setBodyFat('')
     setMuscleMass('')
     setMeasurements({})
     setPhotos([])
+    setHeartRate('')
+    setBloodPressure('')
+    setSleepQuality(3)
+    setStressLevel(3)
+    setPrimaryGoal('')
     toast.success('Avaliação registrada!')
     onOpenChange(false)
   }
@@ -125,6 +152,83 @@ export function AnthropometryModal({
                 className="rounded-2xl bg-muted/50 border-transparent font-semibold"
                 placeholder="64"
               />
+            </div>
+          </div>
+          <div className="bg-muted/30 rounded-2xl p-4 space-y-3">
+            <p className="text-sm font-extrabold">📋 Anamnese</p>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-2">
+                <Label className="font-bold text-xs">Freq. Cardíaca (bpm)</Label>
+                <Input
+                  type="number"
+                  value={heartRate}
+                  onChange={(e) => setHeartRate(e.target.value)}
+                  className="rounded-xl bg-background font-semibold text-sm h-9"
+                  placeholder="65"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label className="font-bold text-xs">Pressão Arterial</Label>
+                <Input
+                  value={bloodPressure}
+                  onChange={(e) => setBloodPressure(e.target.value)}
+                  className="rounded-xl bg-background font-semibold text-sm h-9"
+                  placeholder="120/80"
+                />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label className="font-bold text-xs">Qualidade do Sono (1-5)</Label>
+              <div className="flex gap-2">
+                {[1, 2, 3, 4, 5].map((n) => (
+                  <button
+                    key={n}
+                    onClick={() => setSleepQuality(n)}
+                    className={cn(
+                      'flex-1 py-2 rounded-xl border-2 border-b-4 font-extrabold text-sm transition-all active:translate-y-0.5',
+                      sleepQuality === n
+                        ? 'border-[#1CB0F6] bg-[#1CB0F6]/10'
+                        : 'border-[#E5E5E5] dark:border-[#3B4A55]',
+                    )}
+                  >
+                    {SLEEP_EMOJIS[n - 1]}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label className="font-bold text-xs">Nível de Estresse (1-5)</Label>
+              <div className="flex gap-2">
+                {[1, 2, 3, 4, 5].map((n) => (
+                  <button
+                    key={n}
+                    onClick={() => setStressLevel(n)}
+                    className={cn(
+                      'flex-1 py-2 rounded-xl border-2 border-b-4 font-extrabold text-sm transition-all active:translate-y-0.5',
+                      stressLevel === n
+                        ? 'border-[#FF9600] bg-[#FF9600]/10'
+                        : 'border-[#E5E5E5] dark:border-[#3B4A55]',
+                    )}
+                  >
+                    {STRESS_EMOJIS[n - 1]}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label className="font-bold text-xs">Objetivo Principal</Label>
+              <Select value={primaryGoal} onValueChange={setPrimaryGoal}>
+                <SelectTrigger className="rounded-xl bg-background font-semibold text-sm h-9">
+                  <SelectValue placeholder="Selecione..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {PRIMARY_GOALS.map((g) => (
+                    <SelectItem key={g} value={g}>
+                      {g}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
           </div>
           <div>

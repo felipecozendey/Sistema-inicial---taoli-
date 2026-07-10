@@ -69,6 +69,7 @@ export type MealLog = {
   quality: MealQuality
   items: Record<string, boolean>
   timestamp: string
+  photoUrl?: string
 }
 export type WorkoutExercise = {
   id: string
@@ -101,6 +102,11 @@ export type BodyMetric = {
   muscleMass: number
   measurements: Record<string, number>
   photoUrls: string[]
+  heartRateRest?: number
+  bloodPressure?: string
+  sleepQuality?: number
+  stressLevel?: number
+  primaryGoal?: string
 }
 export type PatientGoal = {
   targetWeight: number
@@ -111,6 +117,24 @@ export type MedicalExam = {
   date: string
   title: string
   fileUrl: string
+}
+export type DietPlanItem = {
+  id: string
+  description: string
+  quantity: string
+}
+export type DietPlan = {
+  id: string
+  name: string
+  time: string
+  orderIndex: number
+  items: DietPlanItem[]
+}
+export type NutritionMicroGoal = {
+  id: string
+  title: string
+  isActive: boolean
+  emoji?: string
 }
 export type Tag = { id: string; name: string; color: string }
 export type Task = {
@@ -185,6 +209,8 @@ interface AppState {
   bodyMetrics: BodyMetric[]
   patientGoals: PatientGoal
   medicalExams: MedicalExam[]
+  dietPlans: DietPlan[]
+  nutritionMicroGoals: NutritionMicroGoal[]
   focusRadar: FocusRadarSettings
   updateUser: (u: Partial<User>) => void
   addTag: (name: string, color: string) => void
@@ -229,6 +255,7 @@ interface AppState {
     mealType: MealType,
     quality: MealQuality,
     items: Record<string, boolean>,
+    photoUrl?: string,
   ) => void
   deleteMealLog: (id: string) => void
   fetchMealLogs: () => Promise<void>
@@ -248,6 +275,27 @@ interface AppState {
   fetchMedicalExams: () => Promise<void>
   addMedicalExam: (title: string, fileUrl: string) => void
   deleteMedicalExam: (id: string) => void
+  fetchDietPlans: () => Promise<void>
+  addDietPlan: (name: string, time: string) => Promise<void>
+  updateDietPlan: (
+    id: string,
+    updates: Partial<Pick<DietPlan, 'name' | 'time' | 'orderIndex'>>,
+  ) => Promise<void>
+  deleteDietPlan: (id: string) => Promise<void>
+  addDietPlanItem: (planId: string, description: string, quantity: string) => Promise<void>
+  updateDietPlanItem: (
+    planId: string,
+    itemId: string,
+    updates: Partial<Pick<DietPlanItem, 'description' | 'quantity'>>,
+  ) => Promise<void>
+  deleteDietPlanItem: (planId: string, itemId: string) => Promise<void>
+  fetchNutritionMicroGoals: () => Promise<void>
+  addNutritionMicroGoal: (title: string) => Promise<void>
+  updateNutritionMicroGoal: (
+    id: string,
+    updates: Partial<Pick<NutritionMicroGoal, 'title' | 'isActive'>>,
+  ) => Promise<void>
+  deleteNutritionMicroGoal: (id: string) => Promise<void>
   addCoins: (amount: number) => void
   offlineQueue: OfflineAction[]
   addToOfflineQueue: (action: OfflineAction) => void
@@ -398,6 +446,58 @@ const initialPatientGoals: PatientGoal = { targetWeight: 75, targetBodyFat: 15 }
 const initialMedicalExams: MedicalExam[] = [
   { id: 'me1', date: '2026-06-15', title: 'Hemograma Completo', fileUrl: '' },
   { id: 'me2', date: '2026-07-01', title: 'Check-up Cardiológico', fileUrl: '' },
+]
+const initialDietPlans: DietPlan[] = [
+  {
+    id: 'dp1',
+    name: 'Café da Manhã',
+    time: '07:00',
+    orderIndex: 0,
+    items: [
+      { id: 'di1', description: 'Ovos mexidos', quantity: '2 un.' },
+      { id: 'di2', description: 'Pão integral', quantity: '1 fatia' },
+      { id: 'di3', description: 'Café sem açúcar', quantity: '1 xíc.' },
+    ],
+  },
+  {
+    id: 'dp2',
+    name: 'Almoço',
+    time: '12:30',
+    orderIndex: 1,
+    items: [
+      { id: 'di4', description: 'Arroz integral', quantity: '4 col.' },
+      { id: 'di5', description: 'Frango grelhado', quantity: '120g' },
+      { id: 'di6', description: 'Salada mista', quantity: '1 prato' },
+    ],
+  },
+  {
+    id: 'dp3',
+    name: 'Lanche',
+    time: '16:00',
+    orderIndex: 2,
+    items: [
+      { id: 'di7', description: 'Iogurte natural', quantity: '1 un.' },
+      { id: 'di8', description: 'Castanhas', quantity: '30g' },
+    ],
+  },
+  {
+    id: 'dp4',
+    name: 'Jantar',
+    time: '19:30',
+    orderIndex: 3,
+    items: [
+      { id: 'di9', description: 'Sopa de legumes', quantity: '1 prato' },
+      { id: 'di10', description: 'Peixe assado', quantity: '100g' },
+    ],
+  },
+]
+const initialMicroGoals: NutritionMicroGoal[] = [
+  { id: 'mg1', title: 'Bati a Proteína', isActive: true, emoji: '🥩' },
+  { id: 'mg2', title: 'Zero Açúcar', isActive: true, emoji: '🚫' },
+  { id: 'mg3', title: 'Vegetais no Prato', isActive: true, emoji: '🥦' },
+  { id: 'mg4', title: '2L de Água', isActive: true, emoji: '💧' },
+  { id: 'mg5', title: 'Sem Ultraprocessados', isActive: true, emoji: '⛔' },
+  { id: 'mg6', title: 'Fibras no Prato', isActive: true, emoji: '🌾' },
 ]
 
 const initialTags: Tag[] = [
@@ -609,6 +709,14 @@ export const AppStoreProvider = ({ children }: { children: ReactNode }) => {
     const s = localStorage.getItem('vt_medical_exams')
     return s ? JSON.parse(s) : initialMedicalExams
   })
+  const [dietPlans, setDietPlans] = useState<DietPlan[]>(() => {
+    const s = localStorage.getItem('vt_diet_plans')
+    return s ? JSON.parse(s) : initialDietPlans
+  })
+  const [nutritionMicroGoals, setNutritionMicroGoals] = useState<NutritionMicroGoal[]>(() => {
+    const s = localStorage.getItem('vt_nutrition_micro_goals')
+    return s ? JSON.parse(s) : initialMicroGoals
+  })
   const [focusRadar, setFocusRadar] = useState<FocusRadarSettings>(() => {
     const s = localStorage.getItem('vt_focus_radar')
     return s
@@ -675,6 +783,12 @@ export const AppStoreProvider = ({ children }: { children: ReactNode }) => {
   useEffect(() => {
     localStorage.setItem('vt_medical_exams', JSON.stringify(medicalExams))
   }, [medicalExams])
+  useEffect(() => {
+    localStorage.setItem('vt_diet_plans', JSON.stringify(dietPlans))
+  }, [dietPlans])
+  useEffect(() => {
+    localStorage.setItem('vt_nutrition_micro_goals', JSON.stringify(nutritionMicroGoals))
+  }, [nutritionMicroGoals])
   useEffect(() => {
     localStorage.setItem('vt_focus_radar', JSON.stringify(focusRadar))
   }, [focusRadar])
@@ -850,14 +964,29 @@ export const AppStoreProvider = ({ children }: { children: ReactNode }) => {
     mealType: MealType,
     quality: MealQuality,
     items: Record<string, boolean>,
+    photoUrl?: string,
   ) => {
-    const log: MealLog = { id: genId(), date, mealType, quality, items, timestamp: nowIso() }
+    const log: MealLog = {
+      id: genId(),
+      date,
+      mealType,
+      quality,
+      items,
+      timestamp: nowIso(),
+      photoUrl,
+    }
     setMealLogs((p) => [...p.filter((l) => !(l.date === date && l.mealType === mealType)), log])
     supabase.auth.getUser().then(({ data: { user: u } }) => {
       if (u)
         (supabase as any)
           .from('meal_logs')
-          .insert({ meal_type: mealType, quality, items, user_id: u.id })
+          .insert({
+            meal_type: mealType,
+            quality,
+            items,
+            photo_url: photoUrl || null,
+            user_id: u.id,
+          })
           .then()
     })
   }
@@ -882,6 +1011,7 @@ export const AppStoreProvider = ({ children }: { children: ReactNode }) => {
           quality: d.quality,
           items: d.items || {},
           timestamp: d.created_at,
+          photoUrl: d.photo_url || undefined,
         })),
       )
   }
@@ -1004,6 +1134,11 @@ export const AppStoreProvider = ({ children }: { children: ReactNode }) => {
           muscleMass: d.muscle_mass || 0,
           measurements: d.measurements || {},
           photoUrls: d.photo_urls || [],
+          heartRateRest: d.heart_rate_rest || undefined,
+          bloodPressure: d.blood_pressure || undefined,
+          sleepQuality: d.sleep_quality || undefined,
+          stressLevel: d.stress_level || undefined,
+          primaryGoal: d.primary_goal || undefined,
         })),
       )
   }
@@ -1020,6 +1155,11 @@ export const AppStoreProvider = ({ children }: { children: ReactNode }) => {
             muscle_mass: metric.muscleMass,
             measurements: metric.measurements,
             photo_urls: metric.photoUrls,
+            heart_rate_rest: metric.heartRateRest || null,
+            blood_pressure: metric.bloodPressure || null,
+            sleep_quality: metric.sleepQuality || null,
+            stress_level: metric.stressLevel || null,
+            primary_goal: metric.primaryGoal || null,
             user_id: u.id,
           })
           .then()
@@ -1097,6 +1237,163 @@ export const AppStoreProvider = ({ children }: { children: ReactNode }) => {
     setMedicalExams((p) => p.filter((e) => e.id !== id))
     ;(supabase as any).from('medical_exams').delete().eq('id', id).then()
   }
+  const fetchDietPlans = async () => {
+    const {
+      data: { user: authUser },
+    } = await supabase.auth.getUser()
+    if (!authUser) return
+    const { data: plans } = await (supabase as any)
+      .from('diet_plans')
+      .select('*')
+      .eq('user_id', authUser.id)
+      .order('order_index', { ascending: true })
+    if (!plans || plans.length === 0) {
+      setDietPlans([])
+      return
+    }
+    const { data: items } = await (supabase as any)
+      .from('diet_plan_items')
+      .select('*')
+      .in(
+        'plan_id',
+        plans.map((p: any) => p.id),
+      )
+    const itemsByPlan: Record<string, DietPlanItem[]> = {}
+    ;(items || []).forEach((it: any) => {
+      if (!itemsByPlan[it.plan_id]) itemsByPlan[it.plan_id] = []
+      itemsByPlan[it.plan_id].push({
+        id: it.id,
+        description: it.description,
+        quantity: it.quantity || '',
+      })
+    })
+    setDietPlans(
+      plans.map((p: any) => ({
+        id: p.id,
+        name: p.name,
+        time: p.time || '',
+        orderIndex: p.order_index || 0,
+        items: itemsByPlan[p.id] || [],
+      })),
+    )
+  }
+  const addDietPlan = async (name: string, time: string) => {
+    const orderIndex = dietPlans.length
+    const tempId = genId()
+    setDietPlans((p) => [...p, { id: tempId, name, time, orderIndex, items: [] }])
+    const {
+      data: { user: u },
+    } = await supabase.auth.getUser()
+    if (!u) return
+    const { data } = await (supabase as any)
+      .from('diet_plans')
+      .insert({ name, time, order_index: orderIndex, user_id: u.id })
+      .select()
+      .single()
+    if (data) setDietPlans((p) => p.map((d) => (d.id === tempId ? { ...d, id: data.id } : d)))
+  }
+  const updateDietPlan = async (
+    id: string,
+    updates: Partial<Pick<DietPlan, 'name' | 'time' | 'orderIndex'>>,
+  ) => {
+    setDietPlans((p) => p.map((d) => (d.id === id ? { ...d, ...updates } : d)))
+    const dbUpdates: Record<string, any> = {}
+    if (updates.name !== undefined) dbUpdates.name = updates.name
+    if (updates.time !== undefined) dbUpdates.time = updates.time
+    if (updates.orderIndex !== undefined) dbUpdates.order_index = updates.orderIndex
+    ;(supabase as any).from('diet_plans').update(dbUpdates).eq('id', id).then()
+  }
+  const deleteDietPlan = async (id: string) => {
+    setDietPlans((p) => p.filter((d) => d.id !== id))
+    ;(supabase as any).from('diet_plans').delete().eq('id', id).then()
+  }
+  const addDietPlanItem = async (planId: string, description: string, quantity: string) => {
+    const tempId = genId()
+    setDietPlans((p) =>
+      p.map((d) =>
+        d.id === planId ? { ...d, items: [...d.items, { id: tempId, description, quantity }] } : d,
+      ),
+    )
+    const { data } = await (supabase as any)
+      .from('diet_plan_items')
+      .insert({ plan_id: planId, description, quantity })
+      .select()
+      .single()
+    if (data)
+      setDietPlans((p) =>
+        p.map((d) =>
+          d.id === planId
+            ? { ...d, items: d.items.map((it) => (it.id === tempId ? { ...it, id: data.id } : it)) }
+            : d,
+        ),
+      )
+  }
+  const updateDietPlanItem = async (
+    planId: string,
+    itemId: string,
+    updates: Partial<Pick<DietPlanItem, 'description' | 'quantity'>>,
+  ) => {
+    setDietPlans((p) =>
+      p.map((d) =>
+        d.id === planId
+          ? { ...d, items: d.items.map((it) => (it.id === itemId ? { ...it, ...updates } : it)) }
+          : d,
+      ),
+    )
+    ;(supabase as any).from('diet_plan_items').update(updates).eq('id', itemId).then()
+  }
+  const deleteDietPlanItem = async (planId: string, itemId: string) => {
+    setDietPlans((p) =>
+      p.map((d) =>
+        d.id === planId ? { ...d, items: d.items.filter((it) => it.id !== itemId) } : d,
+      ),
+    )
+    ;(supabase as any).from('diet_plan_items').delete().eq('id', itemId).then()
+  }
+  const fetchNutritionMicroGoals = async () => {
+    const {
+      data: { user: authUser },
+    } = await supabase.auth.getUser()
+    if (!authUser) return
+    const { data } = await (supabase as any)
+      .from('nutrition_micro_goals')
+      .select('*')
+      .eq('user_id', authUser.id)
+      .order('created_at', { ascending: true })
+    if (data)
+      setNutritionMicroGoals(
+        data.map((d: any) => ({ id: d.id, title: d.title, isActive: d.is_active, emoji: '✅' })),
+      )
+  }
+  const addNutritionMicroGoal = async (title: string) => {
+    const tempId = genId()
+    setNutritionMicroGoals((p) => [...p, { id: tempId, title, isActive: true, emoji: '✅' }])
+    const {
+      data: { user: u },
+    } = await supabase.auth.getUser()
+    if (!u) return
+    const { data } = await (supabase as any)
+      .from('nutrition_micro_goals')
+      .insert({ title, is_active: true, user_id: u.id })
+      .select()
+      .single()
+    if (data)
+      setNutritionMicroGoals((p) => p.map((g) => (g.id === tempId ? { ...g, id: data.id } : g)))
+  }
+  const updateNutritionMicroGoal = async (
+    id: string,
+    updates: Partial<Pick<NutritionMicroGoal, 'title' | 'isActive'>>,
+  ) => {
+    setNutritionMicroGoals((p) => p.map((g) => (g.id === id ? { ...g, ...updates } : g)))
+    const dbUpdates: Record<string, any> = {}
+    if (updates.title !== undefined) dbUpdates.title = updates.title
+    if (updates.isActive !== undefined) dbUpdates.is_active = updates.isActive
+    ;(supabase as any).from('nutrition_micro_goals').update(dbUpdates).eq('id', id).then()
+  }
+  const deleteNutritionMicroGoal = async (id: string) => {
+    setNutritionMicroGoals((p) => p.filter((g) => g.id !== id))
+    ;(supabase as any).from('nutrition_micro_goals').delete().eq('id', id).then()
+  }
   const updateFocusRadar = (settings: Partial<FocusRadarSettings>) =>
     setFocusRadar((p) => ({ ...p, ...settings }))
   const addToOfflineQueue = (action: OfflineAction) => setOfflineQueue((p) => [...p, action])
@@ -1134,6 +1431,14 @@ export const AppStoreProvider = ({ children }: { children: ReactNode }) => {
         .neq('id', '00000000-0000-0000-0000-000000000000'),
       (supabase as any)
         .from('medical_exams')
+        .delete()
+        .neq('id', '00000000-0000-0000-0000-000000000000'),
+      (supabase as any)
+        .from('diet_plans')
+        .delete()
+        .neq('id', '00000000-0000-0000-0000-000000000000'),
+      (supabase as any)
+        .from('nutrition_micro_goals')
         .delete()
         .neq('id', '00000000-0000-0000-0000-000000000000'),
     ])
@@ -1186,6 +1491,8 @@ export const AppStoreProvider = ({ children }: { children: ReactNode }) => {
     bodyMetrics,
     patientGoals,
     medicalExams,
+    dietPlans,
+    nutritionMicroGoals,
     focusRadar,
     updateUser,
     addTag,
@@ -1235,6 +1542,17 @@ export const AppStoreProvider = ({ children }: { children: ReactNode }) => {
     fetchMedicalExams,
     addMedicalExam,
     deleteMedicalExam,
+    fetchDietPlans,
+    addDietPlan,
+    updateDietPlan,
+    deleteDietPlan,
+    addDietPlanItem,
+    updateDietPlanItem,
+    deleteDietPlanItem,
+    fetchNutritionMicroGoals,
+    addNutritionMicroGoal,
+    updateNutritionMicroGoal,
+    deleteNutritionMicroGoal,
     addCoins,
     offlineQueue,
     addToOfflineQueue,
