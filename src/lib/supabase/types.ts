@@ -128,6 +128,42 @@ export type Database = {
         }
         Relationships: []
       }
+      note_references: {
+        Row: {
+          created_at: string
+          id: string
+          source_note_id: string
+          target_note_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          source_note_id: string
+          target_note_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          source_note_id?: string
+          target_note_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: 'note_references_source_note_id_fkey'
+            columns: ['source_note_id']
+            isOneToOne: false
+            referencedRelation: 'notes'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'note_references_target_note_id_fkey'
+            columns: ['target_note_id']
+            isOneToOne: false
+            referencedRelation: 'notes'
+            referencedColumns: ['id']
+          },
+        ]
+      }
       notebooks: {
         Row: {
           color: string

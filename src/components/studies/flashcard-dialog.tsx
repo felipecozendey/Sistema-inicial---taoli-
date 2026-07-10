@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { useStudiesStore } from '@/stores/useStudiesStore'
 import { GameButton } from '@/components/ui/game-button'
 import { Label } from '@/components/ui/label'
-import { Textarea } from '@/components/ui/textarea'
+import { RichTextEditor } from '@/components/studies/rich-text-editor'
 import {
   Select,
   SelectContent,
@@ -16,6 +16,10 @@ interface FlashcardDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   noteId: string | null
+}
+
+function stripHtml(html: string): string {
+  return html.replace(/<[^>]*>/g, '').trim()
 }
 
 export function FlashcardDialog({ open, onOpenChange, noteId }: FlashcardDialogProps) {
@@ -34,14 +38,14 @@ export function FlashcardDialog({ open, onOpenChange, noteId }: FlashcardDialogP
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!front.trim() || !back.trim() || !deckId) return
-    await addFlashcard({ deckId, noteId, front: front.trim(), back: back.trim() })
+    if (!stripHtml(front) || !stripHtml(back) || !deckId) return
+    await addFlashcard({ deckId, noteId, front, back })
     onOpenChange(false)
   }
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[440px] rounded-3xl">
+      <DialogContent className="sm:max-w-[560px] rounded-3xl">
         <DialogHeader>
           <DialogTitle className="text-xl font-extrabold">Novo Flashcard</DialogTitle>
         </DialogHeader>
@@ -68,20 +72,22 @@ export function FlashcardDialog({ open, onOpenChange, noteId }: FlashcardDialogP
           </div>
           <div className="space-y-2">
             <Label className="font-bold">Frente (Pergunta)</Label>
-            <Textarea
-              value={front}
-              onChange={(e) => setFront(e.target.value)}
-              className="rounded-2xl font-semibold min-h-[80px]"
-              placeholder="Digite a pergunta..."
-              autoFocus
+            <RichTextEditor
+              key={`front-${open}`}
+              content={front}
+              onChange={setFront}
+              variant="mini"
+              enableCloze
+              placeholder="Digite a pergunta... Selecione texto e use [...] para omissão."
             />
           </div>
           <div className="space-y-2">
             <Label className="font-bold">Verso (Resposta)</Label>
-            <Textarea
-              value={back}
-              onChange={(e) => setBack(e.target.value)}
-              className="rounded-2xl font-semibold min-h-[80px]"
+            <RichTextEditor
+              key={`back-${open}`}
+              content={back}
+              onChange={setBack}
+              variant="mini"
               placeholder="Digite a resposta..."
             />
           </div>

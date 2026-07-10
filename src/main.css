@@ -518,4 +518,27 @@
   .animate-confetti-fall {
     animation: confetti-fall 2s ease-in forwards;
   }
+
+  .cloze-front .cloze-deletion {
+    background-color: #3a3a3a;
+    color: transparent;
+    border-radius: 0.375rem;
+    padding: 0 0.375rem;
+    user-select: none;
+  }
+
+  .cloze-back .cloze-deletion {
+    background-color: #fff700;
+    color: inherit;
+    border-radius: 0.375rem;
+    padding: 0 0.375rem;
+    font-weight: 700;
+  }
+
+  .cloze-front img,
+  .cloze-back img {
+    max-width: 100%;
+    border-radius: 0.75rem;
+    margin: 0.5rem 0;
+  }
 }

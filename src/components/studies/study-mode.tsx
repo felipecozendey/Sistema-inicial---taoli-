@@ -122,14 +122,20 @@ export function StudyMode({ deckId, onExit }: StudyModeProps) {
             <span className="text-xs font-bold text-muted-foreground uppercase tracking-wide mb-4">
               Pergunta
             </span>
-            <p className="text-xl font-extrabold leading-relaxed">{currentCard.front}</p>
+            <div
+              className="cloze-front text-xl font-extrabold leading-relaxed prose prose-sm max-w-none"
+              dangerouslySetInnerHTML={{ __html: currentCard.front }}
+            />
             <p className="text-xs text-muted-foreground font-semibold mt-6">Toque para virar</p>
           </div>
           <div className="absolute inset-0 [backface-visibility:hidden] [transform:rotateY(180deg)] bg-card rounded-3xl border-2 border-b-4 border-primary p-8 flex flex-col items-center justify-center text-center">
             <span className="text-xs font-bold text-primary uppercase tracking-wide mb-4">
               Resposta
             </span>
-            <p className="text-lg font-bold leading-relaxed">{currentCard.back}</p>
+            <div
+              className="cloze-back text-lg font-bold leading-relaxed prose prose-sm max-w-none"
+              dangerouslySetInnerHTML={{ __html: currentCard.back }}
+            />
           </div>
         </div>
       </div>

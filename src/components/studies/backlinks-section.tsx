@@ -1,4 +1,5 @@
-import { useStudiesStore } from '@/stores/useStudiesStore'
+import { useState, useEffect } from 'react'
+import { getBacklinks, type BacklinkNote } from '@/services/note-references'
 
 interface BacklinksSectionProps {
   noteId: string
@@ -6,8 +7,17 @@ interface BacklinksSectionProps {
 }
 
 export function BacklinksSection({ noteId, onNavigate }: BacklinksSectionProps) {
-  const { getBacklinks } = useStudiesStore()
-  const backlinks = getBacklinks(noteId)
+  const [backlinks, setBacklinks] = useState<BacklinkNote[]>([])
+
+  useEffect(() => {
+    let cancelled = false
+    getBacklinks(noteId).then((bl) => {
+      if (!cancelled) setBacklinks(bl)
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [noteId])
 
   return (
     <div className="space-y-3">

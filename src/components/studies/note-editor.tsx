@@ -5,6 +5,7 @@ import { EmojiPicker } from '@/components/studies/emoji-picker'
 import { BacklinksSection } from '@/components/studies/backlinks-section'
 import { GameButton } from '@/components/ui/game-button'
 import { Input } from '@/components/ui/input'
+import { syncNoteReferences } from '@/services/note-references'
 import {
   Select,
   SelectContent,
@@ -93,10 +94,20 @@ export function NoteEditor({
     })
   }
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!title.trim()) return
-    if (editNote) updateNote(editNote.id, { title, content, emoji, notebookId, tags })
-    else addNote({ title, content, emoji, notebookId, tags })
+    let savedId: string
+    if (editNote) {
+      updateNote(editNote.id, { title, content, emoji, notebookId, tags })
+      savedId = editNote.id
+    } else {
+      savedId = addNote({ title, content, emoji, notebookId, tags })
+    }
+    try {
+      await syncNoteReferences(savedId, content)
+    } catch (e) {
+      console.error('Failed to sync note references:', e)
+    }
     onClose()
   }
 
