@@ -7,6 +7,7 @@ import React, {
   useRef,
   ReactNode,
 } from 'react'
+import { supabase } from '@/lib/supabase/client'
 
 export type Priority = 'low' | 'medium' | 'high'
 export type EnergyLevel = 1 | 2 | 3
@@ -16,6 +17,12 @@ export type BowelType = 1 | 2 | 3 | 4 | 5 | 6 | 7
 export type SoundProfile = 'ding' | 'pop' | 'tibetan'
 
 export type Subtask = { id: string; title: string; completed: boolean }
+export type OfflineAction = {
+  id: string
+  table: string
+  operation: 'insert' | 'update' | 'delete'
+  payload: Record<string, any>
+}
 export type FocusRadarSettings = {
   enabled: boolean
   interval: number
@@ -58,19 +65,23 @@ export type Task = {
   id: string
   title: string
   dueDate: string
+  scheduledDate?: string
   energyLevel: EnergyLevel
   priority: Priority
   estimatedTime: number
   tagId: string
+  tagIds: string[]
   completed: boolean
   subtasks: Subtask[]
 }
 export type NewTask = {
   title: string
   dueDate: string
+  scheduledDate?: string
   energyLevel: EnergyLevel
   estimatedTime: number
   tagId: string
+  tagIds?: string[]
   subtasks?: Subtask[]
 }
 export type Habit = {
@@ -79,6 +90,7 @@ export type Habit = {
   frequency: FrequencyType
   weekDays: number[]
   weeklyGoal: number
+  targetCompletions?: number
   tagId: string
   completions: string[]
   escudos: number
@@ -89,6 +101,7 @@ export type NewHabit = {
   frequency: FrequencyType
   weekDays: number[]
   weeklyGoal: number
+  targetCompletions?: number
   tagId: string
 }
 export type SocialLink = { id: string; platform: string; url: string }
@@ -151,6 +164,10 @@ interface AppState {
   updateHealthRecord: (date: string, updates: Partial<HealthRecord>) => void
   getHealthRecord: (date: string) => HealthRecord
   updateFocusRadar: (settings: Partial<FocusRadarSettings>) => void
+  offlineQueue: OfflineAction[]
+  addToOfflineQueue: (action: OfflineAction) => void
+  clearOfflineQueue: () => void
+  hardReset: () => Promise<void>
 }
 
 const AppStoreContext = createContext<AppState | undefined>(undefined)
@@ -270,6 +287,7 @@ const initialTasks: Task[] = [
     priority: 'low',
     estimatedTime: 10,
     tagId: '1',
+    tagIds: ['1'],
     completed: false,
     subtasks: [],
   },
@@ -281,6 +299,7 @@ const initialTasks: Task[] = [
     priority: 'high',
     estimatedTime: 120,
     tagId: '2',
+    tagIds: ['2'],
     completed: false,
     subtasks: [
       { id: 'st1', title: 'Definir escopo do sprint', completed: true },
@@ -298,6 +317,7 @@ const initialTasks: Task[] = [
     priority: 'medium',
     estimatedTime: 30,
     tagId: '3',
+    tagIds: ['3'],
     completed: true,
     subtasks: [],
   },
@@ -309,6 +329,7 @@ const initialTasks: Task[] = [
     priority: 'medium',
     estimatedTime: 45,
     tagId: '2',
+    tagIds: ['2'],
     completed: false,
     subtasks: [
       { id: 'st6', title: 'Clonar branch', completed: true },
@@ -392,6 +413,7 @@ export const AppStoreProvider = ({ children }: { children: ReactNode }) => {
         priority:
           t.priority || (t.energyLevel === 3 ? 'high' : t.energyLevel === 2 ? 'medium' : 'low'),
         subtasks: t.subtasks || [],
+        tagIds: t.tagIds || (t.tagId ? [t.tagId] : []),
       }))
     }
     return initialTasks
@@ -436,6 +458,10 @@ export const AppStoreProvider = ({ children }: { children: ReactNode }) => {
           soundProfile: 'ding' as SoundProfile,
         }
   })
+  const [offlineQueue, setOfflineQueue] = useState<OfflineAction[]>(() => {
+    const s = localStorage.getItem('vt_offline_queue')
+    return s ? JSON.parse(s) : []
+  })
 
   const escudoCheckRef = useRef(false)
 
@@ -466,6 +492,9 @@ export const AppStoreProvider = ({ children }: { children: ReactNode }) => {
   useEffect(() => {
     localStorage.setItem('vt_focus_radar', JSON.stringify(focusRadar))
   }, [focusRadar])
+  useEffect(() => {
+    localStorage.setItem('vt_offline_queue', JSON.stringify(offlineQueue))
+  }, [offlineQueue])
 
   useEffect(() => {
     if (escudoCheckRef.current) return
@@ -533,16 +562,19 @@ export const AppStoreProvider = ({ children }: { children: ReactNode }) => {
       title: s.title,
       completed: s.completed || false,
     }))
+    const tagIds = t.tagIds || (t.tagId ? [t.tagId] : [])
     setTasks((p) => [
       ...p,
       {
         id: genId(),
         title: t.title,
         dueDate: t.dueDate,
+        scheduledDate: t.scheduledDate || t.dueDate,
         energyLevel: t.energyLevel,
         priority,
         estimatedTime: t.estimatedTime,
-        tagId: t.tagId,
+        tagId: tagIds[0] || '',
+        tagIds,
         completed: false,
         subtasks,
       },
@@ -564,7 +596,8 @@ export const AppStoreProvider = ({ children }: { children: ReactNode }) => {
               completed: s.completed || false,
             }))
           : t.subtasks
-        return { ...t, ...updates, energyLevel, priority, subtasks }
+        const tagIds = updates.tagIds ?? t.tagIds
+        return { ...t, ...updates, energyLevel, priority, subtasks, tagIds, tagId: tagIds[0] || '' }
       }),
     )
   const toggleSubtask = (taskId: string, subtaskId: string) =>
@@ -627,6 +660,19 @@ export const AppStoreProvider = ({ children }: { children: ReactNode }) => {
   const setWaterGoal = (goal: number) => setUser((p) => ({ ...p, waterGoal: goal }))
   const updateFocusRadar = (settings: Partial<FocusRadarSettings>) =>
     setFocusRadar((p) => ({ ...p, ...settings }))
+  const addToOfflineQueue = (action: OfflineAction) => setOfflineQueue((p) => [...p, action])
+  const clearOfflineQueue = () => setOfflineQueue([])
+  const hardReset = async () => {
+    await Promise.allSettled([
+      supabase.from('tasks').delete().neq('id', '00000000-0000-0000-0000-000000000000'),
+      supabase.from('habits').delete().neq('id', '00000000-0000-0000-0000-000000000000'),
+      supabase.from('flashcards').delete().neq('id', '00000000-0000-0000-0000-000000000000'),
+      supabase.from('decks').delete().neq('id', '00000000-0000-0000-0000-000000000000'),
+      supabase.from('notes').delete().neq('id', '00000000-0000-0000-0000-000000000000'),
+    ])
+    localStorage.clear()
+    window.location.href = '/'
+  }
   const updateHealthRecord = (date: string, updates: Partial<HealthRecord>) => {
     if (updates.hydration !== undefined)
       setHydrationLogs((prev) => [
@@ -696,6 +742,10 @@ export const AppStoreProvider = ({ children }: { children: ReactNode }) => {
     updateHealthRecord,
     getHealthRecord,
     updateFocusRadar,
+    offlineQueue,
+    addToOfflineQueue,
+    clearOfflineQueue,
+    hardReset,
   }
 
   return <AppStoreContext.Provider value={value}>{children}</AppStoreContext.Provider>

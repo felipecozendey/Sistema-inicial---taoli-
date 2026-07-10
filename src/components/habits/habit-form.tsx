@@ -50,6 +50,7 @@ export function HabitForm({
   const [frequency, setFrequency] = useState<'daily' | 'weekly'>('daily')
   const [weekDays, setWeekDays] = useState<number[]>([1, 3, 5])
   const [weeklyGoal, setWeeklyGoal] = useState(3)
+  const [targetCompletions, setTargetCompletions] = useState<number | ''>('')
 
   useEffect(() => {
     if (editHabit && open) {
@@ -58,12 +59,14 @@ export function HabitForm({
       setFrequency(editHabit.frequency)
       setWeekDays(editHabit.weekDays)
       setWeeklyGoal(editHabit.weeklyGoal)
+      setTargetCompletions(editHabit.targetCompletions || '')
     } else if (!open && !editHabit) {
       setTitle('')
       setTagId(tags[0]?.id || '')
       setFrequency('daily')
       setWeekDays([1, 3, 5])
       setWeeklyGoal(3)
+      setTargetCompletions('')
     }
   }, [editHabit, open])
 
@@ -79,6 +82,7 @@ export function HabitForm({
       frequency,
       weekDays: frequency === 'daily' ? [] : weekDays,
       weeklyGoal: frequency === 'weekly' ? weeklyGoal : 0,
+      targetCompletions: targetCompletions === '' ? undefined : Number(targetCompletions),
     }
     if (editHabit) updateHabit(editHabit.id, data)
     else addHabit(data)
@@ -199,6 +203,19 @@ export function HabitForm({
               </div>
             </>
           )}
+          <div className="space-y-2">
+            <Label className="font-bold">Meta de Longo Prazo (opcional)</Label>
+            <Input
+              type="number"
+              min={1}
+              value={targetCompletions}
+              onChange={(e) =>
+                setTargetCompletions(e.target.value === '' ? '' : Number(e.target.value))
+              }
+              placeholder="Ex: 50 vezes no total"
+              className="rounded-2xl bg-muted/50 border-transparent font-semibold"
+            />
+          </div>
           {!editHabit && (
             <div className="flex items-center gap-2 p-3 rounded-2xl bg-[#1CB0F6]/10">
               <Shield className="w-5 h-5 text-[#1CB0F6] shrink-0" strokeWidth={2.5} />

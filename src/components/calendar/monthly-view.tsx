@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Task, Habit, useAppStore } from '@/stores/useAppStore'
 import { cn } from '@/lib/utils'
-import { ChevronLeft, ChevronRight } from 'lucide-react'
+import { ChevronLeft, ChevronRight, AlarmClock } from 'lucide-react'
 import { isHabitScheduledOn } from '@/lib/habit-utils'
 import {
   startOfMonth,
@@ -84,15 +84,24 @@ export function MonthlyView({ tasks, habits }: { tasks: Task[]; habits: Habit[] 
               <div className="space-y-0.5">
                 {dayTasks.slice(0, 2).map((t) => {
                   const tag = tags.find((tg) => tg.id === t.tagId)
+                  const due = new Date(t.dueDate + 'T23:59:59')
+                  const isNear =
+                    !t.completed &&
+                    due.getTime() - Date.now() > 0 &&
+                    due.getTime() - Date.now() < 86400000
                   return (
                     <div
                       key={t.id}
-                      className="text-[10px] truncate px-1 py-0.5 rounded"
+                      className={cn(
+                        'text-[10px] truncate px-1 py-0.5 rounded flex items-center gap-0.5',
+                        isNear && 'ring-1 ring-[#FF4B4B] animate-pulse',
+                      )}
                       style={{
                         backgroundColor: (tag?.color || '#888') + '20',
                         color: tag?.color || '#888',
                       }}
                     >
+                      {isNear && <AlarmClock className="w-2 h-2 shrink-0" strokeWidth={2.5} />}
                       {t.title}
                     </div>
                   )

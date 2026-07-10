@@ -1,8 +1,12 @@
 export function extractLinkTitles(content: string): string[] {
-  const regex = /\[\[([^\]]+)\]\]/g
   const titles: string[] = []
   let match
+  const regex = /\[\[([^\]]+)\]\]/g
   while ((match = regex.exec(content)) !== null) {
+    titles.push(match[1].trim())
+  }
+  const htmlRegex = /data-note-title="([^"]+)"/g
+  while ((match = htmlRegex.exec(content)) !== null) {
     titles.push(match[1].trim())
   }
   return titles

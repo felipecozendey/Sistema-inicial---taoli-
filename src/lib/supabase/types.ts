@@ -16,6 +16,7 @@ export type Database = {
           emoji: string
           id: string
           title: string
+          user_id: string | null
         }
         Insert: {
           color?: string
@@ -23,6 +24,7 @@ export type Database = {
           emoji?: string
           id?: string
           title: string
+          user_id?: string | null
         }
         Update: {
           color?: string
@@ -30,6 +32,7 @@ export type Database = {
           emoji?: string
           id?: string
           title?: string
+          user_id?: string | null
         }
         Relationships: []
       }
@@ -44,6 +47,7 @@ export type Database = {
           interval: number
           next_review_date: string
           note_id: string | null
+          user_id: string | null
         }
         Insert: {
           back: string
@@ -55,6 +59,7 @@ export type Database = {
           interval?: number
           next_review_date?: string
           note_id?: string | null
+          user_id?: string | null
         }
         Update: {
           back?: string
@@ -66,6 +71,7 @@ export type Database = {
           interval?: number
           next_review_date?: string
           note_id?: string | null
+          user_id?: string | null
         }
         Relationships: [
           {
@@ -76,6 +82,153 @@ export type Database = {
             referencedColumns: ['id']
           },
         ]
+      }
+      habits: {
+        Row: {
+          completions: Json
+          created_at: string
+          escudos: number
+          frequency: string
+          frozen_dates: Json
+          id: string
+          tag_id: string | null
+          target_completions: number | null
+          title: string
+          user_id: string
+          week_days: Json
+          weekly_goal: number
+        }
+        Insert: {
+          completions?: Json
+          created_at?: string
+          escudos?: number
+          frequency?: string
+          frozen_dates?: Json
+          id?: string
+          tag_id?: string | null
+          target_completions?: number | null
+          title: string
+          user_id: string
+          week_days?: Json
+          weekly_goal?: number
+        }
+        Update: {
+          completions?: Json
+          created_at?: string
+          escudos?: number
+          frequency?: string
+          frozen_dates?: Json
+          id?: string
+          tag_id?: string | null
+          target_completions?: number | null
+          title?: string
+          user_id?: string
+          week_days?: Json
+          weekly_goal?: number
+        }
+        Relationships: []
+      }
+      notebooks: {
+        Row: {
+          color: string
+          created_at: string
+          emoji: string
+          id: string
+          name: string
+          user_id: string
+        }
+        Insert: {
+          color?: string
+          created_at?: string
+          emoji?: string
+          id?: string
+          name: string
+          user_id: string
+        }
+        Update: {
+          color?: string
+          created_at?: string
+          emoji?: string
+          id?: string
+          name?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      notes: {
+        Row: {
+          content: string
+          created_at: string
+          id: string
+          notebook_id: string | null
+          title: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          content?: string
+          created_at?: string
+          id?: string
+          notebook_id?: string | null
+          title?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          content?: string
+          created_at?: string
+          id?: string
+          notebook_id?: string | null
+          title?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      tasks: {
+        Row: {
+          completed: boolean
+          created_at: string
+          due_date: string | null
+          energy_level: number
+          estimated_time: number
+          id: string
+          priority: string
+          scheduled_date: string | null
+          subtasks: Json
+          tag_id: string | null
+          title: string
+          user_id: string
+        }
+        Insert: {
+          completed?: boolean
+          created_at?: string
+          due_date?: string | null
+          energy_level?: number
+          estimated_time?: number
+          id?: string
+          priority?: string
+          scheduled_date?: string | null
+          subtasks?: Json
+          tag_id?: string | null
+          title: string
+          user_id: string
+        }
+        Update: {
+          completed?: boolean
+          created_at?: string
+          due_date?: string | null
+          energy_level?: number
+          estimated_time?: number
+          id?: string
+          priority?: string
+          scheduled_date?: string | null
+          subtasks?: Json
+          tag_id?: string | null
+          title?: string
+          user_id?: string
+        }
+        Relationships: []
       }
     }
     Views: {

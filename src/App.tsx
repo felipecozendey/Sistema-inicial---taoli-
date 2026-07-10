@@ -8,6 +8,7 @@ import { FocusRadarProvider } from '@/components/focus-radar/focus-radar-provide
 import { useServiceWorker } from '@/hooks/use-service-worker'
 import { AuthProvider, useAuth } from '@/hooks/use-auth'
 import { AuthScreen } from '@/components/auth-screen'
+import { useOnlineSync } from '@/hooks/use-online-sync'
 
 import Layout from './components/Layout'
 import NotFound from './pages/NotFound'
@@ -36,6 +37,7 @@ function AppInner() {
 
   return (
     <AppStoreProvider>
+      <OnlineSyncListener />
       <FocusRadarProvider>
         <BrowserRouter>
           <TooltipProvider>
@@ -59,6 +61,11 @@ function AppInner() {
       </FocusRadarProvider>
     </AppStoreProvider>
   )
+}
+
+function OnlineSyncListener() {
+  useOnlineSync()
+  return null
 }
 
 const App = () => {

@@ -9,15 +9,30 @@ import { cn } from '@/lib/utils'
 
 export default function TasksAndHabits() {
   const { tasks, habits, tags } = useAppStore()
-  const [filter, setFilter] = useState<string>('all')
+  const [selectedTags, setSelectedTags] = useState<string[]>([])
+  const [nearDeadlineOnly, setNearDeadlineOnly] = useState(false)
+
+  const toggleTag = (id: string) =>
+    setSelectedTags((prev) => (prev.includes(id) ? prev.filter((t) => t !== id) : [...prev, id]))
 
   const filteredTasks = useMemo(
-    () => tasks.filter((t) => filter === 'all' || t.tagId === filter),
-    [tasks, filter],
+    () =>
+      tasks.filter((t) => {
+        const taskTagIds = t.tagIds || (t.tagId ? [t.tagId] : [])
+        const matchesTag =
+          selectedTags.length === 0 || taskTagIds.some((id) => selectedTags.includes(id))
+        if (!matchesTag) return false
+        if (!nearDeadlineOnly) return true
+        if (t.completed) return false
+        const due = new Date(t.dueDate + 'T23:59:59')
+        const diff = due.getTime() - Date.now()
+        return diff > 0 && diff < 24 * 60 * 60 * 1000
+      }),
+    [tasks, selectedTags, nearDeadlineOnly],
   )
   const filteredHabits = useMemo(
-    () => habits.filter((h) => filter === 'all' || h.tagId === filter),
-    [habits, filter],
+    () => habits.filter((h) => selectedTags.length === 0 || selectedTags.includes(h.tagId)),
+    [habits, selectedTags],
   )
 
   return (
@@ -29,10 +44,21 @@ export default function TasksAndHabits() {
 
       <div className="flex gap-2 overflow-x-auto pb-2 pt-2 scrollbar-hide">
         <button
-          onClick={() => setFilter('all')}
+          onClick={() => setNearDeadlineOnly((v) => !v)}
+          className={cn(
+            'px-5 py-2.5 rounded-full text-sm font-semibold whitespace-nowrap transition-transform active:scale-95 flex items-center gap-1.5',
+            nearDeadlineOnly
+              ? 'bg-[#FF4B4B] text-white shadow-md'
+              : 'bg-card text-muted-foreground hover:bg-muted',
+          )}
+        >
+          ⏰ Prazo Limite
+        </button>
+        <button
+          onClick={() => setSelectedTags([])}
           className={cn(
             'px-5 py-2.5 rounded-full text-sm font-semibold whitespace-nowrap transition-transform active:scale-95',
-            filter === 'all'
+            selectedTags.length === 0
               ? 'bg-foreground text-background shadow-md'
               : 'bg-card text-muted-foreground hover:bg-muted',
           )}
@@ -42,15 +68,15 @@ export default function TasksAndHabits() {
         {tags.map((cat) => (
           <button
             key={cat.id}
-            onClick={() => setFilter(cat.id)}
+            onClick={() => toggleTag(cat.id)}
             className={cn(
-              'px-5 py-2.5 rounded-full text-sm font-semibold whitespace-nowrap transition-transform active:scale-95',
-              filter === cat.id ? 'border-2 shadow-md' : 'border border-transparent',
+              'px-5 py-2.5 rounded-full text-sm font-semibold whitespace-nowrap transition-transform active:scale-95 border-2',
+              selectedTags.includes(cat.id) ? 'shadow-md' : 'border-transparent',
             )}
             style={{
-              backgroundColor: filter === cat.id ? cat.color : cat.color + '20',
-              color: filter === cat.id ? '#0f172a' : cat.color,
-              borderColor: filter === cat.id ? '#0f172a' : 'transparent',
+              backgroundColor: selectedTags.includes(cat.id) ? cat.color : cat.color + '20',
+              color: selectedTags.includes(cat.id) ? '#0f172a' : cat.color,
+              borderColor: selectedTags.includes(cat.id) ? '#0f172a' : 'transparent',
             }}
           >
             {cat.name}

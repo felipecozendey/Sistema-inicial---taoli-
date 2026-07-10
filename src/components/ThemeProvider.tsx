@@ -2,7 +2,7 @@ import * as React from 'react'
 import { ThemeProvider as NextThemesProvider } from 'next-themes'
 import { type ThemeProviderProps } from 'next-themes'
 
-type ColorTheme = 'default' | 'ocean' | 'forest'
+type ColorTheme = 'default' | 'ocean' | 'forest' | 'sunset' | 'midnight' | 'cyberpunk'
 
 interface ColorThemeContextType {
   colorTheme: ColorTheme

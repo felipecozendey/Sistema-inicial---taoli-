@@ -1,10 +1,11 @@
 import { useState } from 'react'
 import { Habit, useAppStore } from '@/stores/useAppStore'
-import { Check, Flame, Trash2, Shield, Pencil } from 'lucide-react'
+import { Check, Flame, Trash2, Shield, Pencil, Trophy } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { calculateStreak, getHabitEvolution, getHabitWeeklyProgress } from '@/lib/habit-utils'
 import { GameProgress } from '@/components/ui/game-progress'
 import { HabitForm } from '@/components/habits/habit-form'
+import { ConfettiBurst } from '@/components/ui/confetti-burst'
 
 export function HabitCard({ habit }: { habit: Habit }) {
   const { tags, toggleHabitCompletion, deleteHabit } = useAppStore()
@@ -16,6 +17,12 @@ export function HabitCard({ habit }: { habit: Habit }) {
   const evolution = getHabitEvolution(streak)
   const { current, goal, percent } = getHabitWeeklyProgress(habit)
   const isWeeklyMeta = habit.weeklyGoal && habit.weeklyGoal > 0
+  const totalCompletions = habit.completions.length
+  const hasLongTermGoal = habit.targetCompletions && habit.targetCompletions > 0
+  const goalPercent = hasLongTermGoal
+    ? Math.min(100, Math.round((totalCompletions / habit.targetCompletions!) * 100))
+    : 0
+  const goalCompleted = hasLongTermGoal && totalCompletions >= habit.targetCompletions!
 
   return (
     <div
@@ -104,6 +111,26 @@ export function HabitCard({ habit }: { habit: Habit }) {
           {isWeeklyMeta ? `${current}/${goal}` : `${percent}%`}
         </span>
       </div>
+      {hasLongTermGoal && (
+        <div className="space-y-1 pl-1">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-bold text-muted-foreground flex items-center gap-1">
+              <Trophy className="w-3 h-3" strokeWidth={2.5} /> Meta de Longo Prazo
+            </span>
+            <span className={cn('text-xs font-bold', goalCompleted && 'text-[#58CC02]')}>
+              {goalCompleted
+                ? 'Meta Concluída! 🎉'
+                : `${totalCompletions} / ${habit.targetCompletions} concluídos`}
+            </span>
+          </div>
+          <GameProgress
+            value={goalPercent}
+            variant={goalCompleted ? 'success' : 'gold'}
+            height="sm"
+          />
+        </div>
+      )}
+      <ConfettiBurst trigger={!!goalCompleted} />
       <HabitForm editHabit={habit} hideTrigger open={editOpen} onOpenChange={setEditOpen} />
     </div>
   )

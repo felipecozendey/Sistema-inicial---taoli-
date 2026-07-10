@@ -16,8 +16,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { useAppStore, EnergyLevel, Task, Subtask } from '@/stores/useAppStore'
-import { Plus, X } from 'lucide-react'
+import { Plus, X, Check } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 const ENERGY_LEVELS: { value: EnergyLevel; label: string; bolts: number; color: string }[] = [
@@ -44,14 +45,18 @@ export function TaskForm({
   const isControlled = controlledOpen !== undefined
   const open = isControlled ? controlledOpen : internalOpen
   const setOpen = (v: boolean) => {
-    if (isControlled) onOpenChange?.(v)
-    else setInternalOpen(v)
+    if (isControlled) {
+      onOpenChange?.(v)
+    } else {
+      setInternalOpen(v)
+    }
   }
 
   const [title, setTitle] = useState('')
-  const [tagId, setTagId] = useState(tags[0]?.id || '')
+  const [tagIds, setTagIds] = useState<string[]>(tags.length > 0 ? [tags[0].id] : [])
   const [energyLevel, setEnergyLevel] = useState<EnergyLevel>(2)
   const [dueDate, setDueDate] = useState(new Date().toISOString().split('T')[0])
+  const [scheduledDate, setScheduledDate] = useState(new Date().toISOString().split('T')[0])
   const [estimatedTime, setEstimatedTime] = useState(30)
   const [subtasks, setSubtasks] = useState<Subtask[]>([])
   const [subtaskInput, setSubtaskInput] = useState('')
@@ -59,22 +64,26 @@ export function TaskForm({
   useEffect(() => {
     if (editTask && open) {
       setTitle(editTask.title)
-      setTagId(editTask.tagId)
+      setTagIds(editTask.tagIds || (editTask.tagId ? [editTask.tagId] : []))
       setEnergyLevel(editTask.energyLevel)
       setDueDate(editTask.dueDate)
+      setScheduledDate(editTask.scheduledDate || editTask.dueDate)
       setEstimatedTime(editTask.estimatedTime)
       setSubtasks(editTask.subtasks.map((s) => ({ ...s })))
     } else if (!open && !editTask) {
       setTitle('')
-      setTagId(tags[0]?.id || '')
+      setTagIds(tags.length > 0 ? [tags[0].id] : [])
       setEnergyLevel(2)
       setDueDate(new Date().toISOString().split('T')[0])
+      setScheduledDate(new Date().toISOString().split('T')[0])
       setEstimatedTime(30)
       setSubtasks([])
       setSubtaskInput('')
     }
   }, [editTask, open])
 
+  const toggleTag = (id: string) =>
+    setTagIds((prev) => (prev.includes(id) ? prev.filter((t) => t !== id) : [...prev, id]))
   const addSubtask = () => {
     if (!subtaskInput.trim()) return
     setSubtasks((prev) => [...prev, { id: '', title: subtaskInput.trim(), completed: false }])
@@ -88,9 +97,11 @@ export function TaskForm({
     const data = {
       title,
       dueDate,
+      scheduledDate,
       energyLevel,
       estimatedTime,
-      tagId,
+      tagId: tagIds[0] || '',
+      tagIds,
       subtasks: subtasks.map((s) => ({ id: s.id, title: s.title, completed: s.completed })),
     }
     if (editTask) updateTask(editTask.id, data)
@@ -129,19 +140,58 @@ export function TaskForm({
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label className="font-bold">Tag</Label>
-              <Select value={tagId} onValueChange={setTagId}>
-                <SelectTrigger className="rounded-2xl bg-muted/50 border-transparent font-semibold">
-                  <SelectValue placeholder="Selecione..." />
-                </SelectTrigger>
-                <SelectContent>
-                  {tags.map((t) => (
-                    <SelectItem key={t.id} value={t.id}>
-                      {t.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Label className="font-bold">Tags</Label>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <button
+                    type="button"
+                    className="w-full min-h-[44px] rounded-2xl bg-muted/50 border-transparent font-semibold px-3 py-2 flex items-center gap-1.5 flex-wrap text-left"
+                  >
+                    {tagIds.length === 0 ? (
+                      <span className="text-muted-foreground text-sm">Selecionar...</span>
+                    ) : (
+                      tagIds.map((id) => {
+                        const tag = tags.find((t) => t.id === id)
+                        return tag ? (
+                          <span
+                            key={id}
+                            className="text-xs font-extrabold px-2 py-0.5 rounded-full"
+                            style={{ backgroundColor: tag.color + '20', color: tag.color }}
+                          >
+                            {tag.name}
+                          </span>
+                        ) : null
+                      })
+                    )}
+                  </button>
+                </PopoverTrigger>
+                <PopoverContent className="rounded-3xl w-56">
+                  <div className="space-y-1">
+                    {tags.map((tag) => (
+                      <button
+                        key={tag.id}
+                        type="button"
+                        onClick={() => toggleTag(tag.id)}
+                        className="flex items-center gap-2 w-full p-2 rounded-xl hover:bg-muted transition-colors"
+                      >
+                        <div
+                          className="w-5 h-5 rounded-md border-2 flex items-center justify-center"
+                          style={
+                            tagIds.includes(tag.id)
+                              ? { backgroundColor: tag.color, borderColor: tag.color }
+                              : { borderColor: 'hsl(var(--muted-foreground))' }
+                          }
+                        >
+                          {tagIds.includes(tag.id) && (
+                            <Check className="w-3 h-3 text-white" strokeWidth={3} />
+                          )}
+                        </div>
+                        <span className="font-semibold text-sm">{tag.name}</span>
+                      </button>
+                    ))}
+                  </div>
+                </PopoverContent>
+              </Popover>
             </div>
             <div className="space-y-2">
               <Label className="font-bold">Tempo estimado</Label>
@@ -194,17 +244,31 @@ export function TaskForm({
               ))}
             </div>
           </div>
-          <div className="space-y-2">
-            <Label htmlFor="due-date" className="font-bold">
-              Data
-            </Label>
-            <Input
-              id="due-date"
-              type="date"
-              value={dueDate}
-              onChange={(e) => setDueDate(e.target.value)}
-              className="rounded-2xl bg-muted/50 border-transparent font-semibold"
-            />
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="scheduled-date" className="font-bold">
+                Agendado para
+              </Label>
+              <Input
+                id="scheduled-date"
+                type="date"
+                value={scheduledDate}
+                onChange={(e) => setScheduledDate(e.target.value)}
+                className="rounded-2xl bg-muted/50 border-transparent font-semibold"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="due-date" className="font-bold">
+                Prazo limite
+              </Label>
+              <Input
+                id="due-date"
+                type="date"
+                value={dueDate}
+                onChange={(e) => setDueDate(e.target.value)}
+                className="rounded-2xl bg-muted/50 border-transparent font-semibold"
+              />
+            </div>
           </div>
           <div className="space-y-2">
             <Label className="font-bold">Subtarefas (Checklist)</Label>
