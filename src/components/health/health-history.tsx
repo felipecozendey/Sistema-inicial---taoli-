@@ -1,8 +1,8 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { useAppStore, HydrationLog, MoodLog, DigestionLog, UrineLog } from '@/stores/useAppStore'
 import { Calendar } from '@/components/ui/calendar'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
-import { Trash2, CalendarIcon, FileDown } from 'lucide-react'
+import { Trash2, CalendarIcon, FileDown, ChevronLeft, ChevronRight } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 type LogType = 'hydration' | 'mood' | 'digestion' | 'urine'
@@ -11,6 +11,8 @@ type UnionLog =
   | (MoodLog & { type: LogType })
   | (DigestionLog & { type: LogType })
   | (UrineLog & { type: LogType })
+
+const ITEMS_PER_PAGE = 12
 
 const MOOD_EMOJIS: Record<number, { emoji: string; label: string }> = {
   1: { emoji: '😩', label: 'Péssimo' },
@@ -51,6 +53,7 @@ export function HealthHistory() {
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(undefined)
   const [category, setCategory] = useState<'all' | LogType>('all')
   const [calendarOpen, setCalendarOpen] = useState(false)
+  const [currentPage, setCurrentPage] = useState(1)
 
   const allLogs = useMemo(() => {
     const merged: UnionLog[] = [
@@ -67,6 +70,16 @@ export function HealthHistory() {
     if (category !== 'all' && log.type !== category) return false
     return true
   })
+
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [selectedDate, category])
+
+  const totalPages = Math.max(1, Math.ceil(filteredLogs.length / ITEMS_PER_PAGE))
+  const paginatedLogs = filteredLogs.slice(
+    (currentPage - 1) * ITEMS_PER_PAGE,
+    currentPage * ITEMS_PER_PAGE,
+  )
 
   const handleDelete = (log: UnionLog) => {
     if (log.type === 'hydration') deleteHydrationLog(log.id)
@@ -175,17 +188,17 @@ export function HealthHistory() {
           onClick={() => window.print()}
           className="ml-auto flex items-center gap-2 px-5 py-2.5 rounded-2xl bg-[#58CC02] text-white font-extrabold border-b-4 border-[#46A302] active:translate-y-1 active:border-b-0 transition-all duration-150"
         >
-          <FileDown className="w-4 h-4" strokeWidth={2.5} /> Exportar Relatório em PDF
+          <FileDown className="w-4 h-4" strokeWidth={2.5} /> Exportar PDF
         </button>
       </div>
 
       <div className="space-y-2">
-        {filteredLogs.length === 0 ? (
+        {paginatedLogs.length === 0 ? (
           <div className="text-center py-12 text-muted-foreground font-semibold print:hidden">
             Nenhum registro encontrado.
           </div>
         ) : (
-          filteredLogs.map((log) => {
+          paginatedLogs.map((log) => {
             const content = renderLogContent(log)
             const time = new Date(log.timestamp).toLocaleTimeString('pt-BR', {
               hour: '2-digit',
@@ -240,6 +253,36 @@ export function HealthHistory() {
             )
           })
         )}
+      </div>
+
+      <div className="flex items-center justify-center gap-4 pt-2 print:hidden">
+        <button
+          onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+          disabled={currentPage === 1}
+          className={cn(
+            'flex items-center gap-1 px-4 py-2 rounded-xl border-2 border-b-4 font-bold text-sm transition-all active:translate-y-0.5',
+            currentPage === 1
+              ? 'border-[#E5E5E5] dark:border-[#3B4A55] text-muted-foreground/50 cursor-not-allowed'
+              : 'border-[#E5E5E5] dark:border-[#3B4A55] hover:bg-muted/50',
+          )}
+        >
+          <ChevronLeft className="w-4 h-4" strokeWidth={2.5} /> Anterior
+        </button>
+        <span className="text-sm font-extrabold">
+          Página {currentPage} de {totalPages}
+        </span>
+        <button
+          onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+          disabled={currentPage === totalPages}
+          className={cn(
+            'flex items-center gap-1 px-4 py-2 rounded-xl border-2 border-b-4 font-bold text-sm transition-all active:translate-y-0.5',
+            currentPage === totalPages
+              ? 'border-[#E5E5E5] dark:border-[#3B4A55] text-muted-foreground/50 cursor-not-allowed'
+              : 'border-[#E5E5E5] dark:border-[#3B4A55] hover:bg-muted/50',
+          )}
+        >
+          Próxima <ChevronRight className="w-4 h-4" strokeWidth={2.5} />
+        </button>
       </div>
     </div>
   )

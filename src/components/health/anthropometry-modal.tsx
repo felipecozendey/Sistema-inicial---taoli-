@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import {
   Select,
   SelectContent,
@@ -12,25 +13,38 @@ import {
 import { GameButton } from '@/components/ui/game-button'
 import { useAppStore } from '@/stores/useAppStore'
 import { uploadImage } from '@/lib/image-upload'
+import { calculateTMB, calculateGET, ACTIVITY_LABELS, ActivityLevel } from '@/lib/metabolic-utils'
 import {
-  calculateTMB,
-  calculateGET,
-  ACTIVITY_LABELS,
+  calculateIMC,
+  calculateRCQ,
+  getRCQStatus,
+  getIMCStatus,
+  calculateBodyDensity7,
+  calculateFatFromDensity,
+  calculateFatMass,
+  calculateLeanMass,
   Gender,
-  ActivityLevel,
-} from '@/lib/metabolic-utils'
+} from '@/lib/anthropometry'
 import { toast } from 'sonner'
-import { Camera, X, Loader2 } from 'lucide-react'
+import { Camera, X, Loader2, AlertTriangle } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
-const MEASUREMENTS = [
+const PERIMETERS = [
   { key: 'waist', label: 'Cintura', emoji: '📏' },
   { key: 'hip', label: 'Quadril', emoji: '📐' },
-  { key: 'chest', label: 'Peito', emoji: '🏋️' },
-  { key: 'leftArm', label: 'Braço E.', emoji: '💪' },
-  { key: 'rightArm', label: 'Braço D.', emoji: '💪' },
-  { key: 'leftThigh', label: 'Coxa E.', emoji: '🦵' },
-  { key: 'rightThigh', label: 'Coxa D.', emoji: '🦵' },
+  { key: 'arm', label: 'Braço', emoji: '💪' },
+  { key: 'thigh', label: 'Coxa', emoji: '🦵' },
+  { key: 'calf', label: 'Panturrilha', emoji: '🦶' },
+]
+
+const SKINFOLDS = [
+  { key: 'triceps', label: 'Tríceps' },
+  { key: 'chest', label: 'Peitoral' },
+  { key: 'subscapular', label: 'Subescapular' },
+  { key: 'midaxillary', label: 'Axilar Média' },
+  { key: 'suprailiac', label: 'Supra-ilíaca' },
+  { key: 'abdominal', label: 'Abdominal' },
+  { key: 'thigh', label: 'Coxa' },
 ]
 
 const PRIMARY_GOALS = ['Hipertrofia', 'Emagrecimento', 'Manutenção']
@@ -48,42 +62,68 @@ export function AnthropometryModal({
   const { addBodyMetric } = useAppStore()
   const [date, setDate] = useState(new Date().toISOString().split('T')[0])
   const [weight, setWeight] = useState('')
-  const [bodyFat, setBodyFat] = useState('')
-  const [muscleMass, setMuscleMass] = useState('')
+  const [height, setHeight] = useState('')
   const [gender, setGender] = useState<Gender>('male')
   const [age, setAge] = useState('')
-  const [height, setHeight] = useState('')
   const [activityLevel, setActivityLevel] = useState<ActivityLevel>('moderate')
-  const [measurements, setMeasurements] = useState<Record<string, string>>({})
-  const [photos, setPhotos] = useState<string[]>([])
-  const [uploading, setUploading] = useState(false)
   const [heartRate, setHeartRate] = useState('')
   const [bloodPressure, setBloodPressure] = useState('')
   const [sleepQuality, setSleepQuality] = useState(3)
   const [stressLevel, setStressLevel] = useState(3)
   const [primaryGoal, setPrimaryGoal] = useState('')
+  const [perimeters, setPerimeters] = useState<Record<string, string>>({})
+  const [skinfolds, setSkinfolds] = useState<Record<string, string>>({})
+  const [compositionMode, setCompositionMode] = useState<'bioimpedance' | 'skinfolds'>(
+    'bioimpedance',
+  )
+  const [bodyFat, setBodyFat] = useState('')
+  const [muscleMass, setMuscleMass] = useState('')
+  const [bodyWater, setBodyWater] = useState('')
+  const [photos, setPhotos] = useState<string[]>([])
+  const [uploading, setUploading] = useState(false)
 
-  const tmbPreview =
-    weight && height && age
-      ? calculateTMB(gender, parseFloat(weight), parseFloat(height), parseInt(age))
+  const w = parseFloat(weight) || 0
+  const h = parseFloat(height) || 0
+  const a = parseInt(age) || 0
+  const imc = calculateIMC(w, h)
+  const rcq = calculateRCQ(parseFloat(perimeters.waist) || 0, parseFloat(perimeters.hip) || 0)
+  const rcqStatus = getRCQStatus(rcq, gender)
+  const imcStatus = getIMCStatus(imc)
+
+  const sfValues: Record<string, number> = {}
+  Object.entries(skinfolds).forEach(([k, v]) => {
+    const n = parseFloat(v)
+    if (!isNaN(n)) sfValues[k] = n
+  })
+
+  const calcBodyFat =
+    compositionMode === 'skinfolds' && a > 0
+      ? calculateFatFromDensity(calculateBodyDensity7(gender, a, sfValues))
       : 0
+  const currentBodyFat = compositionMode === 'skinfolds' ? calcBodyFat : parseFloat(bodyFat) || 0
+  const fatMass = calculateFatMass(w, currentBodyFat)
+  const leanMass = calculateLeanMass(w, fatMass)
+  const tmbPreview = w && h && a ? calculateTMB(gender, w, h, a) : 0
   const getPreview = tmbPreview ? calculateGET(tmbPreview, activityLevel) : 0
 
   const resetForm = useCallback(() => {
     setWeight('')
-    setBodyFat('')
-    setMuscleMass('')
-    setMeasurements({})
-    setPhotos([])
+    setHeight('')
+    setAge('')
+    setGender('male')
+    setActivityLevel('moderate')
     setHeartRate('')
     setBloodPressure('')
     setSleepQuality(3)
     setStressLevel(3)
     setPrimaryGoal('')
-    setAge('')
-    setHeight('')
-    setGender('male')
-    setActivityLevel('moderate')
+    setPerimeters({})
+    setSkinfolds({})
+    setCompositionMode('bioimpedance')
+    setBodyFat('')
+    setMuscleMass('')
+    setBodyWater('')
+    setPhotos([])
   }, [])
 
   useEffect(() => {
@@ -97,8 +137,7 @@ export function AnthropometryModal({
     try {
       const urls: string[] = []
       for (const file of Array.from(files)) {
-        const url = await uploadImage(file)
-        urls.push(url)
+        urls.push(await uploadImage(file))
       }
       setPhotos((p) => [...p, ...urls])
     } finally {
@@ -109,20 +148,25 @@ export function AnthropometryModal({
 
   const handleSave = () => {
     const numericMeasurements: Record<string, number> = {}
-    Object.entries(measurements).forEach(([k, v]) => {
+    Object.entries(perimeters).forEach(([k, v]) => {
       const n = parseFloat(v)
       if (!isNaN(n)) numericMeasurements[k] = n
     })
-    const w = parseFloat(weight) || 0
-    const h = parseFloat(height) || 0
-    const a = parseInt(age) || 0
+    Object.entries(skinfolds).forEach(([k, v]) => {
+      const n = parseFloat(v)
+      if (!isNaN(n)) numericMeasurements[`sf_${k}`] = n
+    })
+    if (compositionMode === 'bioimpedance' && bodyWater)
+      numericMeasurements.bodyWater = parseFloat(bodyWater)
+
     const tmb = h > 0 && a > 0 ? calculateTMB(gender, w, h, a) : 0
     const get = tmb > 0 ? calculateGET(tmb, activityLevel) : 0
+
     addBodyMetric({
       date,
       weight: w,
-      bodyFatPercentage: parseFloat(bodyFat) || 0,
-      muscleMass: parseFloat(muscleMass) || 0,
+      bodyFatPercentage: currentBodyFat,
+      muscleMass: compositionMode === 'skinfolds' ? leanMass : parseFloat(muscleMass) || 0,
       measurements: numericMeasurements,
       photoUrls: photos,
       heartRateRest: parseInt(heartRate) || undefined,
@@ -136,72 +180,86 @@ export function AnthropometryModal({
       activityLevel,
       tmb,
       get,
+      leanMass,
+      fatMass,
     })
     resetForm()
     toast.success('Avaliação registrada!')
     onOpenChange(false)
   }
 
+  const inputCls = 'rounded-xl bg-muted/50 border-transparent font-semibold text-sm h-9'
+  const labelCls = 'font-bold text-xs'
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[500px] rounded-3xl max-h-[85vh] overflow-y-auto">
+      <DialogContent className="sm:max-w-[520px] rounded-3xl max-h-[85vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="text-2xl font-extrabold">Nova Avaliação Física</DialogTitle>
         </DialogHeader>
-        <div className="space-y-4 mt-2">
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-2">
-              <Label className="font-bold">Data</Label>
-              <Input
-                type="date"
-                value={date}
-                onChange={(e) => setDate(e.target.value)}
-                className="rounded-2xl bg-muted/50 border-transparent font-semibold"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label className="font-bold">Peso (kg)</Label>
-              <Input
-                type="number"
-                step="0.1"
-                value={weight}
-                onChange={(e) => setWeight(e.target.value)}
-                className="rounded-2xl bg-muted/50 border-transparent font-semibold"
-                placeholder="81.5"
-              />
-            </div>
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-2">
-              <Label className="font-bold">Gordura (%)</Label>
-              <Input
-                type="number"
-                step="0.1"
-                value={bodyFat}
-                onChange={(e) => setBodyFat(e.target.value)}
-                className="rounded-2xl bg-muted/50 border-transparent font-semibold"
-                placeholder="18.5"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label className="font-bold">Massa Muscular (kg)</Label>
-              <Input
-                type="number"
-                step="0.1"
-                value={muscleMass}
-                onChange={(e) => setMuscleMass(e.target.value)}
-                className="rounded-2xl bg-muted/50 border-transparent font-semibold"
-                placeholder="64"
-              />
-            </div>
-          </div>
-          <div className="bg-muted/30 rounded-2xl p-4 space-y-3">
-            <p className="text-sm font-extrabold">👤 Dados Metabólicos</p>
+        <Tabs defaultValue="vitals" className="mt-2">
+          <TabsList className="grid grid-cols-3 rounded-2xl h-auto p-1">
+            <TabsTrigger value="vitals" className="rounded-xl text-xs font-bold py-2">
+              Vitais
+            </TabsTrigger>
+            <TabsTrigger value="perimeters" className="rounded-xl text-xs font-bold py-2">
+              Perímetros
+            </TabsTrigger>
+            <TabsTrigger value="composition" className="rounded-xl text-xs font-bold py-2">
+              Composição
+            </TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="vitals" className="space-y-3 mt-3">
             <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-2">
-                <Label className="font-bold text-xs">Sexo</Label>
+              <div className="space-y-1.5">
+                <Label className={labelCls}>Data</Label>
+                <Input
+                  type="date"
+                  value={date}
+                  onChange={(e) => setDate(e.target.value)}
+                  className={inputCls}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label className={labelCls}>Peso (kg)</Label>
+                <Input
+                  type="number"
+                  step="0.1"
+                  value={weight}
+                  onChange={(e) => setWeight(e.target.value)}
+                  className={inputCls}
+                  placeholder="81.5"
+                />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label className={labelCls}>Altura (cm)</Label>
+                <Input
+                  type="number"
+                  value={height}
+                  onChange={(e) => setHeight(e.target.value)}
+                  className={inputCls}
+                  placeholder="175"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label className={labelCls}>Idade</Label>
+                <Input
+                  type="number"
+                  value={age}
+                  onChange={(e) => setAge(e.target.value)}
+                  className={inputCls}
+                  placeholder="30"
+                />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label className={labelCls}>Sexo</Label>
                 <Select value={gender} onValueChange={(v) => setGender(v as Gender)}>
-                  <SelectTrigger className="rounded-xl bg-background font-semibold text-sm h-9">
+                  <SelectTrigger className={inputCls}>
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -210,33 +268,13 @@ export function AnthropometryModal({
                   </SelectContent>
                 </Select>
               </div>
-              <div className="space-y-2">
-                <Label className="font-bold text-xs">Idade</Label>
-                <Input
-                  type="number"
-                  value={age}
-                  onChange={(e) => setAge(e.target.value)}
-                  className="rounded-xl bg-background font-semibold text-sm h-9"
-                  placeholder="30"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label className="font-bold text-xs">Altura (cm)</Label>
-                <Input
-                  type="number"
-                  value={height}
-                  onChange={(e) => setHeight(e.target.value)}
-                  className="rounded-xl bg-background font-semibold text-sm h-9"
-                  placeholder="175"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label className="font-bold text-xs">Nível de Atividade</Label>
+              <div className="space-y-1.5">
+                <Label className={labelCls}>Nível de Atividade</Label>
                 <Select
                   value={activityLevel}
                   onValueChange={(v) => setActivityLevel(v as ActivityLevel)}
                 >
-                  <SelectTrigger className="rounded-xl bg-background font-semibold text-sm h-9">
+                  <SelectTrigger className={inputCls}>
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -249,44 +287,29 @@ export function AnthropometryModal({
                 </Select>
               </div>
             </div>
-            {tmbPreview > 0 && (
-              <div className="grid grid-cols-2 gap-2">
-                <div className="bg-[#1CB0F6]/10 rounded-xl p-2 text-center">
-                  <p className="text-[10px] font-bold text-muted-foreground">TMB Calculada</p>
-                  <p className="text-lg font-extrabold text-[#1CB0F6]">{tmbPreview} kcal</p>
-                </div>
-                <div className="bg-[#FF9600]/10 rounded-xl p-2 text-center">
-                  <p className="text-[10px] font-bold text-muted-foreground">GET Calculado</p>
-                  <p className="text-lg font-extrabold text-[#FF9600]">{getPreview} kcal</p>
-                </div>
-              </div>
-            )}
-          </div>
-          <div className="bg-muted/30 rounded-2xl p-4 space-y-3">
-            <p className="text-sm font-extrabold">📋 Anamnese</p>
             <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-2">
-                <Label className="font-bold text-xs">Freq. Cardíaca (bpm)</Label>
+              <div className="space-y-1.5">
+                <Label className={labelCls}>Freq. Cardíaca (bpm)</Label>
                 <Input
                   type="number"
                   value={heartRate}
                   onChange={(e) => setHeartRate(e.target.value)}
-                  className="rounded-xl bg-background font-semibold text-sm h-9"
+                  className={inputCls}
                   placeholder="65"
                 />
               </div>
-              <div className="space-y-2">
-                <Label className="font-bold text-xs">Pressão Arterial</Label>
+              <div className="space-y-1.5">
+                <Label className={labelCls}>Pressão Arterial</Label>
                 <Input
                   value={bloodPressure}
                   onChange={(e) => setBloodPressure(e.target.value)}
-                  className="rounded-xl bg-background font-semibold text-sm h-9"
+                  className={inputCls}
                   placeholder="120/80"
                 />
               </div>
             </div>
-            <div className="space-y-2">
-              <Label className="font-bold text-xs">Qualidade do Sono (1-5)</Label>
+            <div className="space-y-1.5">
+              <Label className={labelCls}>Qualidade do Sono (1-5)</Label>
               <div className="flex gap-2">
                 {[1, 2, 3, 4, 5].map((n) => (
                   <button
@@ -304,8 +327,8 @@ export function AnthropometryModal({
                 ))}
               </div>
             </div>
-            <div className="space-y-2">
-              <Label className="font-bold text-xs">Nível de Estresse (1-5)</Label>
+            <div className="space-y-1.5">
+              <Label className={labelCls}>Nível de Estresse (1-5)</Label>
               <div className="flex gap-2">
                 {[1, 2, 3, 4, 5].map((n) => (
                   <button
@@ -323,10 +346,10 @@ export function AnthropometryModal({
                 ))}
               </div>
             </div>
-            <div className="space-y-2">
-              <Label className="font-bold text-xs">Objetivo Principal</Label>
+            <div className="space-y-1.5">
+              <Label className={labelCls}>Objetivo Principal</Label>
               <Select value={primaryGoal} onValueChange={setPrimaryGoal}>
-                <SelectTrigger className="rounded-xl bg-background font-semibold text-sm h-9">
+                <SelectTrigger className={inputCls}>
                   <SelectValue placeholder="Selecione..." />
                 </SelectTrigger>
                 <SelectContent>
@@ -338,72 +361,242 @@ export function AnthropometryModal({
                 </SelectContent>
               </Select>
             </div>
-          </div>
-          <div>
-            <Label className="font-bold mb-2 block">Medidas Corporais (cm)</Label>
-            <div className="grid grid-cols-2 gap-2">
-              {MEASUREMENTS.map((m) => (
+          </TabsContent>
+
+          <TabsContent value="perimeters" className="space-y-3 mt-3">
+            <div className="grid grid-cols-2 gap-3">
+              {PERIMETERS.map((m) => (
                 <div key={m.key} className="flex items-center gap-2">
                   <span className="text-lg shrink-0">{m.emoji}</span>
+                  <div className="flex-1 space-y-1">
+                    <Label className={labelCls}>{m.label} (cm)</Label>
+                    <Input
+                      type="number"
+                      value={perimeters[m.key] || ''}
+                      onChange={(e) => setPerimeters((p) => ({ ...p, [m.key]: e.target.value }))}
+                      className={inputCls}
+                      placeholder="0"
+                    />
+                  </div>
+                </div>
+              ))}
+            </div>
+            {rcq > 0 && (
+              <div
+                className={cn(
+                  'rounded-xl p-3 flex items-center gap-2',
+                  rcqStatus.isRisk ? 'bg-[#FF4B4B]/10' : 'bg-[#58CC02]/10',
+                )}
+              >
+                <AlertTriangle
+                  className={cn('w-5 h-5', rcqStatus.isRisk ? 'text-[#FF4B4B]' : 'text-[#58CC02]')}
+                />
+                <div>
+                  <p className="text-xs font-extrabold">RCQ: {rcq}</p>
+                  <p
+                    className={cn(
+                      'text-[10px] font-bold',
+                      rcqStatus.isRisk ? 'text-[#FF4B4B]' : 'text-[#58CC02]',
+                    )}
+                  >
+                    {rcqStatus.label}
+                  </p>
+                </div>
+              </div>
+            )}
+          </TabsContent>
+
+          <TabsContent value="composition" className="space-y-3 mt-3">
+            <div className="flex gap-2">
+              <button
+                onClick={() => setCompositionMode('bioimpedance')}
+                className={cn(
+                  'flex-1 py-2.5 rounded-xl border-2 border-b-4 font-extrabold text-sm transition-all active:translate-y-0.5',
+                  compositionMode === 'bioimpedance'
+                    ? 'border-[#1CB0F6] bg-[#1CB0F6]/10 text-[#1CB0F6]'
+                    : 'border-[#E5E5E5] dark:border-[#3B4A55]',
+                )}
+              >
+                🔬 Bioimpedância
+              </button>
+              <button
+                onClick={() => setCompositionMode('skinfolds')}
+                className={cn(
+                  'flex-1 py-2.5 rounded-xl border-2 border-b-4 font-extrabold text-sm transition-all active:translate-y-0.5',
+                  compositionMode === 'skinfolds'
+                    ? 'border-[#FF9600] bg-[#FF9600]/10 text-[#FF9600]'
+                    : 'border-[#E5E5E5] dark:border-[#3B4A55]',
+                )}
+              >
+                📏 Dobras Cutâneas
+              </button>
+            </div>
+            {compositionMode === 'bioimpedance' ? (
+              <div className="grid grid-cols-1 gap-3">
+                <div className="space-y-1.5">
+                  <Label className={labelCls}>Gordura Corporal (%)</Label>
                   <Input
                     type="number"
-                    placeholder={m.label}
-                    value={measurements[m.key] || ''}
-                    onChange={(e) => setMeasurements((p) => ({ ...p, [m.key]: e.target.value }))}
-                    className="rounded-xl bg-muted/50 border-transparent font-semibold text-sm h-9"
+                    step="0.1"
+                    value={bodyFat}
+                    onChange={(e) => setBodyFat(e.target.value)}
+                    className={inputCls}
+                    placeholder="18.5"
                   />
                 </div>
-              ))}
-            </div>
-          </div>
-          <div>
-            <Label className="font-bold mb-2 block">Fotos (Antes/Depois)</Label>
-            <div className="flex flex-wrap gap-2">
-              {photos.map((url, i) => (
-                <div key={i} className="relative">
-                  <img
-                    src={url}
-                    alt={`Foto ${i + 1}`}
-                    className="w-20 h-20 rounded-xl object-cover"
+                <div className="space-y-1.5">
+                  <Label className={labelCls}>Massa Muscular (kg)</Label>
+                  <Input
+                    type="number"
+                    step="0.1"
+                    value={muscleMass}
+                    onChange={(e) => setMuscleMass(e.target.value)}
+                    className={inputCls}
+                    placeholder="64"
                   />
-                  <button
-                    onClick={() => setPhotos((p) => p.filter((_, idx) => idx !== i))}
-                    className="absolute -top-2 -right-2 w-6 h-6 rounded-full bg-[#FF4B4B] text-white flex items-center justify-center"
-                  >
-                    <X className="w-3 h-3" strokeWidth={3} />
-                  </button>
                 </div>
-              ))}
-              <label className="w-20 h-20 rounded-xl border-2 border-dashed border-[#E5E5E5] dark:border-[#3B4A55] flex items-center justify-center cursor-pointer hover:bg-muted/30 transition-colors">
-                <Camera className="w-5 h-5 text-muted-foreground" strokeWidth={2} />
-                <input
-                  type="file"
-                  accept="image/*"
-                  multiple
-                  className="hidden"
-                  onChange={handlePhotos}
-                  disabled={uploading}
-                />
-              </label>
-            </div>
-          </div>
-          <GameButton
-            onClick={handleSave}
-            variant="primary"
-            size="lg"
-            className="w-full"
-            disabled={uploading}
-          >
-            {uploading ? (
-              <span className="flex items-center justify-center gap-2">
-                <Loader2 className="w-5 h-5 animate-spin" />
-                Fazendo upload...
-              </span>
+                <div className="space-y-1.5">
+                  <Label className={labelCls}>Água Corporal (%)</Label>
+                  <Input
+                    type="number"
+                    step="0.1"
+                    value={bodyWater}
+                    onChange={(e) => setBodyWater(e.target.value)}
+                    className={inputCls}
+                    placeholder="55"
+                  />
+                </div>
+              </div>
             ) : (
-              'Salvar Avaliação'
+              <div className="grid grid-cols-2 gap-3">
+                {SKINFOLDS.map((s) => (
+                  <div key={s.key} className="space-y-1">
+                    <Label className={labelCls}>{s.label} (mm)</Label>
+                    <Input
+                      type="number"
+                      step="0.1"
+                      value={skinfolds[s.key] || ''}
+                      onChange={(e) => setSkinfolds((p) => ({ ...p, [s.key]: e.target.value }))}
+                      className={inputCls}
+                      placeholder="0"
+                    />
+                  </div>
+                ))}
+              </div>
             )}
-          </GameButton>
+            {compositionMode === 'skinfolds' && calcBodyFat > 0 && (
+              <div className="bg-[#FF9600]/10 rounded-xl p-3 text-center">
+                <p className="text-[10px] font-bold text-muted-foreground">
+                  % Gordura Calculada (Jackson-Pollock 7 + Siri)
+                </p>
+                <p className="text-2xl font-extrabold text-[#FF9600]">{calcBodyFat}%</p>
+              </div>
+            )}
+          </TabsContent>
+        </Tabs>
+
+        {(imc > 0 || fatMass > 0) && (
+          <div className="bg-muted/30 rounded-2xl p-4 space-y-2">
+            <p className="text-sm font-extrabold">📊 Resultados Calculados</p>
+            <div className="grid grid-cols-2 gap-2">
+              <div className="bg-[#1CB0F6]/10 rounded-xl p-2 text-center">
+                <p className="text-[10px] font-bold text-muted-foreground">IMC</p>
+                <p className="text-lg font-extrabold text-[#1CB0F6]">{imc || '—'}</p>
+                {imc > 0 && (
+                  <p className="text-[9px] font-bold" style={{ color: imcStatus.color }}>
+                    {imcStatus.label}
+                  </p>
+                )}
+              </div>
+              <div
+                className={cn(
+                  'rounded-xl p-2 text-center',
+                  rcqStatus.isRisk ? 'bg-[#FF4B4B]/10' : 'bg-[#58CC02]/10',
+                )}
+              >
+                <p className="text-[10px] font-bold text-muted-foreground">RCQ</p>
+                <p
+                  className={cn(
+                    'text-lg font-extrabold',
+                    rcqStatus.isRisk ? 'text-[#FF4B4B]' : 'text-[#58CC02]',
+                  )}
+                >
+                  {rcq || '—'}
+                </p>
+                {rcq > 0 && <p className="text-[9px] font-bold">{rcqStatus.label}</p>}
+              </div>
+              <div className="bg-[#FF9600]/10 rounded-xl p-2 text-center">
+                <p className="text-[10px] font-bold text-muted-foreground">Massa Gorda</p>
+                <p className="text-lg font-extrabold text-[#FF9600]">{fatMass || '—'} kg</p>
+              </div>
+              <div className="bg-[#58CC02]/10 rounded-xl p-2 text-center">
+                <p className="text-[10px] font-bold text-muted-foreground">Massa Magra</p>
+                <p className="text-lg font-extrabold text-[#58CC02]">{leanMass || '—'} kg</p>
+              </div>
+            </div>
+            {tmbPreview > 0 && (
+              <div className="grid grid-cols-2 gap-2">
+                <div className="bg-[#1CB0F6]/10 rounded-xl p-2 text-center">
+                  <p className="text-[10px] font-bold text-muted-foreground">TMB</p>
+                  <p className="text-lg font-extrabold text-[#1CB0F6]">{tmbPreview} kcal</p>
+                </div>
+                <div className="bg-[#FF9600]/10 rounded-xl p-2 text-center">
+                  <p className="text-[10px] font-bold text-muted-foreground">GET</p>
+                  <p className="text-lg font-extrabold text-[#FF9600]">{getPreview} kcal</p>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        <div>
+          <Label className="font-bold mb-2 block text-xs">Fotos (Antes/Depois)</Label>
+          <div className="flex flex-wrap gap-2">
+            {photos.map((url, i) => (
+              <div key={i} className="relative">
+                <img
+                  src={url}
+                  alt={`Foto ${i + 1}`}
+                  className="w-20 h-20 rounded-xl object-cover"
+                />
+                <button
+                  onClick={() => setPhotos((p) => p.filter((_, idx) => idx !== i))}
+                  className="absolute -top-2 -right-2 w-6 h-6 rounded-full bg-[#FF4B4B] text-white flex items-center justify-center"
+                >
+                  <X className="w-3 h-3" strokeWidth={3} />
+                </button>
+              </div>
+            ))}
+            <label className="w-20 h-20 rounded-xl border-2 border-dashed border-[#E5E5E5] dark:border-[#3B4A55] flex items-center justify-center cursor-pointer hover:bg-muted/30 transition-colors">
+              <Camera className="w-5 h-5 text-muted-foreground" strokeWidth={2} />
+              <input
+                type="file"
+                accept="image/*"
+                multiple
+                className="hidden"
+                onChange={handlePhotos}
+                disabled={uploading}
+              />
+            </label>
+          </div>
         </div>
+
+        <GameButton
+          onClick={handleSave}
+          variant="primary"
+          size="lg"
+          className="w-full"
+          disabled={uploading}
+        >
+          {uploading ? (
+            <span className="flex items-center justify-center gap-2">
+              <Loader2 className="w-5 h-5 animate-spin" />
+              Fazendo upload...
+            </span>
+          ) : (
+            'Salvar Avaliação'
+          )}
+        </GameButton>
       </DialogContent>
     </Dialog>
   )

@@ -117,6 +117,8 @@ export type BodyMetric = {
   activityLevel?: string
   tmb?: number
   get?: number
+  leanMass?: number
+  fatMass?: number
 }
 export type PatientGoal = {
   targetWeight: number
@@ -1111,6 +1113,8 @@ export const AppStoreProvider = ({ children }: { children: ReactNode }) => {
           activityLevel: d.activity_level || undefined,
           tmb: d.tmb || undefined,
           get: d.get || undefined,
+          leanMass: d.lean_mass || undefined,
+          fatMass: d.fat_mass || undefined,
         })),
       )
   }
@@ -1139,6 +1143,8 @@ export const AppStoreProvider = ({ children }: { children: ReactNode }) => {
           activity_level: metric.activityLevel || null,
           tmb: metric.tmb || null,
           get: metric.get || null,
+          lean_mass: metric.leanMass || null,
+          fat_mass: metric.fatMass || null,
           user_id: u.id,
         })
         .then(({ error }: { error: any }) => {
