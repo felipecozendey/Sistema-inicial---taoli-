@@ -8,6 +8,7 @@ import React, {
   ReactNode,
 } from 'react'
 import { supabase } from '@/lib/supabase/client'
+import { toast } from 'sonner'
 
 export type Priority = 'low' | 'medium' | 'high'
 export type EnergyLevel = 1 | 2 | 3
@@ -114,6 +115,7 @@ export type BodyMetric = {
 export type PatientGoal = {
   targetWeight: number
   targetBodyFat: number
+  height: number
 }
 export type MedicalExam = {
   id: string
@@ -421,7 +423,7 @@ const initialBodyMetrics: BodyMetric[] = [
     photoUrls: ['https://img.usecurling.com/p/400/500?q=after%20fitness&dpr=2'],
   },
 ]
-const initialPatientGoals: PatientGoal = { targetWeight: 75, targetBodyFat: 15 }
+const initialPatientGoals: PatientGoal = { targetWeight: 75, targetBodyFat: 15, height: 175 }
 const initialMedicalExams: MedicalExam[] = [
   { id: 'me1', date: '2026-06-15', title: 'Hemograma Completo', fileUrl: '' },
   { id: 'me2', date: '2026-07-01', title: 'Check-up Cardiológico', fileUrl: '' },
@@ -897,29 +899,38 @@ export const AppStoreProvider = ({ children }: { children: ReactNode }) => {
     adherence: string
     photoUrl?: string
   }) => {
+    const tempId = genId()
     const log: MealLog = {
-      id: genId(),
+      id: tempId,
       date: todayStr(),
       ...data,
       timestamp: nowIso(),
     }
     setMealLogs((p) => [log, ...p])
-    const {
-      data: { user: u },
-    } = await supabase.auth.getUser()
-    if (!u) return
-    const { error } = await (supabase as any).from('meal_logs').insert({
-      meal_type: data.mealType,
-      description: data.description,
-      calories: data.calories,
-      protein: data.protein,
-      carbs: data.carbs,
-      fat: data.fat,
-      adherence: data.adherence,
-      photo_url: data.photoUrl || null,
-      user_id: u.id,
+    supabase.auth.getUser().then(({ data: { user: u } }) => {
+      if (!u) return
+      ;(supabase as any)
+        .from('meal_logs')
+        .insert({
+          meal_type: data.mealType,
+          description: data.description,
+          calories: data.calories,
+          protein: data.protein,
+          carbs: data.carbs,
+          fat: data.fat,
+          adherence: data.adherence,
+          photo_url: data.photoUrl || null,
+          user_id: u.id,
+        })
+        .then(({ error }: { error: any }) => {
+          if (error) {
+            setMealLogs((p) => p.filter((l) => l.id !== tempId))
+            toast.error('Erro ao salvar refeição. Tente novamente.')
+          } else {
+            fetchMealLogs()
+          }
+        })
     })
-    if (!error) await fetchMealLogs()
   }
   const deleteMealLog = async (id: string) => {
     setMealLogs((p) => p.filter((l) => l.id !== id))
@@ -1081,26 +1092,32 @@ export const AppStoreProvider = ({ children }: { children: ReactNode }) => {
       )
   }
   const addBodyMetric = (metric: Omit<BodyMetric, 'id'>) => {
-    setBodyMetrics((p) => [...p, { ...metric, id: genId() }])
+    const tempId = genId()
+    setBodyMetrics((p) => [...p, { ...metric, id: tempId }])
     supabase.auth.getUser().then(({ data: { user: u } }) => {
-      if (u)
-        (supabase as any)
-          .from('body_metrics')
-          .insert({
-            date: metric.date,
-            weight: metric.weight,
-            body_fat_percentage: metric.bodyFatPercentage,
-            muscle_mass: metric.muscleMass,
-            measurements: metric.measurements,
-            photo_urls: metric.photoUrls,
-            heart_rate_rest: metric.heartRateRest || null,
-            blood_pressure: metric.bloodPressure || null,
-            sleep_quality: metric.sleepQuality || null,
-            stress_level: metric.stressLevel || null,
-            primary_goal: metric.primaryGoal || null,
-            user_id: u.id,
-          })
-          .then()
+      if (!u) return
+      ;(supabase as any)
+        .from('body_metrics')
+        .insert({
+          date: metric.date,
+          weight: metric.weight,
+          body_fat_percentage: metric.bodyFatPercentage,
+          muscle_mass: metric.muscleMass,
+          measurements: metric.measurements,
+          photo_urls: metric.photoUrls,
+          heart_rate_rest: metric.heartRateRest || null,
+          blood_pressure: metric.bloodPressure || null,
+          sleep_quality: metric.sleepQuality || null,
+          stress_level: metric.stressLevel || null,
+          primary_goal: metric.primaryGoal || null,
+          user_id: u.id,
+        })
+        .then(({ error }: { error: any }) => {
+          if (error) {
+            setBodyMetrics((p) => p.filter((m) => m.id !== tempId))
+            toast.error('Erro ao salvar avaliação. Tente novamente.')
+          }
+        })
     })
   }
   const fetchPatientGoals = async () => {
@@ -1118,6 +1135,7 @@ export const AppStoreProvider = ({ children }: { children: ReactNode }) => {
       setPatientGoals({
         targetWeight: data.target_weight || 0,
         targetBodyFat: data.target_body_fat || 0,
+        height: data.height || 0,
       })
   }
   const updatePatientGoals = (updates: Partial<PatientGoal>) => {
@@ -1131,6 +1149,7 @@ export const AppStoreProvider = ({ children }: { children: ReactNode }) => {
               {
                 target_weight: newGoals.targetWeight,
                 target_body_fat: newGoals.targetBodyFat,
+                height: newGoals.height,
                 user_id: u.id,
               },
               { onConflict: 'user_id' },
@@ -1376,8 +1395,11 @@ export const AppStoreProvider = ({ children }: { children: ReactNode }) => {
   return <AppStoreContext.Provider value={value}>{children}</AppStoreContext.Provider>
 }
 
-export const useAppStore = () => {
+export function useAppStore(): AppState
+export function useAppStore<T>(selector: (s: AppState) => T): T
+export function useAppStore<T>(selector?: (s: AppState) => T): T | AppState {
   const ctx = useContext(AppStoreContext)
   if (!ctx) throw new Error('useAppStore must be used within AppStoreProvider')
+  if (selector) return selector(ctx)
   return ctx
 }

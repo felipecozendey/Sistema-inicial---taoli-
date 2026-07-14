@@ -1,0 +1,1 @@
+ALTER TABLE patient_goals ADD COLUMN IF NOT EXISTS height NUMERIC;

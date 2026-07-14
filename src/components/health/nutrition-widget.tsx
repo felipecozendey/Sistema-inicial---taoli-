@@ -1,13 +1,18 @@
-import { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useAppStore } from '@/stores/useAppStore'
 import { NutritionOverview } from '@/components/health/nutrition-overview'
 import { MealHistory } from '@/components/health/meal-history'
 
 export function NutritionWidget() {
-  const { fetchNutritionMicroGoals, fetchMealLogs, fetchDailyChecklist } = useAppStore()
+  const fetchNutritionMicroGoals = useAppStore((s) => s.fetchNutritionMicroGoals)
+  const fetchMealLogs = useAppStore((s) => s.fetchMealLogs)
+  const fetchDailyChecklist = useAppStore((s) => s.fetchDailyChecklist)
+  const fetchedRef = useRef(false)
 
   useEffect(() => {
+    if (fetchedRef.current) return
+    fetchedRef.current = true
     fetchNutritionMicroGoals()
     fetchMealLogs()
     fetchDailyChecklist()

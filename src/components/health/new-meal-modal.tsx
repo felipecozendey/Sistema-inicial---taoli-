@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import {
   Dialog,
   DialogContent,
@@ -41,7 +41,7 @@ interface NewMealModalProps {
 }
 
 export function NewMealModal({ open, onOpenChange }: NewMealModalProps) {
-  const { addMealLog } = useAppStore()
+  const addMealLog = useAppStore((s) => s.addMealLog)
   const [mealType, setMealType] = useState('Café da Manhã')
   const [description, setDescription] = useState('')
   const [calories, setCalories] = useState('')
@@ -52,19 +52,25 @@ export function NewMealModal({ open, onOpenChange }: NewMealModalProps) {
   const [photoUrl, setPhotoUrl] = useState('')
   const [uploading, setUploading] = useState(false)
   const [saving, setSaving] = useState(false)
+  const isSubmittingRef = useRef(false)
+
+  const resetForm = useCallback(() => {
+    setMealType('Café da Manhã')
+    setDescription('')
+    setCalories('')
+    setProtein('')
+    setCarbs('')
+    setFat('')
+    setAdherence('perfect')
+    setPhotoUrl('')
+    isSubmittingRef.current = false
+  }, [])
 
   useEffect(() => {
     if (!open) {
-      setMealType('Café da Manhã')
-      setDescription('')
-      setCalories('')
-      setProtein('')
-      setCarbs('')
-      setFat('')
-      setAdherence('perfect')
-      setPhotoUrl('')
+      resetForm()
     }
-  }, [open])
+  }, [open, resetForm])
 
   const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
@@ -81,30 +87,26 @@ export function NewMealModal({ open, onOpenChange }: NewMealModalProps) {
     }
   }
 
-  const handleSubmit = async () => {
+  const handleSubmit = () => {
+    if (isSubmittingRef.current) return
     if (!description.trim()) {
       toast.error('Adicione uma descrição para a refeição')
       return
     }
-    setSaving(true)
-    try {
-      await addMealLog({
-        mealType,
-        description: description.trim(),
-        calories: parseFloat(calories) || 0,
-        protein: parseFloat(protein) || 0,
-        carbs: parseFloat(carbs) || 0,
-        fat: parseFloat(fat) || 0,
-        adherence,
-        photoUrl: photoUrl || undefined,
-      })
-      toast.success('Refeição registrada! 🎉')
-      onOpenChange(false)
-    } catch {
-      toast.error('Erro ao salvar refeição')
-    } finally {
-      setSaving(false)
-    }
+    isSubmittingRef.current = true
+    addMealLog({
+      mealType,
+      description: description.trim(),
+      calories: parseFloat(calories) || 0,
+      protein: parseFloat(protein) || 0,
+      carbs: parseFloat(carbs) || 0,
+      fat: parseFloat(fat) || 0,
+      adherence,
+      photoUrl: photoUrl || undefined,
+    })
+    toast.success('Refeição registrada! 🎉')
+    resetForm()
+    onOpenChange(false)
   }
 
   return (
@@ -211,8 +213,9 @@ export function NewMealModal({ open, onOpenChange }: NewMealModalProps) {
                 <button
                   key={opt.value}
                   onClick={() => setAdherence(opt.value)}
+                  disabled={saving}
                   className={cn(
-                    'flex flex-col items-center gap-1 p-3 rounded-2xl border-2 border-b-4 text-xs font-bold transition-all duration-150 active:translate-y-1 active:border-b-2',
+                    'flex flex-col items-center gap-1 p-3 rounded-2xl border-2 border-b-4 text-xs font-bold transition-all duration-150 active:translate-y-1 active:border-b-2 disabled:opacity-50 disabled:cursor-not-allowed',
                     adherence === opt.value
                       ? 'border-[#1CB0F6] bg-[#1CB0F6]/10'
                       : 'border-[#E5E5E5] dark:border-[#3B4A55]',
@@ -236,7 +239,8 @@ export function NewMealModal({ open, onOpenChange }: NewMealModalProps) {
                 />
                 <button
                   onClick={() => setPhotoUrl('')}
-                  className="absolute -top-2 -right-2 w-7 h-7 rounded-full bg-[#FF4B4B] text-white flex items-center justify-center"
+                  disabled={saving}
+                  className="absolute -top-2 -right-2 w-7 h-7 rounded-full bg-[#FF4B4B] text-white flex items-center justify-center disabled:opacity-50"
                 >
                   <X className="w-4 h-4" strokeWidth={3} />
                 </button>
@@ -256,7 +260,7 @@ export function NewMealModal({ open, onOpenChange }: NewMealModalProps) {
                   accept="image/*"
                   className="hidden"
                   onChange={handlePhotoUpload}
-                  disabled={uploading}
+                  disabled={uploading || saving}
                 />
               </label>
             )}
@@ -264,10 +268,17 @@ export function NewMealModal({ open, onOpenChange }: NewMealModalProps) {
 
           <Button
             onClick={handleSubmit}
-            disabled={saving}
-            className="w-full py-6 rounded-2xl bg-[#58CC02] hover:bg-[#46B302] text-white font-extrabold border-b-4 border-[#46A602] active:translate-y-1 active:border-b-0 transition-all duration-150 disabled:opacity-50"
+            disabled={uploading}
+            className="w-full py-6 rounded-3xl bg-[#58CC02] hover:bg-[#46B302] text-white font-extrabold border-b-4 border-[#46A602] active:translate-y-1 active:border-b-0 transition-all duration-150 disabled:opacity-50 disabled:active:translate-y-0 disabled:active:border-b-4 disabled:cursor-not-allowed"
           >
-            {saving ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Salvar Refeição'}
+            {uploading ? (
+              <>
+                <Loader2 className="w-5 h-5 animate-spin mr-2" />
+                Fazendo upload...
+              </>
+            ) : (
+              'Salvar Refeição'
+            )}
           </Button>
         </div>
       </DialogContent>

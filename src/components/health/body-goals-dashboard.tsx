@@ -10,6 +10,7 @@ export function BodyGoalsDashboard() {
   const [editOpen, setEditOpen] = useState(false)
   const [draftWeight, setDraftWeight] = useState('')
   const [draftFat, setDraftFat] = useState('')
+  const [draftHeight, setDraftHeight] = useState('')
 
   const sorted = [...bodyMetrics].sort((a, b) => a.date.localeCompare(b.date))
   const latest = sorted[sorted.length - 1]
@@ -37,6 +38,7 @@ export function BodyGoalsDashboard() {
     updatePatientGoals({
       targetWeight: parseFloat(draftWeight) || 0,
       targetBodyFat: parseFloat(draftFat) || 0,
+      height: parseFloat(draftHeight) || 0,
     })
     setEditOpen(false)
   }
@@ -44,6 +46,7 @@ export function BodyGoalsDashboard() {
   const openEdit = () => {
     setDraftWeight(String(targetWeight || ''))
     setDraftFat(String(targetFat || ''))
+    setDraftHeight(String(patientGoals.height || ''))
     setEditOpen(true)
   }
 
@@ -115,6 +118,16 @@ export function BodyGoalsDashboard() {
             <DialogTitle className="text-2xl font-extrabold">Definir Metas</DialogTitle>
           </DialogHeader>
           <div className="space-y-4 mt-2">
+            <div className="space-y-2">
+              <Label className="font-bold">Altura (cm)</Label>
+              <Input
+                type="number"
+                value={draftHeight}
+                onChange={(e) => setDraftHeight(e.target.value)}
+                className="rounded-2xl bg-muted/50 border-transparent font-semibold"
+                placeholder="175"
+              />
+            </div>
             <div className="space-y-2">
               <Label className="font-bold">Peso Alvo (kg)</Label>
               <Input

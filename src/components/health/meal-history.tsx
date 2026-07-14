@@ -1,7 +1,7 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useCallback } from 'react'
 import { useAppStore } from '@/stores/useAppStore'
 import { cn } from '@/lib/utils'
-import { Trash2 } from 'lucide-react'
+import { Trash2, Loader2 } from 'lucide-react'
 
 const ADHERENCE_STYLES: Record<string, { bg: string; text: string; label: string }> = {
   perfect: { bg: 'bg-[#58CC02]/10', text: 'text-[#58CC02]', label: 'No Plano' },
@@ -16,8 +16,17 @@ const MEAL_EMOJIS: Record<string, string> = {
   Lanche: '🥪',
 }
 
+const FILTERS = [
+  { value: 'all', label: 'Todos' },
+  { value: 'Café da Manhã', label: 'Café' },
+  { value: 'Almoço', label: 'Almoço' },
+  { value: 'Lanche', label: 'Lanche' },
+  { value: 'Jantar', label: 'Jantar' },
+]
+
 export function MealHistory() {
-  const { mealLogs, deleteMealLog } = useAppStore()
+  const mealLogs = useAppStore((s) => s.mealLogs)
+  const deleteMealLog = useAppStore((s) => s.deleteMealLog)
   const [filter, setFilter] = useState<string>('all')
   const [deletingId, setDeletingId] = useState<string | null>(null)
 
@@ -36,16 +45,16 @@ export function MealHistory() {
     return Object.entries(groups).sort(([a], [b]) => b.localeCompare(a))
   }, [filteredLogs])
 
-  const formatDate = (dateStr: string) => {
+  const formatDate = useCallback((dateStr: string) => {
     const date = new Date(dateStr + 'T00:00:00')
     const today = new Date().toISOString().split('T')[0]
     const yesterday = new Date(Date.now() - 86400000).toISOString().split('T')[0]
     if (dateStr === today) return 'Hoje'
     if (dateStr === yesterday) return 'Ontem'
     return date.toLocaleDateString('pt-BR', { day: '2-digit', month: 'long' })
-  }
+  }, [])
 
-  const formatTime = (timestamp: string) => {
+  const formatTime = useCallback((timestamp: string) => {
     try {
       return new Date(timestamp).toLocaleTimeString('pt-BR', {
         hour: '2-digit',
@@ -54,29 +63,25 @@ export function MealHistory() {
     } catch {
       return ''
     }
-  }
+  }, [])
 
-  const handleDelete = async (id: string) => {
-    setDeletingId(id)
-    try {
-      await deleteMealLog(id)
-    } finally {
-      setDeletingId(null)
-    }
-  }
-
-  const filters = [
-    { value: 'all', label: 'Todos' },
-    { value: 'Café da Manhã', label: 'Café' },
-    { value: 'Almoço', label: 'Almoço' },
-    { value: 'Lanche', label: 'Lanche' },
-    { value: 'Jantar', label: 'Jantar' },
-  ]
+  const handleDelete = useCallback(
+    async (id: string) => {
+      if (deletingId) return
+      setDeletingId(id)
+      try {
+        await deleteMealLog(id)
+      } finally {
+        setDeletingId(null)
+      }
+    },
+    [deletingId, deleteMealLog],
+  )
 
   return (
     <div className="space-y-4">
       <div className="flex gap-2 overflow-x-auto pb-2">
-        {filters.map((f) => (
+        {FILTERS.map((f) => (
           <button
             key={f.value}
             onClick={() => setFilter(f.value)}
@@ -145,7 +150,11 @@ export function MealHistory() {
                             disabled={deletingId === log.id}
                             className="p-1.5 rounded-xl text-[#FF4B4B] hover:bg-[#FF4B4B]/10 transition-colors duration-150 shrink-0 disabled:opacity-50"
                           >
-                            <Trash2 className="w-4 h-4" />
+                            {deletingId === log.id ? (
+                              <Loader2 className="w-4 h-4 animate-spin" />
+                            ) : (
+                              <Trash2 className="w-4 h-4" />
+                            )}
                           </button>
                         </div>
                         {log.description && (

@@ -13,7 +13,7 @@ import { GameButton } from '@/components/ui/game-button'
 import { useAppStore } from '@/stores/useAppStore'
 import { uploadImage } from '@/lib/image-upload'
 import { toast } from 'sonner'
-import { Camera, X } from 'lucide-react'
+import { Camera, X, Loader2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 const MEASUREMENTS = [
@@ -279,8 +279,21 @@ export function AnthropometryModal({
               </label>
             </div>
           </div>
-          <GameButton onClick={handleSave} variant="primary" size="lg" className="w-full">
-            Salvar Avaliação
+          <GameButton
+            onClick={handleSave}
+            variant="primary"
+            size="lg"
+            className="w-full"
+            disabled={uploading}
+          >
+            {uploading ? (
+              <span className="flex items-center justify-center gap-2">
+                <Loader2 className="w-5 h-5 animate-spin" />
+                Fazendo upload...
+              </span>
+            ) : (
+              'Salvar Avaliação'
+            )}
           </GameButton>
         </div>
       </DialogContent>

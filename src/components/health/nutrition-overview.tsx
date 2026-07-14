@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useMemo, useCallback } from 'react'
 import { useAppStore } from '@/stores/useAppStore'
 import { MicroGoalsChecklist } from '@/components/health/micro-goals-checklist'
 import { NewMealModal } from '@/components/health/new-meal-modal'
@@ -10,25 +10,39 @@ const CARBS_GOAL = 250
 const FAT_GOAL = 65
 
 export function NutritionOverview() {
-  const { mealLogs } = useAppStore()
+  const mealLogs = useAppStore((s) => s.mealLogs)
   const [modalOpen, setModalOpen] = useState(false)
-  const today = new Date().toISOString().split('T')[0]
-  const todayMeals = mealLogs.filter((l) => l.date === today)
 
-  const totalCalories = todayMeals.reduce((sum, m) => sum + (m.calories || 0), 0)
-  const totalProtein = todayMeals.reduce((sum, m) => sum + (m.protein || 0), 0)
-  const totalCarbs = todayMeals.reduce((sum, m) => sum + (m.carbs || 0), 0)
-  const totalFat = todayMeals.reduce((sum, m) => sum + (m.fat || 0), 0)
+  const today = useMemo(() => new Date().toISOString().split('T')[0], [])
 
-  const caloriePct = Math.min((totalCalories / DAILY_CALORIE_GOAL) * 100, 100)
-  const proteinPct = Math.min((totalProtein / PROTEIN_GOAL) * 100, 100)
-  const carbsPct = Math.min((totalCarbs / CARBS_GOAL) * 100, 100)
-  const fatPct = Math.min((totalFat / FAT_GOAL) * 100, 100)
+  const todayMeals = useMemo(() => mealLogs.filter((l) => l.date === today), [mealLogs, today])
+
+  const totals = useMemo(() => {
+    return {
+      calories: todayMeals.reduce((sum, m) => sum + (m.calories || 0), 0),
+      protein: todayMeals.reduce((sum, m) => sum + (m.protein || 0), 0),
+      carbs: todayMeals.reduce((sum, m) => sum + (m.carbs || 0), 0),
+      fat: todayMeals.reduce((sum, m) => sum + (m.fat || 0), 0),
+    }
+  }, [todayMeals])
+
+  const percentages = useMemo(
+    () => ({
+      calories: Math.min((totals.calories / DAILY_CALORIE_GOAL) * 100, 100),
+      protein: Math.min((totals.protein / PROTEIN_GOAL) * 100, 100),
+      carbs: Math.min((totals.carbs / CARBS_GOAL) * 100, 100),
+      fat: Math.min((totals.fat / FAT_GOAL) * 100, 100),
+    }),
+    [totals],
+  )
+
+  const handleOpenModal = useCallback(() => setModalOpen(true), [])
+  const handleCloseModal = useCallback((open: boolean) => setModalOpen(open), [])
 
   return (
     <div className="space-y-6">
       <button
-        onClick={() => setModalOpen(true)}
+        onClick={handleOpenModal}
         className="w-full py-5 rounded-3xl bg-[#58CC02] hover:bg-[#46B302] text-white font-extrabold text-lg border-b-4 border-[#46A602] active:translate-y-1 active:border-b-0 transition-all duration-150 flex items-center justify-center gap-2"
       >
         <Plus className="w-6 h-6" strokeWidth={3} />
@@ -45,7 +59,7 @@ export function NutritionOverview() {
           </div>
           <div className="text-right">
             <span className="text-3xl font-extrabold text-[#FF4B4B]">
-              {Math.round(totalCalories)}
+              {Math.round(totals.calories)}
             </span>
             <span className="text-sm font-bold text-muted-foreground"> / {DAILY_CALORIE_GOAL}</span>
           </div>
@@ -53,13 +67,13 @@ export function NutritionOverview() {
         <div className="w-full h-6 rounded-full bg-muted overflow-hidden">
           <div
             className="h-full rounded-full bg-gradient-to-r from-[#FF4B4B] to-[#FF8A4B] transition-all duration-500"
-            style={{ width: `${caloriePct}%` }}
+            style={{ width: `${percentages.calories}%` }}
           />
         </div>
         <p className="text-xs font-bold text-muted-foreground mt-2">
-          {caloriePct >= 100
+          {percentages.calories >= 100
             ? '🔥 Meta atingida!'
-            : `${Math.round(DAILY_CALORIE_GOAL - totalCalories)} kcal restantes`}
+            : `${Math.round(DAILY_CALORIE_GOAL - totals.calories)} kcal restantes`}
         </p>
       </div>
 
@@ -72,13 +86,13 @@ export function NutritionOverview() {
               <span>🥩</span> Proteínas
             </span>
             <span className="text-sm font-bold text-muted-foreground">
-              {Math.round(totalProtein)}g / {PROTEIN_GOAL}g
+              {Math.round(totals.protein)}g / {PROTEIN_GOAL}g
             </span>
           </div>
           <div className="w-full h-4 rounded-full bg-muted overflow-hidden">
             <div
               className="h-full rounded-full bg-[#FF4B4B] transition-all duration-500"
-              style={{ width: `${proteinPct}%` }}
+              style={{ width: `${percentages.protein}%` }}
             />
           </div>
         </div>
@@ -89,13 +103,13 @@ export function NutritionOverview() {
               <span>🍞</span> Carboidratos
             </span>
             <span className="text-sm font-bold text-muted-foreground">
-              {Math.round(totalCarbs)}g / {CARBS_GOAL}g
+              {Math.round(totals.carbs)}g / {CARBS_GOAL}g
             </span>
           </div>
           <div className="w-full h-4 rounded-full bg-muted overflow-hidden">
             <div
               className="h-full rounded-full bg-[#FFC800] transition-all duration-500"
-              style={{ width: `${carbsPct}%` }}
+              style={{ width: `${percentages.carbs}%` }}
             />
           </div>
         </div>
@@ -106,20 +120,20 @@ export function NutritionOverview() {
               <span>🥑</span> Gorduras
             </span>
             <span className="text-sm font-bold text-muted-foreground">
-              {Math.round(totalFat)}g / {FAT_GOAL}g
+              {Math.round(totals.fat)}g / {FAT_GOAL}g
             </span>
           </div>
           <div className="w-full h-4 rounded-full bg-muted overflow-hidden">
             <div
               className="h-full rounded-full bg-[#1CB0F6] transition-all duration-500"
-              style={{ width: `${fatPct}%` }}
+              style={{ width: `${percentages.fat}%` }}
             />
           </div>
         </div>
       </div>
 
       <MicroGoalsChecklist />
-      <NewMealModal open={modalOpen} onOpenChange={setModalOpen} />
+      <NewMealModal open={modalOpen} onOpenChange={handleCloseModal} />
     </div>
   )
 }
