@@ -170,6 +170,42 @@ export type Database = {
         }
         Relationships: []
       }
+      fasting_logs: {
+        Row: {
+          actual_hours: number
+          completed: boolean
+          created_at: string
+          end_time: string
+          feeling: string
+          id: string
+          start_time: string
+          target_hours: number
+          user_id: string
+        }
+        Insert: {
+          actual_hours?: number
+          completed?: boolean
+          created_at?: string
+          end_time: string
+          feeling?: string
+          id?: string
+          start_time: string
+          target_hours?: number
+          user_id: string
+        }
+        Update: {
+          actual_hours?: number
+          completed?: boolean
+          created_at?: string
+          end_time?: string
+          feeling?: string
+          id?: string
+          start_time?: string
+          target_hours?: number
+          user_id?: string
+        }
+        Relationships: []
+      }
       flashcards: {
         Row: {
           back: string
