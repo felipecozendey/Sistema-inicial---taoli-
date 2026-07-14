@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -12,6 +12,13 @@ import {
 import { GameButton } from '@/components/ui/game-button'
 import { useAppStore } from '@/stores/useAppStore'
 import { uploadImage } from '@/lib/image-upload'
+import {
+  calculateTMB,
+  calculateGET,
+  ACTIVITY_LABELS,
+  Gender,
+  ActivityLevel,
+} from '@/lib/metabolic-utils'
 import { toast } from 'sonner'
 import { Camera, X, Loader2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -29,6 +36,7 @@ const MEASUREMENTS = [
 const PRIMARY_GOALS = ['Hipertrofia', 'Emagrecimento', 'Manutenção']
 const SLEEP_EMOJIS = ['😴', '😪', '😐', '🙂', '😄']
 const STRESS_EMOJIS = ['😌', '🙂', '😐', '😟', '😰']
+const ACTIVITY_OPTIONS: ActivityLevel[] = ['sedentary', 'light', 'moderate', 'intense']
 
 export function AnthropometryModal({
   open,
@@ -42,6 +50,10 @@ export function AnthropometryModal({
   const [weight, setWeight] = useState('')
   const [bodyFat, setBodyFat] = useState('')
   const [muscleMass, setMuscleMass] = useState('')
+  const [gender, setGender] = useState<Gender>('male')
+  const [age, setAge] = useState('')
+  const [height, setHeight] = useState('')
+  const [activityLevel, setActivityLevel] = useState<ActivityLevel>('moderate')
   const [measurements, setMeasurements] = useState<Record<string, string>>({})
   const [photos, setPhotos] = useState<string[]>([])
   const [uploading, setUploading] = useState(false)
@@ -50,6 +62,33 @@ export function AnthropometryModal({
   const [sleepQuality, setSleepQuality] = useState(3)
   const [stressLevel, setStressLevel] = useState(3)
   const [primaryGoal, setPrimaryGoal] = useState('')
+
+  const tmbPreview =
+    weight && height && age
+      ? calculateTMB(gender, parseFloat(weight), parseFloat(height), parseInt(age))
+      : 0
+  const getPreview = tmbPreview ? calculateGET(tmbPreview, activityLevel) : 0
+
+  const resetForm = useCallback(() => {
+    setWeight('')
+    setBodyFat('')
+    setMuscleMass('')
+    setMeasurements({})
+    setPhotos([])
+    setHeartRate('')
+    setBloodPressure('')
+    setSleepQuality(3)
+    setStressLevel(3)
+    setPrimaryGoal('')
+    setAge('')
+    setHeight('')
+    setGender('male')
+    setActivityLevel('moderate')
+  }, [])
+
+  useEffect(() => {
+    if (!open) resetForm()
+  }, [open, resetForm])
 
   const handlePhotos = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files
@@ -74,9 +113,14 @@ export function AnthropometryModal({
       const n = parseFloat(v)
       if (!isNaN(n)) numericMeasurements[k] = n
     })
+    const w = parseFloat(weight) || 0
+    const h = parseFloat(height) || 0
+    const a = parseInt(age) || 0
+    const tmb = h > 0 && a > 0 ? calculateTMB(gender, w, h, a) : 0
+    const get = tmb > 0 ? calculateGET(tmb, activityLevel) : 0
     addBodyMetric({
       date,
-      weight: parseFloat(weight) || 0,
+      weight: w,
       bodyFatPercentage: parseFloat(bodyFat) || 0,
       muscleMass: parseFloat(muscleMass) || 0,
       measurements: numericMeasurements,
@@ -86,17 +130,14 @@ export function AnthropometryModal({
       sleepQuality,
       stressLevel,
       primaryGoal: primaryGoal || undefined,
+      gender,
+      age: a,
+      height: h,
+      activityLevel,
+      tmb,
+      get,
     })
-    setWeight('')
-    setBodyFat('')
-    setMuscleMass('')
-    setMeasurements({})
-    setPhotos([])
-    setHeartRate('')
-    setBloodPressure('')
-    setSleepQuality(3)
-    setStressLevel(3)
-    setPrimaryGoal('')
+    resetForm()
     toast.success('Avaliação registrada!')
     onOpenChange(false)
   }
@@ -153,6 +194,73 @@ export function AnthropometryModal({
                 placeholder="64"
               />
             </div>
+          </div>
+          <div className="bg-muted/30 rounded-2xl p-4 space-y-3">
+            <p className="text-sm font-extrabold">👤 Dados Metabólicos</p>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-2">
+                <Label className="font-bold text-xs">Sexo</Label>
+                <Select value={gender} onValueChange={(v) => setGender(v as Gender)}>
+                  <SelectTrigger className="rounded-xl bg-background font-semibold text-sm h-9">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="male">Masculino</SelectItem>
+                    <SelectItem value="female">Feminino</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label className="font-bold text-xs">Idade</Label>
+                <Input
+                  type="number"
+                  value={age}
+                  onChange={(e) => setAge(e.target.value)}
+                  className="rounded-xl bg-background font-semibold text-sm h-9"
+                  placeholder="30"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label className="font-bold text-xs">Altura (cm)</Label>
+                <Input
+                  type="number"
+                  value={height}
+                  onChange={(e) => setHeight(e.target.value)}
+                  className="rounded-xl bg-background font-semibold text-sm h-9"
+                  placeholder="175"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label className="font-bold text-xs">Nível de Atividade</Label>
+                <Select
+                  value={activityLevel}
+                  onValueChange={(v) => setActivityLevel(v as ActivityLevel)}
+                >
+                  <SelectTrigger className="rounded-xl bg-background font-semibold text-sm h-9">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {ACTIVITY_OPTIONS.map((a) => (
+                      <SelectItem key={a} value={a}>
+                        {ACTIVITY_LABELS[a]}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            {tmbPreview > 0 && (
+              <div className="grid grid-cols-2 gap-2">
+                <div className="bg-[#1CB0F6]/10 rounded-xl p-2 text-center">
+                  <p className="text-[10px] font-bold text-muted-foreground">TMB Calculada</p>
+                  <p className="text-lg font-extrabold text-[#1CB0F6]">{tmbPreview} kcal</p>
+                </div>
+                <div className="bg-[#FF9600]/10 rounded-xl p-2 text-center">
+                  <p className="text-[10px] font-bold text-muted-foreground">GET Calculado</p>
+                  <p className="text-lg font-extrabold text-[#FF9600]">{getPreview} kcal</p>
+                </div>
+              </div>
+            )}
           </div>
           <div className="bg-muted/30 rounded-2xl p-4 space-y-3">
             <p className="text-sm font-extrabold">📋 Anamnese</p>

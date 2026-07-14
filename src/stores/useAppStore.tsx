@@ -111,6 +111,12 @@ export type BodyMetric = {
   sleepQuality?: number
   stressLevel?: number
   primaryGoal?: string
+  gender?: string
+  age?: number
+  height?: number
+  activityLevel?: string
+  tmb?: number
+  get?: number
 }
 export type PatientGoal = {
   targetWeight: number
@@ -421,6 +427,17 @@ const initialBodyMetrics: BodyMetric[] = [
     muscleMass: 64.5,
     measurements: { waist: 86, hip: 95, chest: 97 },
     photoUrls: ['https://img.usecurling.com/p/400/500?q=after%20fitness&dpr=2'],
+    gender: 'male',
+    age: 30,
+    height: 175,
+    activityLevel: 'moderate',
+    tmb: 1759,
+    get: 2726,
+    primaryGoal: 'Hipertrofia',
+    heartRateRest: 65,
+    bloodPressure: '120/80',
+    sleepQuality: 4,
+    stressLevel: 2,
   },
 ]
 const initialPatientGoals: PatientGoal = { targetWeight: 75, targetBodyFat: 15, height: 175 }
@@ -1088,6 +1105,12 @@ export const AppStoreProvider = ({ children }: { children: ReactNode }) => {
           sleepQuality: d.sleep_quality || undefined,
           stressLevel: d.stress_level || undefined,
           primaryGoal: d.primary_goal || undefined,
+          gender: d.gender || undefined,
+          age: d.age || undefined,
+          height: d.height || undefined,
+          activityLevel: d.activity_level || undefined,
+          tmb: d.tmb || undefined,
+          get: d.get || undefined,
         })),
       )
   }
@@ -1110,6 +1133,12 @@ export const AppStoreProvider = ({ children }: { children: ReactNode }) => {
           sleep_quality: metric.sleepQuality || null,
           stress_level: metric.stressLevel || null,
           primary_goal: metric.primaryGoal || null,
+          gender: metric.gender || null,
+          age: metric.age || null,
+          height: metric.height || null,
+          activity_level: metric.activityLevel || null,
+          tmb: metric.tmb || null,
+          get: metric.get || null,
           user_id: u.id,
         })
         .then(({ error }: { error: any }) => {

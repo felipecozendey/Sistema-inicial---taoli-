@@ -34,14 +34,28 @@ export default function HealthPage() {
           </TabsTrigger>
         </TabsList>
 
-        <TabsContent value="geral" className="space-y-6 mt-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 print:hidden">
-            <HydrationWidget />
-            <MoodWidget />
-            <BowelWidget />
-            <UrineWidget />
-          </div>
-          <HealthHistory />
+        <TabsContent value="geral" className="mt-6">
+          <Tabs defaultValue="registrar">
+            <TabsList className="w-full rounded-2xl print:hidden">
+              <TabsTrigger value="registrar" className="rounded-xl font-bold">
+                Registrar Hoje
+              </TabsTrigger>
+              <TabsTrigger value="historico" className="rounded-xl font-bold">
+                Histórico de Registros
+              </TabsTrigger>
+            </TabsList>
+            <TabsContent value="registrar" className="space-y-6 mt-6 print:hidden">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <HydrationWidget />
+                <MoodWidget />
+                <BowelWidget />
+                <UrineWidget />
+              </div>
+            </TabsContent>
+            <TabsContent value="historico" className="mt-6">
+              <HealthHistory />
+            </TabsContent>
+          </Tabs>
         </TabsContent>
 
         <TabsContent value="nutricao" className="mt-6 print:hidden">
