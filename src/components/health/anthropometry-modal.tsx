@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -11,9 +11,24 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { GameButton } from '@/components/ui/game-button'
+import { MetActivityTable } from '@/components/health/met-activity-table'
 import { useAppStore } from '@/stores/useAppStore'
 import { uploadImage } from '@/lib/image-upload'
-import { calculateTMB, calculateGET, ACTIVITY_LABELS, ActivityLevel } from '@/lib/metabolic-utils'
+import {
+  calculateTMBByMethod,
+  calculateGETAdvanced,
+  calculateDailyMetExpenditure,
+  calculateVENTA,
+  calculateBolsoCalories,
+  ACTIVITY_LABELS,
+  INJURY_FACTORS,
+  INJURY_LABELS,
+  METHODOLOGY_LABELS,
+  ActivityLevel,
+  Methodology,
+  InjuryFactorType,
+  MetActivity,
+} from '@/lib/metabolic-utils'
 import {
   calculateIMC,
   calculateRCQ,
@@ -26,7 +41,7 @@ import {
   Gender,
 } from '@/lib/anthropometry'
 import { toast } from 'sonner'
-import { Camera, X, Loader2, AlertTriangle } from 'lucide-react'
+import { Camera, X, Loader2, AlertTriangle, Flame } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 const PERIMETERS = [
@@ -51,6 +66,8 @@ const PRIMARY_GOALS = ['Hipertrofia', 'Emagrecimento', 'Manutenção']
 const SLEEP_EMOJIS = ['😴', '😪', '😐', '🙂', '😄']
 const STRESS_EMOJIS = ['😌', '🙂', '😐', '😟', '😰']
 const ACTIVITY_OPTIONS: ActivityLevel[] = ['sedentary', 'light', 'moderate', 'intense']
+const METHODOLOGY_OPTIONS: Methodology[] = ['mifflin', 'harris', 'katch']
+const INJURY_OPTIONS: InjuryFactorType[] = ['healthy', 'surgery', 'trauma', 'sepsis']
 
 export function AnthropometryModal({
   open,
@@ -81,30 +98,62 @@ export function AnthropometryModal({
   const [bodyWater, setBodyWater] = useState('')
   const [photos, setPhotos] = useState<string[]>([])
   const [uploading, setUploading] = useState(false)
+  const [methodology, setMethodology] = useState<Methodology>('mifflin')
+  const [injuryFactorType, setInjuryFactorType] = useState<InjuryFactorType>('healthy')
+  const [metActivities, setMetActivities] = useState<MetActivity[]>([])
+  const [bolsoKcal, setBolsoKcal] = useState(30)
 
   const w = parseFloat(weight) || 0
   const h = parseFloat(height) || 0
   const a = parseInt(age) || 0
-  const imc = calculateIMC(w, h)
-  const rcq = calculateRCQ(parseFloat(perimeters.waist) || 0, parseFloat(perimeters.hip) || 0)
-  const rcqStatus = getRCQStatus(rcq, gender)
-  const imcStatus = getIMCStatus(imc)
 
-  const sfValues: Record<string, number> = {}
-  Object.entries(skinfolds).forEach(([k, v]) => {
-    const n = parseFloat(v)
-    if (!isNaN(n)) sfValues[k] = n
-  })
+  const sfValues: Record<string, number> = useMemo(() => {
+    const vals: Record<string, number> = {}
+    Object.entries(skinfolds).forEach(([k, v]) => {
+      const n = parseFloat(v)
+      if (!isNaN(n)) vals[k] = n
+    })
+    return vals
+  }, [skinfolds])
 
-  const calcBodyFat =
-    compositionMode === 'skinfolds' && a > 0
-      ? calculateFatFromDensity(calculateBodyDensity7(gender, a, sfValues))
-      : 0
+  const calcBodyFat = useMemo(() => {
+    if (compositionMode !== 'skinfolds' || a <= 0) return 0
+    return calculateFatFromDensity(calculateBodyDensity7(gender, a, sfValues))
+  }, [compositionMode, a, gender, sfValues])
+
   const currentBodyFat = compositionMode === 'skinfolds' ? calcBodyFat : parseFloat(bodyFat) || 0
-  const fatMass = calculateFatMass(w, currentBodyFat)
-  const leanMass = calculateLeanMass(w, fatMass)
-  const tmbPreview = w && h && a ? calculateTMB(gender, w, h, a) : 0
-  const getPreview = tmbPreview ? calculateGET(tmbPreview, activityLevel) : 0
+  const fatMass = useMemo(() => calculateFatMass(w, currentBodyFat), [w, currentBodyFat])
+  const leanMass = useMemo(() => calculateLeanMass(w, fatMass), [w, fatMass])
+  const imc = useMemo(() => calculateIMC(w, h), [w, h])
+  const rcq = useMemo(
+    () => calculateRCQ(parseFloat(perimeters.waist) || 0, parseFloat(perimeters.hip) || 0),
+    [perimeters.waist, perimeters.hip],
+  )
+  const rcqStatus = useMemo(() => getRCQStatus(rcq, gender), [rcq, gender])
+  const imcStatus = useMemo(() => getIMCStatus(imc), [imc])
+
+  const tmbLive = useMemo(() => {
+    if (!w || !h || !a) return 0
+    return calculateTMBByMethod(methodology, gender, w, h, a, leanMass)
+  }, [methodology, gender, w, h, a, leanMass])
+
+  const metDailyExpenditure = useMemo(
+    () => calculateDailyMetExpenditure(metActivities, w),
+    [metActivities, w],
+  )
+
+  const getLive = useMemo(() => {
+    if (!tmbLive) return 0
+    return calculateGETAdvanced(
+      tmbLive,
+      activityLevel,
+      INJURY_FACTORS[injuryFactorType],
+      metDailyExpenditure,
+    )
+  }, [tmbLive, activityLevel, injuryFactorType, metDailyExpenditure])
+
+  const ventaLive = useMemo(() => calculateVENTA(getLive, primaryGoal), [getLive, primaryGoal])
+  const bolsoResult = useMemo(() => calculateBolsoCalories(w, bolsoKcal), [w, bolsoKcal])
 
   const resetForm = useCallback(() => {
     setWeight('')
@@ -124,6 +173,10 @@ export function AnthropometryModal({
     setMuscleMass('')
     setBodyWater('')
     setPhotos([])
+    setMethodology('mifflin')
+    setInjuryFactorType('healthy')
+    setMetActivities([])
+    setBolsoKcal(30)
   }, [])
 
   useEffect(() => {
@@ -159,8 +212,13 @@ export function AnthropometryModal({
     if (compositionMode === 'bioimpedance' && bodyWater)
       numericMeasurements.bodyWater = parseFloat(bodyWater)
 
-    const tmb = h > 0 && a > 0 ? calculateTMB(gender, w, h, a) : 0
-    const get = tmb > 0 ? calculateGET(tmb, activityLevel) : 0
+    const tmb = h > 0 && a > 0 ? calculateTMBByMethod(methodology, gender, w, h, a, leanMass) : 0
+    const metDaily = calculateDailyMetExpenditure(metActivities, w)
+    const get =
+      tmb > 0
+        ? calculateGETAdvanced(tmb, activityLevel, INJURY_FACTORS[injuryFactorType], metDaily)
+        : 0
+    const venta = calculateVENTA(get, primaryGoal)
 
     addBodyMetric({
       date,
@@ -182,6 +240,10 @@ export function AnthropometryModal({
       get,
       leanMass,
       fatMass,
+      metActivities,
+      methodologyUsed: methodology,
+      injuryFactor: INJURY_FACTORS[injuryFactorType],
+      ventaTarget: venta,
     })
     resetForm()
     toast.success('Avaliação registrada!')
@@ -202,11 +264,11 @@ export function AnthropometryModal({
             <TabsTrigger value="vitals" className="rounded-xl text-xs font-bold py-2">
               Vitais
             </TabsTrigger>
-            <TabsTrigger value="perimeters" className="rounded-xl text-xs font-bold py-2">
-              Perímetros
+            <TabsTrigger value="body" className="rounded-xl text-xs font-bold py-2">
+              Perímetros & Composição
             </TabsTrigger>
-            <TabsTrigger value="composition" className="rounded-xl text-xs font-bold py-2">
-              Composição
+            <TabsTrigger value="energy" className="rounded-xl text-xs font-bold py-2">
+              Gasto Energético
             </TabsTrigger>
           </TabsList>
 
@@ -278,9 +340,9 @@ export function AnthropometryModal({
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    {ACTIVITY_OPTIONS.map((a) => (
-                      <SelectItem key={a} value={a}>
-                        {ACTIVITY_LABELS[a]}
+                    {ACTIVITY_OPTIONS.map((act) => (
+                      <SelectItem key={act} value={act}>
+                        {ACTIVITY_LABELS[act]}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -363,7 +425,8 @@ export function AnthropometryModal({
             </div>
           </TabsContent>
 
-          <TabsContent value="perimeters" className="space-y-3 mt-3">
+          <TabsContent value="body" className="space-y-3 mt-3">
+            <p className="text-xs font-extrabold text-muted-foreground">Perímetros Corporais</p>
             <div className="grid grid-cols-2 gap-3">
               {PERIMETERS.map((m) => (
                 <div key={m.key} className="flex items-center gap-2">
@@ -404,94 +467,175 @@ export function AnthropometryModal({
                 </div>
               </div>
             )}
-          </TabsContent>
 
-          <TabsContent value="composition" className="space-y-3 mt-3">
-            <div className="flex gap-2">
-              <button
-                onClick={() => setCompositionMode('bioimpedance')}
-                className={cn(
-                  'flex-1 py-2.5 rounded-xl border-2 border-b-4 font-extrabold text-sm transition-all active:translate-y-0.5',
-                  compositionMode === 'bioimpedance'
-                    ? 'border-[#1CB0F6] bg-[#1CB0F6]/10 text-[#1CB0F6]'
-                    : 'border-[#E5E5E5] dark:border-[#3B4A55]',
-                )}
-              >
-                🔬 Bioimpedância
-              </button>
-              <button
-                onClick={() => setCompositionMode('skinfolds')}
-                className={cn(
-                  'flex-1 py-2.5 rounded-xl border-2 border-b-4 font-extrabold text-sm transition-all active:translate-y-0.5',
-                  compositionMode === 'skinfolds'
-                    ? 'border-[#FF9600] bg-[#FF9600]/10 text-[#FF9600]'
-                    : 'border-[#E5E5E5] dark:border-[#3B4A55]',
-                )}
-              >
-                📏 Dobras Cutâneas
-              </button>
-            </div>
-            {compositionMode === 'bioimpedance' ? (
-              <div className="grid grid-cols-1 gap-3">
-                <div className="space-y-1.5">
-                  <Label className={labelCls}>Gordura Corporal (%)</Label>
-                  <Input
-                    type="number"
-                    step="0.1"
-                    value={bodyFat}
-                    onChange={(e) => setBodyFat(e.target.value)}
-                    className={inputCls}
-                    placeholder="18.5"
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <Label className={labelCls}>Massa Muscular (kg)</Label>
-                  <Input
-                    type="number"
-                    step="0.1"
-                    value={muscleMass}
-                    onChange={(e) => setMuscleMass(e.target.value)}
-                    className={inputCls}
-                    placeholder="64"
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <Label className={labelCls}>Água Corporal (%)</Label>
-                  <Input
-                    type="number"
-                    step="0.1"
-                    value={bodyWater}
-                    onChange={(e) => setBodyWater(e.target.value)}
-                    className={inputCls}
-                    placeholder="55"
-                  />
-                </div>
+            <div className="border-t-2 border-muted pt-3">
+              <p className="text-xs font-extrabold text-muted-foreground mb-2">
+                Composição Corporal
+              </p>
+              <div className="flex gap-2 mb-3">
+                <button
+                  onClick={() => setCompositionMode('bioimpedance')}
+                  className={cn(
+                    'flex-1 py-2.5 rounded-xl border-2 border-b-4 font-extrabold text-sm transition-all active:translate-y-0.5',
+                    compositionMode === 'bioimpedance'
+                      ? 'border-[#1CB0F6] bg-[#1CB0F6]/10 text-[#1CB0F6]'
+                      : 'border-[#E5E5E5] dark:border-[#3B4A55]',
+                  )}
+                >
+                  🔬 Bioimpedância
+                </button>
+                <button
+                  onClick={() => setCompositionMode('skinfolds')}
+                  className={cn(
+                    'flex-1 py-2.5 rounded-xl border-2 border-b-4 font-extrabold text-sm transition-all active:translate-y-0.5',
+                    compositionMode === 'skinfolds'
+                      ? 'border-[#FF9600] bg-[#FF9600]/10 text-[#FF9600]'
+                      : 'border-[#E5E5E5] dark:border-[#3B4A55]',
+                  )}
+                >
+                  📏 Dobras Cutâneas
+                </button>
               </div>
-            ) : (
-              <div className="grid grid-cols-2 gap-3">
-                {SKINFOLDS.map((s) => (
-                  <div key={s.key} className="space-y-1">
-                    <Label className={labelCls}>{s.label} (mm)</Label>
+              {compositionMode === 'bioimpedance' ? (
+                <div className="grid grid-cols-1 gap-3">
+                  <div className="space-y-1.5">
+                    <Label className={labelCls}>Gordura Corporal (%)</Label>
                     <Input
                       type="number"
                       step="0.1"
-                      value={skinfolds[s.key] || ''}
-                      onChange={(e) => setSkinfolds((p) => ({ ...p, [s.key]: e.target.value }))}
+                      value={bodyFat}
+                      onChange={(e) => setBodyFat(e.target.value)}
                       className={inputCls}
-                      placeholder="0"
+                      placeholder="18.5"
                     />
                   </div>
+                  <div className="space-y-1.5">
+                    <Label className={labelCls}>Massa Muscular (kg)</Label>
+                    <Input
+                      type="number"
+                      step="0.1"
+                      value={muscleMass}
+                      onChange={(e) => setMuscleMass(e.target.value)}
+                      className={inputCls}
+                      placeholder="64"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className={labelCls}>Água Corporal (%)</Label>
+                    <Input
+                      type="number"
+                      step="0.1"
+                      value={bodyWater}
+                      onChange={(e) => setBodyWater(e.target.value)}
+                      className={inputCls}
+                      placeholder="55"
+                    />
+                  </div>
+                </div>
+              ) : (
+                <div className="grid grid-cols-2 gap-3">
+                  {SKINFOLDS.map((s) => (
+                    <div key={s.key} className="space-y-1">
+                      <Label className={labelCls}>{s.label} (mm)</Label>
+                      <Input
+                        type="number"
+                        step="0.1"
+                        value={skinfolds[s.key] || ''}
+                        onChange={(e) => setSkinfolds((p) => ({ ...p, [s.key]: e.target.value }))}
+                        className={inputCls}
+                        placeholder="0"
+                      />
+                    </div>
+                  ))}
+                </div>
+              )}
+              {compositionMode === 'skinfolds' && calcBodyFat > 0 && (
+                <div className="bg-[#FF9600]/10 rounded-xl p-3 text-center mt-3">
+                  <p className="text-[10px] font-bold text-muted-foreground">
+                    % Gordura Calculada (Jackson-Pollock 7 + Siri)
+                  </p>
+                  <p className="text-2xl font-extrabold text-[#FF9600]">{calcBodyFat}%</p>
+                </div>
+              )}
+            </div>
+          </TabsContent>
+
+          <TabsContent value="energy" className="space-y-3 mt-3">
+            <div className="space-y-1.5">
+              <Label className={labelCls}>Metodologia de Cálculo</Label>
+              <Select value={methodology} onValueChange={(v) => setMethodology(v as Methodology)}>
+                <SelectTrigger className={inputCls}>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {METHODOLOGY_OPTIONS.map((m) => (
+                    <SelectItem key={m} value={m}>
+                      {METHODOLOGY_LABELS[m]}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            {methodology === 'katch' && leanMass <= 0 && (
+              <div className="bg-[#FF4B4B]/10 rounded-xl p-2 flex items-center gap-2">
+                <AlertTriangle className="w-4 h-4 text-[#FF4B4B] shrink-0" />
+                <p className="text-xs font-bold text-[#FF4B4B]">
+                  Katch-McArdle requer massa magra. Preencha composição corporal na aba anterior.
+                </p>
+              </div>
+            )}
+
+            <div className="space-y-1.5">
+              <Label className={labelCls}>Fator de Lesão (Clinical Multiplier)</Label>
+              <Select
+                value={injuryFactorType}
+                onValueChange={(v) => setInjuryFactorType(v as InjuryFactorType)}
+              >
+                <SelectTrigger className={inputCls}>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {INJURY_OPTIONS.map((inj) => (
+                    <SelectItem key={inj} value={inj}>
+                      {INJURY_LABELS[inj]}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="border-t-2 border-muted pt-3">
+              <Label className={cn(labelCls, 'mb-2 block')}>Atividades Físicas (MET)</Label>
+              <MetActivityTable activities={metActivities} onChange={setMetActivities} weight={w} />
+            </div>
+
+            <div className="border-t-2 border-muted pt-3">
+              <Label className={cn(labelCls, 'mb-2 block')}>Cálculo de Bolso (kcal/kg)</Label>
+              <div className="flex gap-2 mb-2">
+                {[25, 30, 35].map((k) => (
+                  <button
+                    key={k}
+                    onClick={() => setBolsoKcal(k)}
+                    className={cn(
+                      'flex-1 py-2 rounded-xl border-2 border-b-4 font-extrabold text-sm transition-all active:translate-y-0.5',
+                      bolsoKcal === k
+                        ? 'border-[#58CC02] bg-[#58CC02]/10 text-[#58CC02]'
+                        : 'border-[#E5E5E5] dark:border-[#3B4A55]',
+                    )}
+                  >
+                    {k} kcal/kg
+                  </button>
                 ))}
               </div>
-            )}
-            {compositionMode === 'skinfolds' && calcBodyFat > 0 && (
-              <div className="bg-[#FF9600]/10 rounded-xl p-3 text-center">
-                <p className="text-[10px] font-bold text-muted-foreground">
-                  % Gordura Calculada (Jackson-Pollock 7 + Siri)
-                </p>
-                <p className="text-2xl font-extrabold text-[#FF9600]">{calcBodyFat}%</p>
-              </div>
-            )}
+              {bolsoResult > 0 && (
+                <div className="bg-[#58CC02]/10 rounded-xl p-3 text-center">
+                  <p className="text-[10px] font-bold text-muted-foreground">
+                    Estimativa Rápida ({bolsoKcal} kcal/kg)
+                  </p>
+                  <p className="text-2xl font-extrabold text-[#58CC02]">{bolsoResult} kcal/dia</p>
+                </div>
+              )}
+            </div>
           </TabsContent>
         </Tabs>
 
@@ -534,18 +678,32 @@ export function AnthropometryModal({
                 <p className="text-lg font-extrabold text-[#58CC02]">{leanMass || '—'} kg</p>
               </div>
             </div>
-            {tmbPreview > 0 && (
-              <div className="grid grid-cols-2 gap-2">
-                <div className="bg-[#1CB0F6]/10 rounded-xl p-2 text-center">
-                  <p className="text-[10px] font-bold text-muted-foreground">TMB</p>
-                  <p className="text-lg font-extrabold text-[#1CB0F6]">{tmbPreview} kcal</p>
-                </div>
-                <div className="bg-[#FF9600]/10 rounded-xl p-2 text-center">
-                  <p className="text-[10px] font-bold text-muted-foreground">GET</p>
-                  <p className="text-lg font-extrabold text-[#FF9600]">{getPreview} kcal</p>
-                </div>
-              </div>
-            )}
+          </div>
+        )}
+
+        {(tmbLive > 0 || getLive > 0) && (
+          <div className="grid grid-cols-3 gap-2">
+            <div className="bg-[#1CB0F6]/10 rounded-2xl p-3 text-center">
+              <p className="text-[10px] font-bold text-muted-foreground flex items-center justify-center gap-1">
+                <Flame className="w-3 h-3" /> TMB
+              </p>
+              <p className="text-xl font-extrabold text-[#1CB0F6]">{tmbLive || '—'}</p>
+              <p className="text-[9px] font-bold text-muted-foreground">kcal</p>
+            </div>
+            <div className="bg-[#FF9600]/10 rounded-2xl p-3 text-center">
+              <p className="text-[10px] font-bold text-muted-foreground flex items-center justify-center gap-1">
+                <Flame className="w-3 h-3" /> GET
+              </p>
+              <p className="text-xl font-extrabold text-[#FF9600]">{getLive || '—'}</p>
+              <p className="text-[9px] font-bold text-muted-foreground">kcal</p>
+            </div>
+            <div className="bg-[#58CC02]/10 rounded-2xl p-3 text-center">
+              <p className="text-[10px] font-bold text-muted-foreground flex items-center justify-center gap-1">
+                <Flame className="w-3 h-3" /> VENTA
+              </p>
+              <p className="text-xl font-extrabold text-[#58CC02]">{ventaLive || '—'}</p>
+              <p className="text-[9px] font-bold text-muted-foreground">kcal</p>
+            </div>
           </div>
         )}
 

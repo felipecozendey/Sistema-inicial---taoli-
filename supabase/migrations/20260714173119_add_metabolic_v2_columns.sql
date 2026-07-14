@@ -1,0 +1,4 @@
+ALTER TABLE body_metrics ADD COLUMN IF NOT EXISTS met_activities JSONB NOT NULL DEFAULT '[]'::jsonb;
+ALTER TABLE body_metrics ADD COLUMN IF NOT EXISTS methodology_used TEXT;
+ALTER TABLE body_metrics ADD COLUMN IF NOT EXISTS injury_factor NUMERIC NOT NULL DEFAULT 1.0;
+ALTER TABLE body_metrics ADD COLUMN IF NOT EXISTS venta_target NUMERIC;

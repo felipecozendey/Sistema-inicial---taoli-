@@ -119,6 +119,16 @@ export type BodyMetric = {
   get?: number
   leanMass?: number
   fatMass?: number
+  metActivities?: Array<{
+    id: string
+    name: string
+    met: number
+    duration: number
+    weeklyFrequency: number
+  }>
+  methodologyUsed?: string
+  injuryFactor?: number
+  ventaTarget?: number
 }
 export type PatientGoal = {
   targetWeight: number
@@ -458,6 +468,10 @@ const initialBodyMetrics: BodyMetric[] = [
     bloodPressure: '120/80',
     sleepQuality: 4,
     stressLevel: 2,
+    methodologyUsed: 'mifflin',
+    injuryFactor: 1.0,
+    ventaTarget: 3226,
+    metActivities: [],
   },
 ]
 const initialPatientGoals: PatientGoal = { targetWeight: 75, targetBodyFat: 15, height: 175 }
@@ -1157,6 +1171,10 @@ export const AppStoreProvider = ({ children }: { children: ReactNode }) => {
           get: d.get || undefined,
           leanMass: d.lean_mass || undefined,
           fatMass: d.fat_mass || undefined,
+          metActivities: d.met_activities || [],
+          methodologyUsed: d.methodology_used || undefined,
+          injuryFactor: d.injury_factor || undefined,
+          ventaTarget: d.venta_target || undefined,
         })),
       )
   }
@@ -1187,6 +1205,10 @@ export const AppStoreProvider = ({ children }: { children: ReactNode }) => {
           get: metric.get || null,
           lean_mass: metric.leanMass || null,
           fat_mass: metric.fatMass || null,
+          met_activities: metric.metActivities || [],
+          methodology_used: metric.methodologyUsed || null,
+          injury_factor: metric.injuryFactor || 1.0,
+          venta_target: metric.ventaTarget || null,
           user_id: u.id,
         })
         .then(({ error }: { error: any }) => {

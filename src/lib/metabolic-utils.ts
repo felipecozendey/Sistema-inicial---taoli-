@@ -1,5 +1,15 @@
 export type Gender = 'male' | 'female'
 export type ActivityLevel = 'sedentary' | 'light' | 'moderate' | 'intense'
+export type Methodology = 'mifflin' | 'harris' | 'katch'
+export type InjuryFactorType = 'healthy' | 'surgery' | 'trauma' | 'sepsis'
+
+export type MetActivity = {
+  id: string
+  name: string
+  met: number
+  duration: number
+  weeklyFrequency: number
+}
 
 export const ACTIVITY_FACTORS: Record<ActivityLevel, number> = {
   sedentary: 1.2,
@@ -15,13 +25,94 @@ export const ACTIVITY_LABELS: Record<ActivityLevel, string> = {
   intense: 'Muito Ativo',
 }
 
+export const INJURY_FACTORS: Record<InjuryFactorType, number> = {
+  healthy: 1.0,
+  surgery: 1.2,
+  trauma: 1.35,
+  sepsis: 1.6,
+}
+
+export const INJURY_LABELS: Record<InjuryFactorType, string> = {
+  healthy: 'Saudável (1.0)',
+  surgery: 'Cirurgia Eletiva (1.2)',
+  trauma: 'Trauma (1.35)',
+  sepsis: 'Sepse (1.6)',
+}
+
+export const METHODOLOGY_LABELS: Record<Methodology, string> = {
+  mifflin: 'Mifflin-St Jeor (1990)',
+  harris: 'Harris-Benedict (1919)',
+  katch: 'Katch-McArdle',
+}
+
 export function calculateTMB(gender: Gender, weight: number, height: number, age: number): number {
   const base = 10 * weight + 6.25 * height - 5 * age
   return Math.round(gender === 'male' ? base + 5 : base - 161)
 }
 
+export function calculateTMBByMethod(
+  methodology: Methodology,
+  gender: Gender,
+  weight: number,
+  height: number,
+  age: number,
+  leanMass?: number,
+): number {
+  switch (methodology) {
+    case 'mifflin': {
+      const base = 10 * weight + 6.25 * height - 5 * age
+      return Math.round(gender === 'male' ? base + 5 : base - 161)
+    }
+    case 'harris': {
+      if (gender === 'male') {
+        return Math.round(66.5 + 13.75 * weight + 5.003 * height - 6.775 * age)
+      }
+      return Math.round(655.1 + 9.563 * weight + 1.85 * height - 4.676 * age)
+    }
+    case 'katch': {
+      if (!leanMass || leanMass <= 0) return 0
+      return Math.round(370 + 21.6 * leanMass)
+    }
+    default:
+      return calculateTMB(gender, weight, height, age)
+  }
+}
+
 export function calculateGET(tmb: number, activityLevel: ActivityLevel): number {
   return Math.round(tmb * ACTIVITY_FACTORS[activityLevel])
+}
+
+export function calculateGETAdvanced(
+  tmb: number,
+  activityLevel: ActivityLevel,
+  injuryFactor: number,
+  metDailyExpenditure: number,
+): number {
+  return Math.round(tmb * ACTIVITY_FACTORS[activityLevel] * injuryFactor + metDailyExpenditure)
+}
+
+export function calculateMetExpenditure(
+  met: number,
+  weight: number,
+  durationMinutes: number,
+): number {
+  return ((met * 3.5 * weight) / 200) * durationMinutes
+}
+
+export function calculateDailyMetExpenditure(activities: MetActivity[], weight: number): number {
+  if (!activities.length || !weight) return 0
+  const totalWeekly = activities.reduce((sum, a) => {
+    const perSession = calculateMetExpenditure(a.met, weight, a.duration)
+    return sum + perSession * a.weeklyFrequency
+  }, 0)
+  return Math.round((totalWeekly / 7) * 10) / 10
+}
+
+export function calculateVENTA(get: number, goal?: string): number {
+  if (!goal) return Math.round(get)
+  if (goal === 'Emagrecimento') return Math.round(get - 500)
+  if (goal === 'Hipertrofia') return Math.round(get + 300)
+  return Math.round(get)
 }
 
 export function calculateCaloricGoals(get: number) {
@@ -30,4 +121,8 @@ export function calculateCaloricGoals(get: number) {
     maintenance: Math.round(get),
     surplus: Math.round(get + 300),
   }
+}
+
+export function calculateBolsoCalories(weight: number, kcalPerKg: number): number {
+  return Math.round(weight * kcalPerKg)
 }
