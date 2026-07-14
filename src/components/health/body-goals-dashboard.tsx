@@ -6,10 +6,13 @@ import { Label } from '@/components/ui/label'
 import { GameButton } from '@/components/ui/game-button'
 
 export function BodyGoalsDashboard() {
-  const { bodyMetrics, patientGoals, updatePatientGoals } = useAppStore()
+  const bodyMetrics = useAppStore((s) => s.bodyMetrics)
+  const patientGoals = useAppStore((s) => s.patientGoals)
+  const updatePatientGoals = useAppStore((s) => s.updatePatientGoals)
   const [editOpen, setEditOpen] = useState(false)
   const [draftWeight, setDraftWeight] = useState('')
   const [draftFat, setDraftFat] = useState('')
+  const [draftLean, setDraftLean] = useState('')
   const [draftHeight, setDraftHeight] = useState('')
 
   const sorted = [...bodyMetrics].sort((a, b) => a.date.localeCompare(b.date))
@@ -17,10 +20,13 @@ export function BodyGoalsDashboard() {
   const first = sorted[0]
   const currentWeight = latest?.weight || 0
   const currentFat = latest?.bodyFatPercentage || 0
+  const currentLean = latest?.leanMass || 0
   const startWeight = first?.weight || currentWeight
   const startFat = first?.bodyFatPercentage || currentFat
+  const startLean = first?.leanMass || currentLean
   const targetWeight = patientGoals.targetWeight || 0
   const targetFat = patientGoals.targetBodyFat || 0
+  const targetLean = patientGoals.targetLeanMass || 0
 
   const weightProgress =
     targetWeight > 0 && startWeight > targetWeight
@@ -33,11 +39,16 @@ export function BodyGoalsDashboard() {
     targetFat > 0 && startFat > targetFat
       ? Math.min(100, Math.round(((startFat - currentFat) / (startFat - targetFat)) * 100))
       : 0
+  const leanProgress =
+    targetLean > 0 && currentLean > 0 && targetLean > startLean
+      ? Math.min(100, Math.round(((currentLean - startLean) / (targetLean - startLean)) * 100))
+      : 0
 
   const handleSave = () => {
     updatePatientGoals({
       targetWeight: parseFloat(draftWeight) || 0,
       targetBodyFat: parseFloat(draftFat) || 0,
+      targetLeanMass: parseFloat(draftLean) || 0,
       height: parseFloat(draftHeight) || 0,
     })
     setEditOpen(false)
@@ -46,6 +57,7 @@ export function BodyGoalsDashboard() {
   const openEdit = () => {
     setDraftWeight(String(targetWeight || ''))
     setDraftFat(String(targetFat || ''))
+    setDraftLean(String(targetLean || ''))
     setDraftHeight(String(patientGoals.height || ''))
     setEditOpen(true)
   }
@@ -69,6 +81,15 @@ export function BodyGoalsDashboard() {
       color: '#FF9600',
       emoji: '🔥',
     },
+    {
+      title: 'Massa Magra vs. Meta',
+      current: currentLean,
+      target: targetLean,
+      unit: 'kg',
+      progress: leanProgress,
+      color: '#10b981',
+      emoji: '💪',
+    },
   ]
 
   return (
@@ -79,7 +100,7 @@ export function BodyGoalsDashboard() {
           Definir Metas
         </button>
       </div>
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         {cards.map((card) => (
           <div
             key={card.title}
@@ -146,6 +167,16 @@ export function BodyGoalsDashboard() {
                 onChange={(e) => setDraftFat(e.target.value)}
                 className="rounded-2xl bg-muted/50 border-transparent font-semibold"
                 placeholder="15"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label className="font-bold">Massa Magra Alvo (kg)</Label>
+              <Input
+                type="number"
+                value={draftLean}
+                onChange={(e) => setDraftLean(e.target.value)}
+                className="rounded-2xl bg-muted/50 border-transparent font-semibold"
+                placeholder="65"
               />
             </div>
             <GameButton onClick={handleSave} variant="primary" size="lg" className="w-full">

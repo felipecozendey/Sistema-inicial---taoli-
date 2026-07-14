@@ -20,10 +20,11 @@ import {
   calculateDailyMetExpenditure,
   calculateVENTA,
   calculateBolsoRange,
-  ACTIVITY_LABELS,
   INJURY_FACTORS,
   INJURY_LABELS,
   METHODOLOGY_LABELS,
+  getActivityOptions,
+  getActivityFactor,
   ActivityLevel,
   Methodology,
   InjuryFactorType,
@@ -65,7 +66,6 @@ const SKINFOLDS = [
 const PRIMARY_GOALS = ['Hipertrofia', 'Emagrecimento', 'Manutenção']
 const SLEEP_EMOJIS = ['😴', '😪', '😐', '🙂', '😄']
 const STRESS_EMOJIS = ['😌', '🙂', '😐', '😟', '😰']
-const ACTIVITY_OPTIONS: ActivityLevel[] = ['sedentary', 'light', 'moderate', 'intense']
 const METHODOLOGY_OPTIONS: Methodology[] = ['mifflin', 'harris', 'katch']
 const INJURY_OPTIONS: InjuryFactorType[] = ['healthy', 'surgery', 'trauma', 'sepsis']
 
@@ -147,11 +147,11 @@ export function AnthropometryModal({
     if (!tmbLive) return 0
     return calculateGETAdvanced(
       tmbLive,
-      activityLevel,
+      getActivityFactor(methodology, activityLevel),
       INJURY_FACTORS[injuryFactorType],
       metDailyExpenditure,
     )
-  }, [tmbLive, activityLevel, injuryFactorType, metDailyExpenditure])
+  }, [tmbLive, activityLevel, methodology, injuryFactorType, metDailyExpenditure])
 
   const ventaLive = useMemo(
     () =>
@@ -228,7 +228,12 @@ export function AnthropometryModal({
     const metDaily = calculateDailyMetExpenditure(metActivities, w)
     const get =
       tmb > 0
-        ? calculateGETAdvanced(tmb, activityLevel, INJURY_FACTORS[injuryFactorType], metDaily)
+        ? calculateGETAdvanced(
+            tmb,
+            getActivityFactor(methodology, activityLevel),
+            INJURY_FACTORS[injuryFactorType],
+            metDaily,
+          )
         : 0
     const tw = parseFloat(targetWeight) || undefined
     const dg = parseInt(daysForGoal) || undefined
@@ -277,10 +282,10 @@ export function AnthropometryModal({
         <Tabs defaultValue="vitals" className="mt-2">
           <TabsList className="grid grid-cols-3 rounded-2xl h-auto p-1">
             <TabsTrigger value="vitals" className="rounded-xl text-xs font-bold py-2">
-              Vitais
+              Básico & Vitais
             </TabsTrigger>
             <TabsTrigger value="body" className="rounded-xl text-xs font-bold py-2">
-              Perímetros & Composição
+              Medidas
             </TabsTrigger>
             <TabsTrigger value="energy" className="rounded-xl text-xs font-bold py-2">
               Gasto Energético
@@ -346,18 +351,15 @@ export function AnthropometryModal({
                 </Select>
               </div>
               <div className="space-y-1.5">
-                <Label className={labelCls}>Nível de Atividade</Label>
-                <Select
-                  value={activityLevel}
-                  onValueChange={(v) => setActivityLevel(v as ActivityLevel)}
-                >
+                <Label className={labelCls}>Objetivo Principal</Label>
+                <Select value={primaryGoal} onValueChange={setPrimaryGoal}>
                   <SelectTrigger className={inputCls}>
-                    <SelectValue />
+                    <SelectValue placeholder="Selecione..." />
                   </SelectTrigger>
                   <SelectContent>
-                    {ACTIVITY_OPTIONS.map((act) => (
-                      <SelectItem key={act} value={act}>
-                        {ACTIVITY_LABELS[act]}
+                    {PRIMARY_GOALS.map((g) => (
+                      <SelectItem key={g} value={g}>
+                        {g}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -422,21 +424,6 @@ export function AnthropometryModal({
                   </button>
                 ))}
               </div>
-            </div>
-            <div className="space-y-1.5">
-              <Label className={labelCls}>Objetivo Principal</Label>
-              <Select value={primaryGoal} onValueChange={setPrimaryGoal}>
-                <SelectTrigger className={inputCls}>
-                  <SelectValue placeholder="Selecione..." />
-                </SelectTrigger>
-                <SelectContent>
-                  {PRIMARY_GOALS.map((g) => (
-                    <SelectItem key={g} value={g}>
-                      {g}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
             </div>
           </TabsContent>
 
@@ -576,6 +563,24 @@ export function AnthropometryModal({
           </TabsContent>
 
           <TabsContent value="energy" className="space-y-3 mt-3">
+            <div className="space-y-1.5">
+              <Label className={labelCls}>Nível de Atividade Física</Label>
+              <Select
+                value={activityLevel}
+                onValueChange={(v) => setActivityLevel(v as ActivityLevel)}
+              >
+                <SelectTrigger className={inputCls}>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {getActivityOptions(methodology).map((opt) => (
+                    <SelectItem key={opt.value} value={opt.value}>
+                      {opt.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
             <div className="space-y-1.5">
               <Label className={labelCls}>Metodologia de Cálculo</Label>
               <Select value={methodology} onValueChange={(v) => setMethodology(v as Methodology)}>

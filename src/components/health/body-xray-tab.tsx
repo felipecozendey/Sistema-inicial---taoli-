@@ -47,8 +47,11 @@ function getBmiStatus(bmi: number) {
 const STRESS_EMOJIS = ['😌', '🙂', '😐', '😟', '😰']
 
 export function BodyXrayTab() {
-  const { bodyMetrics, patientGoals, fetchBodyMetrics, fetchPatientGoals, fetchMedicalExams } =
-    useAppStore()
+  const bodyMetrics = useAppStore((s) => s.bodyMetrics)
+  const patientGoals = useAppStore((s) => s.patientGoals)
+  const fetchBodyMetrics = useAppStore((s) => s.fetchBodyMetrics)
+  const fetchPatientGoals = useAppStore((s) => s.fetchPatientGoals)
+  const fetchMedicalExams = useAppStore((s) => s.fetchMedicalExams)
   const [modalOpen, setModalOpen] = useState(false)
 
   useEffect(() => {

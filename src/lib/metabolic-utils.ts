@@ -1,5 +1,5 @@
 export type Gender = 'male' | 'female'
-export type ActivityLevel = 'sedentary' | 'light' | 'moderate' | 'intense'
+export type ActivityLevel = 'none' | 'sedentary' | 'light' | 'moderate' | 'intense'
 export type Methodology = 'mifflin' | 'harris' | 'katch'
 export type InjuryFactorType = 'healthy' | 'surgery' | 'trauma' | 'sepsis'
 
@@ -12,6 +12,7 @@ export type MetActivity = {
 }
 
 export const ACTIVITY_FACTORS: Record<ActivityLevel, number> = {
+  none: 1.0,
   sedentary: 1.2,
   light: 1.375,
   moderate: 1.55,
@@ -19,10 +20,55 @@ export const ACTIVITY_FACTORS: Record<ActivityLevel, number> = {
 }
 
 export const ACTIVITY_LABELS: Record<ActivityLevel, string> = {
+  none: 'Não utilizar / Apenas TMB (Fator 1.0)',
   sedentary: 'Sedentário',
   light: 'Levemente Ativo',
   moderate: 'Moderadamente Ativo',
   intense: 'Muito Ativo',
+}
+
+export const METHODOLOGY_ACTIVITY_FACTORS: Record<Methodology, Record<ActivityLevel, number>> = {
+  mifflin: { none: 1.0, sedentary: 1.2, light: 1.375, moderate: 1.55, intense: 1.725 },
+  harris: { none: 1.0, sedentary: 1.2, light: 1.3, moderate: 1.5, intense: 1.7 },
+  katch: { none: 1.0, sedentary: 1.2, light: 1.375, moderate: 1.55, intense: 1.725 },
+}
+
+export const METHODOLOGY_ACTIVITY_LABELS: Record<Methodology, Record<ActivityLevel, string>> = {
+  mifflin: {
+    none: 'Não utilizar / Apenas TMB (1.0)',
+    sedentary: 'Sedentário (1.2)',
+    light: 'Levemente Ativo (1.375)',
+    moderate: 'Moderadamente Ativo (1.55)',
+    intense: 'Muito Ativo (1.725)',
+  },
+  harris: {
+    none: 'Não utilizar / Apenas TMB (1.0)',
+    sedentary: 'Sedentário (1.2)',
+    light: 'Levemente Ativo (1.3)',
+    moderate: 'Moderadamente Ativo (1.5)',
+    intense: 'Muito Ativo (1.7)',
+  },
+  katch: {
+    none: 'Não utilizar / Apenas TMB (1.0)',
+    sedentary: 'Sedentário (1.2)',
+    light: 'Levemente Ativo (1.375)',
+    moderate: 'Moderadamente Ativo (1.55)',
+    intense: 'Muito Ativo (1.725)',
+  },
+}
+
+export function getActivityOptions(
+  methodology: Methodology,
+): { value: ActivityLevel; label: string }[] {
+  const labels = METHODOLOGY_ACTIVITY_LABELS[methodology]
+  return (Object.keys(labels) as ActivityLevel[]).map((key) => ({
+    value: key,
+    label: labels[key],
+  }))
+}
+
+export function getActivityFactor(methodology: Methodology, level: ActivityLevel): number {
+  return METHODOLOGY_ACTIVITY_FACTORS[methodology]?.[level] ?? 1.0
 }
 
 export const INJURY_FACTORS: Record<InjuryFactorType, number> = {
@@ -33,7 +79,7 @@ export const INJURY_FACTORS: Record<InjuryFactorType, number> = {
 }
 
 export const INJURY_LABELS: Record<InjuryFactorType, string> = {
-  healthy: 'Saudável (1.0)',
+  healthy: 'Nenhum / Paciente Saudável (Fator 1.0)',
   surgery: 'Cirurgia Eletiva (1.2)',
   trauma: 'Trauma (1.35)',
   sepsis: 'Sepse (1.6)',
@@ -84,11 +130,11 @@ export function calculateGET(tmb: number, activityLevel: ActivityLevel): number 
 
 export function calculateGETAdvanced(
   tmb: number,
-  activityLevel: ActivityLevel,
+  activityFactor: number,
   injuryFactor: number,
   metDailyExpenditure: number,
 ): number {
-  return Math.round(tmb * ACTIVITY_FACTORS[activityLevel] * injuryFactor + metDailyExpenditure)
+  return Math.round(tmb * activityFactor * injuryFactor + metDailyExpenditure)
 }
 
 export function calculateMetExpenditure(

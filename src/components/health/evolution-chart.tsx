@@ -12,7 +12,8 @@ import {
 import { ChartContainer } from '@/components/ui/chart'
 
 export function EvolutionChart() {
-  const { bodyMetrics, patientGoals } = useAppStore()
+  const bodyMetrics = useAppStore((s) => s.bodyMetrics)
+  const patientGoals = useAppStore((s) => s.patientGoals)
 
   const chartData = useMemo(() => {
     return [...bodyMetrics]
@@ -24,6 +25,7 @@ export function EvolutionChart() {
         }),
         weight: m.weight,
         bodyFat: m.bodyFatPercentage,
+        leanMass: m.leanMass,
       }))
   }, [bodyMetrics])
 
@@ -37,6 +39,7 @@ export function EvolutionChart() {
           config={{
             weight: { label: 'Peso (kg)', color: '#1CB0F6' },
             bodyFat: { label: 'Gordura (%)', color: '#FF9600' },
+            leanMass: { label: 'Massa Magra (kg)', color: '#10b981' },
           }}
           className="h-full"
         >
@@ -50,6 +53,10 @@ export function EvolutionChart() {
                 <linearGradient id="fatGradient" x1="0" y1="0" x2="0" y2="1">
                   <stop offset="5%" stopColor="#FF9600" stopOpacity={0.3} />
                   <stop offset="95%" stopColor="#FF9600" stopOpacity={0} />
+                </linearGradient>
+                <linearGradient id="leanGradient" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%" stopColor="#10b981" stopOpacity={0.3} />
+                  <stop offset="95%" stopColor="#10b981" stopOpacity={0} />
                 </linearGradient>
               </defs>
               <XAxis dataKey="date" tick={{ fontSize: 11 }} axisLine={false} tickLine={false} />
@@ -89,6 +96,15 @@ export function EvolutionChart() {
                   label={{ value: 'Meta', fontSize: 10, fill: '#FF9600' }}
                 />
               )}
+              {patientGoals.targetLeanMass > 0 && (
+                <ReferenceLine
+                  yAxisId="left"
+                  y={patientGoals.targetLeanMass}
+                  stroke="#10b981"
+                  strokeDasharray="5 5"
+                  label={{ value: 'Meta', fontSize: 10, fill: '#10b981' }}
+                />
+              )}
               <Area
                 yAxisId="left"
                 type="monotone"
@@ -109,6 +125,17 @@ export function EvolutionChart() {
                 strokeWidth={3}
                 fill="url(#fatGradient)"
                 dot={{ fill: '#FF9600', r: 4 }}
+                activeDot={{ r: 6 }}
+              />
+              <Area
+                yAxisId="left"
+                type="monotone"
+                dataKey="leanMass"
+                name="Massa Magra (kg)"
+                stroke="#10b981"
+                strokeWidth={3}
+                fill="url(#leanGradient)"
+                dot={{ fill: '#10b981', r: 4 }}
                 activeDot={{ r: 6 }}
               />
             </AreaChart>

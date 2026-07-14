@@ -3,7 +3,10 @@ import {
   calculateCaloricGoals,
   calculateDailyMetExpenditure,
   calculateMetExpenditure,
+  getActivityFactor,
   MetActivity,
+  Methodology,
+  ActivityLevel,
 } from '@/lib/metabolic-utils'
 import { Flame, TrendingDown, Scale, TrendingUp, Activity, Clock } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -83,7 +86,13 @@ export function MetabolicDashboard() {
       <h3 className="text-lg font-extrabold flex items-center gap-2 mb-1">
         <Flame className="w-5 h-5 text-[#FF9600]" /> Metabolismo e Gasto Energético
       </h3>
-      <p className="text-[10px] font-bold text-muted-foreground mb-4">Método: {methodologyLabel}</p>
+      <p className="text-[10px] font-bold text-muted-foreground mb-4">
+        Método: {methodologyLabel} · Fator de Atividade:{' '}
+        {getActivityFactor(
+          (latest.methodologyUsed as Methodology) || 'mifflin',
+          (latest.activityLevel as ActivityLevel) || 'none',
+        )}
+      </p>
 
       <div className="grid grid-cols-3 gap-3 mb-4">
         <div className="bg-[#1CB0F6]/10 rounded-2xl p-3 text-center">

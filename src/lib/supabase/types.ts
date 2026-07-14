@@ -17,6 +17,7 @@ export type Database = {
           body_fat_percentage: number | null
           created_at: string
           date: string
+          days_for_goal: number | null
           fat_mass: number | null
           gender: string | null
           get: number | null
@@ -33,6 +34,7 @@ export type Database = {
           primary_goal: string | null
           sleep_quality: number | null
           stress_level: number | null
+          target_weight: number | null
           tmb: number | null
           user_id: string
           venta_target: number | null
@@ -45,6 +47,7 @@ export type Database = {
           body_fat_percentage?: number | null
           created_at?: string
           date?: string
+          days_for_goal?: number | null
           fat_mass?: number | null
           gender?: string | null
           get?: number | null
@@ -61,6 +64,7 @@ export type Database = {
           primary_goal?: string | null
           sleep_quality?: number | null
           stress_level?: number | null
+          target_weight?: number | null
           tmb?: number | null
           user_id: string
           venta_target?: number | null
@@ -73,6 +77,7 @@ export type Database = {
           body_fat_percentage?: number | null
           created_at?: string
           date?: string
+          days_for_goal?: number | null
           fat_mass?: number | null
           gender?: string | null
           get?: number | null
@@ -89,6 +94,7 @@ export type Database = {
           primary_goal?: string | null
           sleep_quality?: number | null
           stress_level?: number | null
+          target_weight?: number | null
           tmb?: number | null
           user_id?: string
           venta_target?: number | null

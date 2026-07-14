@@ -135,6 +135,7 @@ export type BodyMetric = {
 export type PatientGoal = {
   targetWeight: number
   targetBodyFat: number
+  targetLeanMass: number
   height: number
 }
 export type MedicalExam = {
@@ -476,7 +477,12 @@ const initialBodyMetrics: BodyMetric[] = [
     metActivities: [],
   },
 ]
-const initialPatientGoals: PatientGoal = { targetWeight: 75, targetBodyFat: 15, height: 175 }
+const initialPatientGoals: PatientGoal = {
+  targetWeight: 75,
+  targetBodyFat: 15,
+  targetLeanMass: 65,
+  height: 175,
+}
 const initialMedicalExams: MedicalExam[] = [
   { id: 'me1', date: '2026-06-15', title: 'Hemograma Completo', fileUrl: '' },
   { id: 'me2', date: '2026-07-01', title: 'Check-up Cardiológico', fileUrl: '' },
@@ -1240,6 +1246,7 @@ export const AppStoreProvider = ({ children }: { children: ReactNode }) => {
       setPatientGoals({
         targetWeight: data.target_weight || 0,
         targetBodyFat: data.target_body_fat || 0,
+        targetLeanMass: data.target_lean_mass || 0,
         height: data.height || 0,
       })
   }
@@ -1254,6 +1261,7 @@ export const AppStoreProvider = ({ children }: { children: ReactNode }) => {
               {
                 target_weight: newGoals.targetWeight,
                 target_body_fat: newGoals.targetBodyFat,
+                target_lean_mass: newGoals.targetLeanMass,
                 height: newGoals.height,
                 user_id: u.id,
               },
