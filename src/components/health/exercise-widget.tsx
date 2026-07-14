@@ -6,7 +6,9 @@ import { ActiveWorkout } from '@/components/health/active-workout'
 import { Plus, Dumbbell, ChevronRight, Trash2 } from 'lucide-react'
 
 export function ExerciseWidget() {
-  const { workoutRoutines, fetchWorkoutRoutines, deleteWorkoutRoutine } = useAppStore()
+  const workoutRoutines = useAppStore((s) => s.workoutRoutines)
+  const fetchWorkoutRoutines = useAppStore((s) => s.fetchWorkoutRoutines)
+  const deleteWorkoutRoutine = useAppStore((s) => s.deleteWorkoutRoutine)
   const [showBuilder, setShowBuilder] = useState(false)
   const [activeRoutineId, setActiveRoutineId] = useState<string | null>(null)
 

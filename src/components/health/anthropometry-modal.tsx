@@ -19,7 +19,7 @@ import {
   calculateGETAdvanced,
   calculateDailyMetExpenditure,
   calculateVENTA,
-  calculateBolsoCalories,
+  calculateBolsoRange,
   ACTIVITY_LABELS,
   INJURY_FACTORS,
   INJURY_LABELS,
@@ -76,7 +76,7 @@ export function AnthropometryModal({
   open: boolean
   onOpenChange: (v: boolean) => void
 }) {
-  const { addBodyMetric } = useAppStore()
+  const addBodyMetric = useAppStore((s) => s.addBodyMetric)
   const [date, setDate] = useState(new Date().toISOString().split('T')[0])
   const [weight, setWeight] = useState('')
   const [height, setHeight] = useState('')
@@ -101,7 +101,8 @@ export function AnthropometryModal({
   const [methodology, setMethodology] = useState<Methodology>('mifflin')
   const [injuryFactorType, setInjuryFactorType] = useState<InjuryFactorType>('healthy')
   const [metActivities, setMetActivities] = useState<MetActivity[]>([])
-  const [bolsoKcal, setBolsoKcal] = useState(30)
+  const [targetWeight, setTargetWeight] = useState('')
+  const [daysForGoal, setDaysForGoal] = useState('')
 
   const w = parseFloat(weight) || 0
   const h = parseFloat(height) || 0
@@ -152,8 +153,17 @@ export function AnthropometryModal({
     )
   }, [tmbLive, activityLevel, injuryFactorType, metDailyExpenditure])
 
-  const ventaLive = useMemo(() => calculateVENTA(getLive, primaryGoal), [getLive, primaryGoal])
-  const bolsoResult = useMemo(() => calculateBolsoCalories(w, bolsoKcal), [w, bolsoKcal])
+  const ventaLive = useMemo(
+    () =>
+      calculateVENTA(
+        getLive,
+        parseFloat(targetWeight) || undefined,
+        w,
+        parseInt(daysForGoal) || undefined,
+      ),
+    [getLive, targetWeight, w, daysForGoal],
+  )
+  const bolsoRange = useMemo(() => calculateBolsoRange(w, primaryGoal), [w, primaryGoal])
 
   const resetForm = useCallback(() => {
     setWeight('')
@@ -176,7 +186,8 @@ export function AnthropometryModal({
     setMethodology('mifflin')
     setInjuryFactorType('healthy')
     setMetActivities([])
-    setBolsoKcal(30)
+    setTargetWeight('')
+    setDaysForGoal('')
   }, [])
 
   useEffect(() => {
@@ -200,6 +211,7 @@ export function AnthropometryModal({
   }
 
   const handleSave = () => {
+    onOpenChange(false)
     const numericMeasurements: Record<string, number> = {}
     Object.entries(perimeters).forEach(([k, v]) => {
       const n = parseFloat(v)
@@ -218,7 +230,9 @@ export function AnthropometryModal({
       tmb > 0
         ? calculateGETAdvanced(tmb, activityLevel, INJURY_FACTORS[injuryFactorType], metDaily)
         : 0
-    const venta = calculateVENTA(get, primaryGoal)
+    const tw = parseFloat(targetWeight) || undefined
+    const dg = parseInt(daysForGoal) || undefined
+    const venta = calculateVENTA(get, tw, w, dg)
 
     addBodyMetric({
       date,
@@ -244,10 +258,11 @@ export function AnthropometryModal({
       methodologyUsed: methodology,
       injuryFactor: INJURY_FACTORS[injuryFactorType],
       ventaTarget: venta,
+      targetWeight: tw,
+      daysForGoal: dg,
     })
     resetForm()
     toast.success('Avaliação registrada!')
-    onOpenChange(false)
   }
 
   const inputCls = 'rounded-xl bg-muted/50 border-transparent font-semibold text-sm h-9'
@@ -609,32 +624,58 @@ export function AnthropometryModal({
               <MetActivityTable activities={metActivities} onChange={setMetActivities} weight={w} />
             </div>
 
-            <div className="border-t-2 border-muted pt-3">
-              <Label className={cn(labelCls, 'mb-2 block')}>Cálculo de Bolso (kcal/kg)</Label>
-              <div className="flex gap-2 mb-2">
-                {[25, 30, 35].map((k) => (
-                  <button
-                    key={k}
-                    onClick={() => setBolsoKcal(k)}
-                    className={cn(
-                      'flex-1 py-2 rounded-xl border-2 border-b-4 font-extrabold text-sm transition-all active:translate-y-0.5',
-                      bolsoKcal === k
-                        ? 'border-[#58CC02] bg-[#58CC02]/10 text-[#58CC02]'
-                        : 'border-[#E5E5E5] dark:border-[#3B4A55]',
-                    )}
-                  >
-                    {k} kcal/kg
-                  </button>
-                ))}
-              </div>
-              {bolsoResult > 0 && (
-                <div className="bg-[#58CC02]/10 rounded-xl p-3 text-center">
-                  <p className="text-[10px] font-bold text-muted-foreground">
-                    Estimativa Rápida ({bolsoKcal} kcal/kg)
+            <div className="border-t-2 border-muted pt-3 space-y-3">
+              <div>
+                <Label className={cn(labelCls, 'mb-2 block')}>Regra de Bolso</Label>
+                {w > 0 ? (
+                  <div className="bg-[#58CC02]/10 rounded-xl p-3 text-center">
+                    <p className="text-[10px] font-bold text-muted-foreground">
+                      {bolsoRange.label} · Peso: {w} kg
+                    </p>
+                    <p className="text-2xl font-extrabold text-[#58CC02]">
+                      {bolsoRange.min} - {bolsoRange.max} kcal/dia
+                    </p>
+                  </div>
+                ) : (
+                  <p className="text-xs font-bold text-muted-foreground text-center py-2">
+                    Informe o peso para calcular.
                   </p>
-                  <p className="text-2xl font-extrabold text-[#58CC02]">{bolsoResult} kcal/dia</p>
+                )}
+              </div>
+              <div>
+                <Label className={cn(labelCls, 'mb-2 block')}>
+                  VENTA (Valor Energético do Alvo)
+                </Label>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <Label className={labelCls}>Peso Alvo (kg)</Label>
+                    <Input
+                      type="number"
+                      step="0.1"
+                      value={targetWeight}
+                      onChange={(e) => setTargetWeight(e.target.value)}
+                      className={inputCls}
+                      placeholder="75"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className={labelCls}>Prazo (dias)</Label>
+                    <Input
+                      type="number"
+                      value={daysForGoal}
+                      onChange={(e) => setDaysForGoal(e.target.value)}
+                      className={inputCls}
+                      placeholder="90"
+                    />
+                  </div>
                 </div>
-              )}
+                {getLive > 0 && (
+                  <div className="bg-[#1CB0F6]/10 rounded-xl p-3 text-center mt-2">
+                    <p className="text-[10px] font-bold text-muted-foreground">VENTA Calculada</p>
+                    <p className="text-2xl font-extrabold text-[#1CB0F6]">{ventaLive} kcal/dia</p>
+                  </div>
+                )}
+              </div>
             </div>
           </TabsContent>
         </Tabs>

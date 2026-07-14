@@ -5,7 +5,9 @@ import { FastingCompletionModal } from '@/components/health/fasting-completion-m
 import { FastingFeeling } from '@/types/fasting'
 
 export function FastingTab() {
-  const { activeFastingStart, selectedProtocol, endFastingTimer } = useAppStore()
+  const activeFastingStart = useAppStore((s) => s.activeFastingStart)
+  const selectedProtocol = useAppStore((s) => s.selectedProtocol)
+  const endFastingTimer = useAppStore((s) => s.endFastingTimer)
   const [modalOpen, setModalOpen] = useState(false)
   const [pendingHours, setPendingHours] = useState(0)
 

@@ -23,8 +23,11 @@ export type Database = {
           heart_rate_rest: number | null
           height: number | null
           id: string
+          injury_factor: number
           lean_mass: number | null
           measurements: Json
+          met_activities: Json
+          methodology_used: string | null
           muscle_mass: number | null
           photo_urls: string[]
           primary_goal: string | null
@@ -32,6 +35,7 @@ export type Database = {
           stress_level: number | null
           tmb: number | null
           user_id: string
+          venta_target: number | null
           weight: number | null
         }
         Insert: {
@@ -47,8 +51,11 @@ export type Database = {
           heart_rate_rest?: number | null
           height?: number | null
           id?: string
+          injury_factor?: number
           lean_mass?: number | null
           measurements?: Json
+          met_activities?: Json
+          methodology_used?: string | null
           muscle_mass?: number | null
           photo_urls?: string[]
           primary_goal?: string | null
@@ -56,6 +63,7 @@ export type Database = {
           stress_level?: number | null
           tmb?: number | null
           user_id: string
+          venta_target?: number | null
           weight?: number | null
         }
         Update: {
@@ -71,8 +79,11 @@ export type Database = {
           heart_rate_rest?: number | null
           height?: number | null
           id?: string
+          injury_factor?: number
           lean_mass?: number | null
           measurements?: Json
+          met_activities?: Json
+          methodology_used?: string | null
           muscle_mass?: number | null
           photo_urls?: string[]
           primary_goal?: string | null
@@ -80,6 +91,7 @@ export type Database = {
           stress_level?: number | null
           tmb?: number | null
           user_id?: string
+          venta_target?: number | null
           weight?: number | null
         }
         Relationships: []

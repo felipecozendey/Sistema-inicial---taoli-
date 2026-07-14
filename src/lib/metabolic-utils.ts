@@ -108,11 +108,17 @@ export function calculateDailyMetExpenditure(activities: MetActivity[], weight: 
   return Math.round((totalWeekly / 7) * 10) / 10
 }
 
-export function calculateVENTA(get: number, goal?: string): number {
-  if (!goal) return Math.round(get)
-  if (goal === 'Emagrecimento') return Math.round(get - 500)
-  if (goal === 'Hipertrofia') return Math.round(get + 300)
-  return Math.round(get)
+export function calculateVENTA(
+  get: number,
+  targetWeight?: number,
+  currentWeight?: number,
+  daysForGoal?: number,
+): number {
+  if (!targetWeight || !currentWeight || !daysForGoal || daysForGoal <= 0) {
+    return Math.round(get)
+  }
+  const dailyDeficitSurplus = ((targetWeight - currentWeight) * 7700) / daysForGoal
+  return Math.round(get + dailyDeficitSurplus)
 }
 
 export function calculateCaloricGoals(get: number) {
@@ -123,6 +129,27 @@ export function calculateCaloricGoals(get: number) {
   }
 }
 
-export function calculateBolsoCalories(weight: number, kcalPerKg: number): number {
-  return Math.round(weight * kcalPerKg)
+export function calculateBolsoRange(
+  weight: number,
+  goal: string,
+): { min: number; max: number; label: string } {
+  if (goal === 'Emagrecimento') {
+    return {
+      min: Math.round(weight * 20),
+      max: Math.round(weight * 25),
+      label: '20-25 kcal/kg',
+    }
+  }
+  if (goal === 'Hipertrofia') {
+    return {
+      min: Math.round(weight * 30),
+      max: Math.round(weight * 35),
+      label: '30-35 kcal/kg',
+    }
+  }
+  return {
+    min: Math.round(weight * 25),
+    max: Math.round(weight * 30),
+    label: '25-30 kcal/kg',
+  }
 }

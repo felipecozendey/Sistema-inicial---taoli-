@@ -94,6 +94,7 @@ export function NewMealModal({ open, onOpenChange }: NewMealModalProps) {
       return
     }
     isSubmittingRef.current = true
+    onOpenChange(false)
     addMealLog({
       mealType,
       description: description.trim(),
@@ -106,7 +107,6 @@ export function NewMealModal({ open, onOpenChange }: NewMealModalProps) {
     })
     toast.success('Refeição registrada! 🎉')
     resetForm()
-    onOpenChange(false)
   }
 
   return (

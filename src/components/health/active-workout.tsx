@@ -11,7 +11,9 @@ export function ActiveWorkout({
   routine: WorkoutRoutine
   onBack: () => void
 }) {
-  const { completeWorkoutSet, addWorkoutHistory, user } = useAppStore()
+  const completeWorkoutSet = useAppStore((s) => s.completeWorkoutSet)
+  const addWorkoutHistory = useAppStore((s) => s.addWorkoutHistory)
+  const user = useAppStore((s) => s.user)
   const [completedSets, setCompletedSets] = useState<Set<string>>(new Set())
 
   const toggleSet = (exerciseId: string, setIndex: number) => {

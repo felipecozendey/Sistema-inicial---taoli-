@@ -9,13 +9,11 @@ interface FastingWidgetProps {
 }
 
 export function FastingWidget({ onEndFasting }: FastingWidgetProps) {
-  const {
-    activeFastingStart,
-    selectedProtocol,
-    fastingLogs,
-    setSelectedProtocol,
-    startFastingTimer,
-  } = useAppStore()
+  const activeFastingStart = useAppStore((s) => s.activeFastingStart)
+  const selectedProtocol = useAppStore((s) => s.selectedProtocol)
+  const fastingLogs = useAppStore((s) => s.fastingLogs)
+  const setSelectedProtocol = useAppStore((s) => s.setSelectedProtocol)
+  const startFastingTimer = useAppStore((s) => s.startFastingTimer)
   const [elapsed, setElapsed] = useState(0)
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
 

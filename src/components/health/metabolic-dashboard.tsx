@@ -21,7 +21,7 @@ const chartConfig = {
 } satisfies ChartConfig
 
 export function MetabolicDashboard() {
-  const { bodyMetrics } = useAppStore()
+  const bodyMetrics = useAppStore((s) => s.bodyMetrics)
   const sorted = [...bodyMetrics].sort((a, b) => a.date.localeCompare(b.date))
   const latest = sorted[sorted.length - 1]
 

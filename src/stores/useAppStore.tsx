@@ -129,6 +129,8 @@ export type BodyMetric = {
   methodologyUsed?: string
   injuryFactor?: number
   ventaTarget?: number
+  targetWeight?: number
+  daysForGoal?: number
 }
 export type PatientGoal = {
   targetWeight: number
@@ -1175,6 +1177,8 @@ export const AppStoreProvider = ({ children }: { children: ReactNode }) => {
           methodologyUsed: d.methodology_used || undefined,
           injuryFactor: d.injury_factor || undefined,
           ventaTarget: d.venta_target || undefined,
+          targetWeight: d.target_weight || undefined,
+          daysForGoal: d.days_for_goal || undefined,
         })),
       )
   }
@@ -1209,6 +1213,8 @@ export const AppStoreProvider = ({ children }: { children: ReactNode }) => {
           methodology_used: metric.methodologyUsed || null,
           injury_factor: metric.injuryFactor || 1.0,
           venta_target: metric.ventaTarget || null,
+          target_weight: metric.targetWeight || null,
+          days_for_goal: metric.daysForGoal || null,
           user_id: u.id,
         })
         .then(({ error }: { error: any }) => {

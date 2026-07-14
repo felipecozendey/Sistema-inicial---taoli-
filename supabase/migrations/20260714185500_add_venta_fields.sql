@@ -1,0 +1,2 @@
+ALTER TABLE body_metrics ADD COLUMN IF NOT EXISTS target_weight NUMERIC;
+ALTER TABLE body_metrics ADD COLUMN IF NOT EXISTS days_for_goal INTEGER;
