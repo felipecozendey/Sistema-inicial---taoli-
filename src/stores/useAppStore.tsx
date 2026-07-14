@@ -137,6 +137,16 @@ export type NutritionMicroGoal = {
   isActive: boolean
   emoji?: string
 }
+export type FastingFeeling = 'good' | 'normal' | 'bad'
+export type FastingLog = {
+  id: string
+  startTime: string
+  endTime: string
+  targetHours: number
+  actualHours: number
+  feeling: FastingFeeling
+  completed: boolean
+}
 export type Tag = { id: string; name: string; color: string }
 export type Task = {
   id: string
@@ -212,6 +222,9 @@ interface AppState {
   medicalExams: MedicalExam[]
   nutritionMicroGoals: NutritionMicroGoal[]
   focusRadar: FocusRadarSettings
+  fastingLogs: FastingLog[]
+  activeFastingStart: string | null
+  selectedProtocol: number
   updateUser: (u: Partial<User>) => void
   addTag: (name: string, color: string) => void
   updateTag: (id: string, updates: Partial<Pick<Tag, 'name' | 'color'>>) => void
@@ -250,6 +263,11 @@ interface AppState {
   updateHealthRecord: (date: string, updates: Partial<HealthRecord>) => void
   getHealthRecord: (date: string) => HealthRecord
   updateFocusRadar: (settings: Partial<FocusRadarSettings>) => void
+  setSelectedProtocol: (hours: number) => void
+  startFastingTimer: () => void
+  endFastingTimer: (feeling: FastingFeeling) => void
+  deleteFastingLog: (id: string) => void
+  fetchFastingLogs: () => Promise<void>
   addMealLog: (data: {
     mealType: string
     description: string
@@ -684,6 +702,17 @@ export const AppStoreProvider = ({ children }: { children: ReactNode }) => {
     const s = localStorage.getItem('vt_offline_queue')
     return s ? JSON.parse(s) : []
   })
+  const [fastingLogs, setFastingLogs] = useState<FastingLog[]>(() => {
+    const s = localStorage.getItem('vt_fasting_logs')
+    return s ? JSON.parse(s) : []
+  })
+  const [activeFastingStart, setActiveFastingStart] = useState<string | null>(() => {
+    return localStorage.getItem('vt_active_fasting_start') || null
+  })
+  const [selectedProtocol, setSelectedProtocol] = useState<number>(() => {
+    const s = localStorage.getItem('vt_selected_protocol')
+    return s ? parseInt(s) : 16
+  })
 
   const escudoCheckRef = useRef(false)
 
@@ -744,6 +773,19 @@ export const AppStoreProvider = ({ children }: { children: ReactNode }) => {
   useEffect(() => {
     localStorage.setItem('vt_offline_queue', JSON.stringify(offlineQueue))
   }, [offlineQueue])
+  useEffect(() => {
+    localStorage.setItem('vt_fasting_logs', JSON.stringify(fastingLogs))
+  }, [fastingLogs])
+  useEffect(() => {
+    if (activeFastingStart) {
+      localStorage.setItem('vt_active_fasting_start', activeFastingStart)
+    } else {
+      localStorage.removeItem('vt_active_fasting_start')
+    }
+  }, [activeFastingStart])
+  useEffect(() => {
+    localStorage.setItem('vt_selected_protocol', String(selectedProtocol))
+  }, [selectedProtocol])
 
   useEffect(() => {
     if (escudoCheckRef.current) return
@@ -1275,6 +1317,81 @@ export const AppStoreProvider = ({ children }: { children: ReactNode }) => {
   }
   const updateFocusRadar = (settings: Partial<FocusRadarSettings>) =>
     setFocusRadar((p) => ({ ...p, ...settings }))
+  const startFastingTimer = () => {
+    const nowIso = new Date().toISOString()
+    setActiveFastingStart(nowIso)
+  }
+  const endFastingTimer = (feeling: FastingFeeling) => {
+    if (!activeFastingStart) return
+    const startTime = new Date(activeFastingStart)
+    const endTime = new Date()
+    const actualHours = (endTime.getTime() - startTime.getTime()) / 3600000
+    const completed = actualHours >= selectedProtocol
+    const tempId = genId()
+    const log: FastingLog = {
+      id: tempId,
+      startTime: startTime.toISOString(),
+      endTime: endTime.toISOString(),
+      targetHours: selectedProtocol,
+      actualHours: Math.round(actualHours * 10) / 10,
+      feeling,
+      completed,
+    }
+    setFastingLogs((p) => [log, ...p])
+    setActiveFastingStart(null)
+    if (completed) {
+      addCoins(10)
+    }
+    supabase.auth.getUser().then(({ data: { user: u } }) => {
+      if (!u) return
+      ;(supabase as any)
+        .from('fasting_logs')
+        .insert({
+          start_time: startTime.toISOString(),
+          end_time: endTime.toISOString(),
+          target_hours: selectedProtocol,
+          actual_hours: Math.round(actualHours * 10) / 10,
+          feeling,
+          completed,
+          user_id: u.id,
+        })
+        .then(({ error }: { error: any }) => {
+          if (error) {
+            setFastingLogs((p) => p.filter((l) => l.id !== tempId))
+            toast.error('Erro ao salvar jejum. Tente novamente.')
+          } else {
+            fetchFastingLogs()
+          }
+        })
+    })
+  }
+  const deleteFastingLog = (id: string) => {
+    setFastingLogs((p) => p.filter((l) => l.id !== id))
+    ;(supabase as any).from('fasting_logs').delete().eq('id', id).then()
+  }
+  const fetchFastingLogs = async () => {
+    const {
+      data: { user: authUser },
+    } = await supabase.auth.getUser()
+    if (!authUser) return
+    const { data } = await (supabase as any)
+      .from('fasting_logs')
+      .select('*')
+      .eq('user_id', authUser.id)
+      .order('end_time', { ascending: false })
+    if (data)
+      setFastingLogs(
+        data.map((d: any) => ({
+          id: d.id,
+          startTime: d.start_time,
+          endTime: d.end_time,
+          targetHours: d.target_hours,
+          actualHours: d.actual_hours,
+          feeling: d.feeling,
+          completed: d.completed,
+        })),
+      )
+  }
   const addToOfflineQueue = (action: OfflineAction) => setOfflineQueue((p) => [...p, action])
   const clearOfflineQueue = () => setOfflineQueue([])
   const hardReset = async () => {
@@ -1368,6 +1485,9 @@ export const AppStoreProvider = ({ children }: { children: ReactNode }) => {
     medicalExams,
     nutritionMicroGoals,
     focusRadar,
+    fastingLogs,
+    activeFastingStart,
+    selectedProtocol,
     updateUser,
     addTag,
     updateTag,
@@ -1397,6 +1517,11 @@ export const AppStoreProvider = ({ children }: { children: ReactNode }) => {
     updateHealthRecord,
     getHealthRecord,
     updateFocusRadar,
+    setSelectedProtocol,
+    startFastingTimer,
+    endFastingTimer,
+    deleteFastingLog,
+    fetchFastingLogs,
     addMealLog,
     deleteMealLog,
     fetchMealLogs,

@@ -7,6 +7,7 @@ import { NutritionWidget } from '@/components/health/nutrition-widget'
 import { ExerciseWidget } from '@/components/health/exercise-widget'
 import { BodyXrayTab } from '@/components/health/body-xray-tab'
 import { HealthHistory } from '@/components/health/health-history'
+import { FastingTab } from '@/components/health/fasting-tab'
 
 export default function HealthPage() {
   return (
@@ -22,6 +23,9 @@ export default function HealthPage() {
         <TabsList className="w-full rounded-2xl print:hidden">
           <TabsTrigger value="geral" className="rounded-xl font-bold">
             Geral
+          </TabsTrigger>
+          <TabsTrigger value="jejum" className="rounded-xl font-bold">
+            Jejum
           </TabsTrigger>
           <TabsTrigger value="nutricao" className="rounded-xl font-bold">
             Nutrição
@@ -56,6 +60,10 @@ export default function HealthPage() {
               <HealthHistory />
             </TabsContent>
           </Tabs>
+        </TabsContent>
+
+        <TabsContent value="jejum" className="mt-6 print:hidden">
+          <FastingTab />
         </TabsContent>
 
         <TabsContent value="nutricao" className="mt-6 print:hidden">
