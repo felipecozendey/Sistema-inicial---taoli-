@@ -169,6 +169,21 @@ export type Transaction = {
   date: string
   status: 'paid' | 'pending'
 }
+export type Password = {
+  id: string
+  title: string
+  username: string
+  password: string
+  url: string
+  category: string
+}
+export type FinanceCategory = {
+  id: string
+  name: string
+  parentId: string | null
+  icon: string
+  color: string
+}
 export type Tag = { id: string; name: string; color: string }
 export type Task = {
   id: string
@@ -253,6 +268,16 @@ interface AppState {
   deleteTransaction: (id: string) => void
   toggleTransactionStatus: (id: string) => void
   fetchTransactions: () => Promise<void>
+  passwords: Password[]
+  addPassword: (p: Omit<Password, 'id'>) => void
+  updatePassword: (id: string, updates: Partial<Password>) => void
+  deletePassword: (id: string) => void
+  fetchPasswords: () => Promise<void>
+  financeCategories: FinanceCategory[]
+  addFinanceCategory: (c: Omit<FinanceCategory, 'id'>) => void
+  updateFinanceCategory: (id: string, updates: Partial<FinanceCategory>) => void
+  deleteFinanceCategory: (id: string) => void
+  fetchFinanceCategories: () => Promise<void>
   updateUser: (u: Partial<User>) => void
   addTag: (name: string, color: string) => void
   updateTag: (id: string, updates: Partial<Pick<Tag, 'name' | 'color'>>) => void
@@ -577,6 +602,21 @@ const initialTransactions: Transaction[] = [
   },
 ]
 
+const initialFinanceCategories: FinanceCategory[] = [
+  { id: 'fc1', name: 'Casa', parentId: null, icon: '🏠', color: '#1CB0F6' },
+  { id: 'fc2', name: 'Alimentação', parentId: null, icon: '🍔', color: '#FF9600' },
+  { id: 'fc3', name: 'Transporte', parentId: null, icon: '🚗', color: '#82D936' },
+  { id: 'fc4', name: 'Salário', parentId: null, icon: '💰', color: '#58CC02' },
+  { id: 'fc5', name: 'Freelance', parentId: null, icon: '💼', color: '#CE82FF' },
+  { id: 'fc6', name: 'Streaming', parentId: null, icon: '📺', color: '#FF4B4B' },
+  { id: 'fc7', name: 'Academia', parentId: null, icon: '🏋️', color: '#FFC800' },
+  { id: 'fc8', name: 'Saúde', parentId: null, icon: '💊', color: '#FF4B4B' },
+  { id: 'fc9', name: 'Educação', parentId: null, icon: '📚', color: '#1CB0F6' },
+  { id: 'fc10', name: 'Lazer', parentId: null, icon: '🎮', color: '#CE82FF' },
+  { id: 'fc11', name: 'Compras', parentId: null, icon: '🛒', color: '#FF9600' },
+  { id: 'fc12', name: 'Outros', parentId: null, icon: '📦', color: '#AFAFAF' },
+]
+
 const initialTags: Tag[] = [
   { id: '1', name: 'Saúde', color: '#10b981' },
   { id: '2', name: 'Trabalho', color: '#3b82f6' },
@@ -820,6 +860,14 @@ export const AppStoreProvider = ({ children }: { children: ReactNode }) => {
     const s = localStorage.getItem('vt_transactions')
     return s ? JSON.parse(s) : initialTransactions
   })
+  const [passwords, setPasswords] = useState<Password[]>(() => {
+    const s = localStorage.getItem('vt_passwords')
+    return s ? JSON.parse(s) : []
+  })
+  const [financeCategories, setFinanceCategories] = useState<FinanceCategory[]>(() => {
+    const s = localStorage.getItem('vt_finance_categories')
+    return s ? JSON.parse(s) : initialFinanceCategories
+  })
 
   const escudoCheckRef = useRef(false)
 
@@ -896,6 +944,12 @@ export const AppStoreProvider = ({ children }: { children: ReactNode }) => {
   useEffect(() => {
     localStorage.setItem('vt_transactions', JSON.stringify(transactions))
   }, [transactions])
+  useEffect(() => {
+    localStorage.setItem('vt_passwords', JSON.stringify(passwords))
+  }, [passwords])
+  useEffect(() => {
+    localStorage.setItem('vt_finance_categories', JSON.stringify(financeCategories))
+  }, [financeCategories])
 
   useEffect(() => {
     if (escudoCheckRef.current) return
@@ -1580,6 +1634,125 @@ export const AppStoreProvider = ({ children }: { children: ReactNode }) => {
         })),
       )
   }
+  const fetchPasswords = async () => {
+    const {
+      data: { user: authUser },
+    } = await supabase.auth.getUser()
+    if (!authUser) return
+    const { data } = await (supabase as any)
+      .from('passwords')
+      .select('*')
+      .eq('user_id', authUser.id)
+      .order('created_at', { ascending: false })
+    if (data)
+      setPasswords(
+        data.map((d: any) => ({
+          id: d.id,
+          title: d.title || '',
+          username: d.username || '',
+          password: d.password || '',
+          url: d.url || '',
+          category: d.category || 'other',
+        })),
+      )
+  }
+  const addPassword = (p: Omit<Password, 'id'>) => {
+    const tempId = genId()
+    setPasswords((prev) => [{ ...p, id: tempId }, ...prev])
+    supabase.auth.getUser().then(({ data: { user: u } }) => {
+      if (!u) return
+      ;(supabase as any)
+        .from('passwords')
+        .insert({
+          title: p.title,
+          username: p.username,
+          password: p.password,
+          url: p.url,
+          category: p.category,
+          user_id: u.id,
+        })
+        .then(({ error }: { error: any }) => {
+          if (error) {
+            setPasswords((prev) => prev.filter((pw) => pw.id !== tempId))
+            toast.error('Erro ao salvar senha. Tente novamente.')
+          } else {
+            fetchPasswords()
+          }
+        })
+    })
+  }
+  const updatePassword = (id: string, updates: Partial<Password>) => {
+    setPasswords((prev) => prev.map((p) => (p.id === id ? { ...p, ...updates } : p)))
+    const dbUpdates: Record<string, any> = {}
+    if (updates.title !== undefined) dbUpdates.title = updates.title
+    if (updates.username !== undefined) dbUpdates.username = updates.username
+    if (updates.password !== undefined) dbUpdates.password = updates.password
+    if (updates.url !== undefined) dbUpdates.url = updates.url
+    if (updates.category !== undefined) dbUpdates.category = updates.category
+    ;(supabase as any).from('passwords').update(dbUpdates).eq('id', id).then()
+  }
+  const deletePassword = (id: string) => {
+    setPasswords((prev) => prev.filter((p) => p.id !== id))
+    ;(supabase as any).from('passwords').delete().eq('id', id).then()
+  }
+  const fetchFinanceCategories = async () => {
+    const {
+      data: { user: authUser },
+    } = await supabase.auth.getUser()
+    if (!authUser) return
+    const { data } = await (supabase as any)
+      .from('finance_categories')
+      .select('*')
+      .eq('user_id', authUser.id)
+      .order('created_at', { ascending: true })
+    if (data)
+      setFinanceCategories(
+        data.map((d: any) => ({
+          id: d.id,
+          name: d.name || '',
+          parentId: d.parent_id || null,
+          icon: d.icon || '📦',
+          color: d.color || '#1CB0F6',
+        })),
+      )
+  }
+  const addFinanceCategory = (c: Omit<FinanceCategory, 'id'>) => {
+    const tempId = genId()
+    setFinanceCategories((prev) => [...prev, { ...c, id: tempId }])
+    supabase.auth.getUser().then(({ data: { user: u } }) => {
+      if (!u) return
+      ;(supabase as any)
+        .from('finance_categories')
+        .insert({
+          name: c.name,
+          parent_id: c.parentId,
+          icon: c.icon,
+          color: c.color,
+          user_id: u.id,
+        })
+        .then(({ error }: { error: any }) => {
+          if (error) {
+            setFinanceCategories((prev) => prev.filter((fc) => fc.id !== tempId))
+            toast.error('Erro ao salvar categoria. Tente novamente.')
+          } else {
+            fetchFinanceCategories()
+          }
+        })
+    })
+  }
+  const updateFinanceCategory = (id: string, updates: Partial<FinanceCategory>) => {
+    setFinanceCategories((prev) => prev.map((c) => (c.id === id ? { ...c, ...updates } : c)))
+    const dbUpdates: Record<string, any> = {}
+    if (updates.name !== undefined) dbUpdates.name = updates.name
+    if (updates.parentId !== undefined) dbUpdates.parent_id = updates.parentId
+    if (updates.icon !== undefined) dbUpdates.icon = updates.icon
+    if (updates.color !== undefined) dbUpdates.color = updates.color
+    ;(supabase as any).from('finance_categories').update(dbUpdates).eq('id', id).then()
+  }
+  const deleteFinanceCategory = (id: string) => {
+    setFinanceCategories((prev) => prev.filter((c) => c.id !== id && c.parentId !== id))
+    ;(supabase as any).from('finance_categories').delete().eq('id', id).then()
+  }
   const addToOfflineQueue = (action: OfflineAction) => setOfflineQueue((p) => [...p, action])
   const clearOfflineQueue = () => setOfflineQueue([])
   const hardReset = async () => {
@@ -1682,6 +1855,16 @@ export const AppStoreProvider = ({ children }: { children: ReactNode }) => {
     deleteTransaction,
     toggleTransactionStatus,
     fetchTransactions,
+    passwords,
+    addPassword,
+    updatePassword,
+    deletePassword,
+    fetchPasswords,
+    financeCategories,
+    addFinanceCategory,
+    updateFinanceCategory,
+    deleteFinanceCategory,
+    fetchFinanceCategories,
     updateUser,
     addTag,
     updateTag,

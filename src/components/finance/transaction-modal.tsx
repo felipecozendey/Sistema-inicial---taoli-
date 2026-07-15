@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import {
   Dialog,
   DialogContent,
@@ -20,21 +20,6 @@ import { useAppStore } from '@/stores/useAppStore'
 import { cn } from '@/lib/utils'
 import { toast } from 'sonner'
 
-const CATEGORIES = [
-  '🏠 Casa',
-  '🍔 Alimentação',
-  '🚗 Transporte',
-  '💰 Salário',
-  '💼 Freelance',
-  '📺 Streaming',
-  '🏋️ Academia',
-  '💊 Saúde',
-  '📚 Educação',
-  '🎮 Lazer',
-  '🛒 Compras',
-  '📦 Outros',
-]
-
 interface TransactionModalProps {
   open: boolean
   onOpenChange: (open: boolean) => void
@@ -42,9 +27,14 @@ interface TransactionModalProps {
 
 export function TransactionModal({ open, onOpenChange }: TransactionModalProps) {
   const addTransaction = useAppStore((s) => s.addTransaction)
+  const financeCategories = useAppStore((s) => s.financeCategories)
+  const categoryOptions = useMemo(
+    () => financeCategories.map((c) => `${c.icon} ${c.name}`),
+    [financeCategories],
+  )
   const [type, setType] = useState<'income' | 'expense'>('expense')
   const [amount, setAmount] = useState('')
-  const [category, setCategory] = useState('🏠 Casa')
+  const [category, setCategory] = useState('📦 Outros')
   const [description, setDescription] = useState('')
   const [date, setDate] = useState(new Date().toISOString().split('T')[0])
   const [isPaid, setIsPaid] = useState(false)
@@ -53,7 +43,7 @@ export function TransactionModal({ open, onOpenChange }: TransactionModalProps) 
     if (!open) {
       setType('expense')
       setAmount('')
-      setCategory('🏠 Casa')
+      setCategory(categoryOptions[0] || '📦 Outros')
       setDescription('')
       setDate(new Date().toISOString().split('T')[0])
       setIsPaid(false)
@@ -130,7 +120,7 @@ export function TransactionModal({ open, onOpenChange }: TransactionModalProps) 
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                {CATEGORIES.map((cat) => (
+                {categoryOptions.map((cat) => (
                   <SelectItem key={cat} value={cat}>
                     {cat}
                   </SelectItem>
