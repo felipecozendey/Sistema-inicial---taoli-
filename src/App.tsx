@@ -19,6 +19,7 @@ import Settings from './pages/Settings'
 import Profile from './pages/Profile'
 import Health from './pages/Health'
 import Studies from './pages/Studies'
+import Finance from './pages/Finance'
 
 function AppInner() {
   const { user, loading } = useAuth()
@@ -50,6 +51,7 @@ function AppInner() {
                 <Route path="/tasks" element={<Tasks />} />
                 <Route path="/health" element={<Health />} />
                 <Route path="/studies" element={<Studies />} />
+                <Route path="/finance" element={<Finance />} />
                 <Route path="/analytics" element={<Analytics />} />
                 <Route path="/profile" element={<Profile />} />
                 <Route path="/settings" element={<Settings />} />

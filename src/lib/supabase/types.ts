@@ -520,6 +520,7 @@ export type Database = {
           height: number | null
           id: string
           target_body_fat: number | null
+          target_lean_mass: number | null
           target_weight: number | null
           user_id: string
         }
@@ -528,6 +529,7 @@ export type Database = {
           height?: number | null
           id?: string
           target_body_fat?: number | null
+          target_lean_mass?: number | null
           target_weight?: number | null
           user_id: string
         }
@@ -536,6 +538,7 @@ export type Database = {
           height?: number | null
           id?: string
           target_body_fat?: number | null
+          target_lean_mass?: number | null
           target_weight?: number | null
           user_id?: string
         }
@@ -615,6 +618,42 @@ export type Database = {
           tag_id?: string | null
           tag_ids?: string[] | null
           title?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      transactions: {
+        Row: {
+          amount: number
+          category: string
+          created_at: string
+          date: string
+          description: string | null
+          id: string
+          status: string
+          type: string
+          user_id: string
+        }
+        Insert: {
+          amount: number
+          category: string
+          created_at?: string
+          date?: string
+          description?: string | null
+          id?: string
+          status?: string
+          type: string
+          user_id: string
+        }
+        Update: {
+          amount?: number
+          category?: string
+          created_at?: string
+          date?: string
+          description?: string | null
+          id?: string
+          status?: string
+          type?: string
           user_id?: string
         }
         Relationships: []

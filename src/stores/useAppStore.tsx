@@ -160,6 +160,15 @@ export type FastingLog = {
   feeling: FastingFeeling
   completed: boolean
 }
+export type Transaction = {
+  id: string
+  type: 'income' | 'expense'
+  amount: number
+  category: string
+  description: string
+  date: string
+  status: 'paid' | 'pending'
+}
 export type Tag = { id: string; name: string; color: string }
 export type Task = {
   id: string
@@ -238,6 +247,12 @@ interface AppState {
   fastingLogs: FastingLog[]
   activeFastingStart: string | null
   selectedProtocol: number
+  transactions: Transaction[]
+  addTransaction: (t: Omit<Transaction, 'id'>) => void
+  updateTransaction: (id: string, updates: Partial<Transaction>) => void
+  deleteTransaction: (id: string) => void
+  toggleTransactionStatus: (id: string) => void
+  fetchTransactions: () => Promise<void>
   updateUser: (u: Partial<User>) => void
   addTag: (name: string, color: string) => void
   updateTag: (id: string, updates: Partial<Pick<Tag, 'name' | 'color'>>) => void
@@ -496,6 +511,72 @@ const initialMicroGoals: NutritionMicroGoal[] = [
   { id: 'mg6', title: 'Fibras no Prato', isActive: true, emoji: '🌾' },
 ]
 
+const initialTransactions: Transaction[] = [
+  {
+    id: 'tr1',
+    type: 'income',
+    amount: 5000,
+    category: '💰 Salário',
+    description: 'Salário mensal',
+    date: todayStr(),
+    status: 'paid',
+  },
+  {
+    id: 'tr2',
+    type: 'expense',
+    amount: 1200,
+    category: '🏠 Casa',
+    description: 'Aluguel',
+    date: todayStr(),
+    status: 'paid',
+  },
+  {
+    id: 'tr3',
+    type: 'expense',
+    amount: 450,
+    category: '🍔 Alimentação',
+    description: 'Supermercado',
+    date: todayStr(),
+    status: 'pending',
+  },
+  {
+    id: 'tr4',
+    type: 'expense',
+    amount: 200,
+    category: '🚗 Transporte',
+    description: 'Combustível',
+    date: todayStr(),
+    status: 'pending',
+  },
+  {
+    id: 'tr5',
+    type: 'income',
+    amount: 800,
+    category: '💼 Freelance',
+    description: 'Projeto extra',
+    date: todayStr(),
+    status: 'pending',
+  },
+  {
+    id: 'tr6',
+    type: 'expense',
+    amount: 89.9,
+    category: '📺 Streaming',
+    description: 'Netflix + Spotify',
+    date: todayStr(),
+    status: 'paid',
+  },
+  {
+    id: 'tr7',
+    type: 'expense',
+    amount: 150,
+    category: '🎮 Lazer',
+    description: 'Cinema e jantar',
+    date: todayStr(),
+    status: 'pending',
+  },
+]
+
 const initialTags: Tag[] = [
   { id: '1', name: 'Saúde', color: '#10b981' },
   { id: '2', name: 'Trabalho', color: '#3b82f6' },
@@ -735,6 +816,10 @@ export const AppStoreProvider = ({ children }: { children: ReactNode }) => {
     const s = localStorage.getItem('vt_selected_protocol')
     return s ? parseInt(s) : 16
   })
+  const [transactions, setTransactions] = useState<Transaction[]>(() => {
+    const s = localStorage.getItem('vt_transactions')
+    return s ? JSON.parse(s) : initialTransactions
+  })
 
   const escudoCheckRef = useRef(false)
 
@@ -808,6 +893,9 @@ export const AppStoreProvider = ({ children }: { children: ReactNode }) => {
   useEffect(() => {
     localStorage.setItem('vt_selected_protocol', String(selectedProtocol))
   }, [selectedProtocol])
+  useEffect(() => {
+    localStorage.setItem('vt_transactions', JSON.stringify(transactions))
+  }, [transactions])
 
   useEffect(() => {
     if (escudoCheckRef.current) return
@@ -1428,6 +1516,70 @@ export const AppStoreProvider = ({ children }: { children: ReactNode }) => {
         })),
       )
   }
+  const addTransaction = (t: Omit<Transaction, 'id'>) => {
+    const tempId = genId()
+    setTransactions((p) => [{ ...t, id: tempId }, ...p])
+    supabase.auth.getUser().then(({ data: { user: u } }) => {
+      if (!u) return
+      ;(supabase as any)
+        .from('transactions')
+        .insert({
+          type: t.type,
+          amount: t.amount,
+          category: t.category,
+          description: t.description,
+          date: t.date,
+          status: t.status,
+          user_id: u.id,
+        })
+        .then(({ error }: { error: any }) => {
+          if (error) {
+            setTransactions((p) => p.filter((tr) => tr.id !== tempId))
+            toast.error('Erro ao salvar transação. Tente novamente.')
+          } else {
+            fetchTransactions()
+          }
+        })
+    })
+  }
+  const updateTransaction = (id: string, updates: Partial<Transaction>) => {
+    setTransactions((p) => p.map((t) => (t.id === id ? { ...t, ...updates } : t)))
+    ;(supabase as any).from('transactions').update(updates).eq('id', id).then()
+  }
+  const deleteTransaction = (id: string) => {
+    setTransactions((p) => p.filter((t) => t.id !== id))
+    ;(supabase as any).from('transactions').delete().eq('id', id).then()
+  }
+  const toggleTransactionStatus = (id: string) => {
+    const transaction = transactions.find((t) => t.id === id)
+    if (!transaction) return
+    const newStatus = transaction.status === 'paid' ? 'pending' : 'paid'
+    setTransactions((p) => p.map((t) => (t.id === id ? { ...t, status: newStatus } : t)))
+    ;(supabase as any).from('transactions').update({ status: newStatus }).eq('id', id).then()
+  }
+  const fetchTransactions = async () => {
+    const {
+      data: { user: authUser },
+    } = await supabase.auth.getUser()
+    if (!authUser) return
+    const { data } = await (supabase as any)
+      .from('transactions')
+      .select('*')
+      .eq('user_id', authUser.id)
+      .order('date', { ascending: false })
+    if (data)
+      setTransactions(
+        data.map((d: any) => ({
+          id: d.id,
+          type: d.type,
+          amount: parseFloat(d.amount) || 0,
+          category: d.category,
+          description: d.description || '',
+          date: (d.date || '').split('T')[0],
+          status: d.status || 'pending',
+        })),
+      )
+  }
   const addToOfflineQueue = (action: OfflineAction) => setOfflineQueue((p) => [...p, action])
   const clearOfflineQueue = () => setOfflineQueue([])
   const hardReset = async () => {
@@ -1524,6 +1676,12 @@ export const AppStoreProvider = ({ children }: { children: ReactNode }) => {
     fastingLogs,
     activeFastingStart,
     selectedProtocol,
+    transactions,
+    addTransaction,
+    updateTransaction,
+    deleteTransaction,
+    toggleTransactionStatus,
+    fetchTransactions,
     updateUser,
     addTag,
     updateTag,
