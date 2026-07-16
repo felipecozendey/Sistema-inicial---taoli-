@@ -3,27 +3,32 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useAppStore } from '@/stores/useAppStore'
 import { MindDailyAssessment } from '@/components/health/mind-daily-assessment'
 import { MindEmotionalJournal } from '@/components/health/mind-emotional-journal'
+import { MindHistoryTab } from '@/components/health/mind-history-tab'
 import { MindClinicalReport } from '@/components/health/mind-clinical-report'
 
 export function MindTab() {
-  const { fetchMentalHealthLogs, fetchJournalEntries } = useAppStore()
+  const { fetchMentalHealthLogs, fetchJournalEntries, fetchMindEvents } = useAppStore()
 
   useEffect(() => {
     fetchMentalHealthLogs()
     fetchJournalEntries()
+    fetchMindEvents()
   }, [])
 
   return (
     <Tabs defaultValue="avaliacao">
       <TabsList className="w-full rounded-2xl">
         <TabsTrigger value="avaliacao" className="rounded-xl font-bold">
-          Avaliação do Dia
+          Avaliação
         </TabsTrigger>
         <TabsTrigger value="diario" className="rounded-xl font-bold">
-          📖 Diário Emocional
+          📖 Diário
+        </TabsTrigger>
+        <TabsTrigger value="registros" className="rounded-xl font-bold">
+          Registros
         </TabsTrigger>
         <TabsTrigger value="relatorio" className="rounded-xl font-bold">
-          Relatório Clínico
+          Relatório
         </TabsTrigger>
       </TabsList>
       <TabsContent value="avaliacao" className="mt-6">
@@ -31,6 +36,9 @@ export function MindTab() {
       </TabsContent>
       <TabsContent value="diario" className="mt-6">
         <MindEmotionalJournal />
+      </TabsContent>
+      <TabsContent value="registros" className="mt-6">
+        <MindHistoryTab />
       </TabsContent>
       <TabsContent value="relatorio" className="mt-6">
         <MindClinicalReport />

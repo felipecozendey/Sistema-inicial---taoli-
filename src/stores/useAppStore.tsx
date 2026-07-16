@@ -131,7 +131,7 @@ export type BodyMetric = {
   ventaTarget?: number
   targetWeight?: number
   daysForGoal?: number
-  focusLevel?: number
+  sadnessLevel?: number
   anxietyLevel?: number
   mentalTriggers?: string
 }
@@ -141,7 +141,7 @@ export type MentalHealthLog = {
   mood: number
   stressLevel: number
   anxietyLevel: number
-  focusLevel: number
+  sadnessLevel: number
   sleepQuality: number
   mentalTriggers: string
   timestamp: string
@@ -151,6 +151,12 @@ export type JournalEntry = {
   date: string
   content: string
   createdAt: string
+}
+export type MindEvent = {
+  id: string
+  description: string
+  createdAt: string
+  date: string
 }
 export type PatientGoal = {
   targetWeight: number
@@ -329,14 +335,19 @@ interface AppState {
     mood: number
     stressLevel: number
     anxietyLevel: number
-    focusLevel: number
+    sadnessLevel: number
     sleepQuality: number
     mentalTriggers: string
+    date?: string
   }) => void
   fetchMentalHealthLogs: () => Promise<void>
   journalEntries: JournalEntry[]
   fetchJournalEntries: () => Promise<void>
-  upsertJournalEntry: (content: string) => Promise<void>
+  upsertJournalEntry: (content: string, date?: string) => Promise<void>
+  mindEvents: MindEvent[]
+  fetchMindEvents: () => Promise<void>
+  addMindEvent: (description: string) => void
+  deleteMindEvent: (id: string) => void
   fetchPatientGoals: () => Promise<void>
   updatePatientGoals: (updates: Partial<PatientGoal>) => void
   fetchMedicalExams: () => Promise<void>
@@ -536,7 +547,7 @@ const initialMentalHealthLogs: MentalHealthLog[] = [
     mood: 3,
     stressLevel: 3,
     anxietyLevel: 2,
-    focusLevel: 3,
+    sadnessLevel: 3,
     sleepQuality: 3,
     mentalTriggers: 'Reunião difícil no trabalho',
     timestamp: '2026-07-10T14:00:00Z',
@@ -547,7 +558,7 @@ const initialMentalHealthLogs: MentalHealthLog[] = [
     mood: 4,
     stressLevel: 2,
     anxietyLevel: 1,
-    focusLevel: 4,
+    sadnessLevel: 4,
     sleepQuality: 4,
     mentalTriggers: '',
     timestamp: '2026-07-11T14:00:00Z',
@@ -558,7 +569,7 @@ const initialMentalHealthLogs: MentalHealthLog[] = [
     mood: 2,
     stressLevel: 4,
     anxietyLevel: 4,
-    focusLevel: 2,
+    sadnessLevel: 2,
     sleepQuality: 2,
     mentalTriggers: 'Prazo apertado e falta de sono',
     timestamp: '2026-07-12T14:00:00Z',
@@ -569,7 +580,7 @@ const initialMentalHealthLogs: MentalHealthLog[] = [
     mood: 5,
     stressLevel: 1,
     anxietyLevel: 1,
-    focusLevel: 5,
+    sadnessLevel: 5,
     sleepQuality: 5,
     mentalTriggers: '',
     timestamp: '2026-07-13T14:00:00Z',
@@ -580,7 +591,7 @@ const initialMentalHealthLogs: MentalHealthLog[] = [
     mood: 3,
     stressLevel: 3,
     anxietyLevel: 3,
-    focusLevel: 3,
+    sadnessLevel: 3,
     sleepQuality: 3,
     mentalTriggers: 'Discordância com colega',
     timestamp: '2026-07-14T14:00:00Z',
@@ -591,7 +602,7 @@ const initialMentalHealthLogs: MentalHealthLog[] = [
     mood: 4,
     stressLevel: 2,
     anxietyLevel: 2,
-    focusLevel: 4,
+    sadnessLevel: 4,
     sleepQuality: 4,
     mentalTriggers: 'Excesso de cafeína',
     timestamp: '2026-07-15T14:00:00Z',
@@ -807,6 +818,10 @@ export const AppStoreProvider = ({ children }: { children: ReactNode }) => {
     const s = localStorage.getItem('vt_journal_entries')
     return s ? JSON.parse(s) : []
   })
+  const [mindEvents, setMindEvents] = useState<MindEvent[]>(() => {
+    const s = localStorage.getItem('vt_mind_events')
+    return s ? JSON.parse(s) : []
+  })
   const [patientGoals, setPatientGoals] = useState<PatientGoal>(() => {
     const s = localStorage.getItem('vt_patient_goals')
     return s ? JSON.parse(s) : initialPatientGoals
@@ -895,6 +910,9 @@ export const AppStoreProvider = ({ children }: { children: ReactNode }) => {
   useEffect(() => {
     localStorage.setItem('vt_journal_entries', JSON.stringify(journalEntries))
   }, [journalEntries])
+  useEffect(() => {
+    localStorage.setItem('vt_mind_events', JSON.stringify(mindEvents))
+  }, [mindEvents])
   useEffect(() => {
     localStorage.setItem('vt_patient_goals', JSON.stringify(patientGoals))
   }, [patientGoals])
@@ -1299,7 +1317,7 @@ export const AppStoreProvider = ({ children }: { children: ReactNode }) => {
           ventaTarget: d.venta_target || undefined,
           targetWeight: d.target_weight || undefined,
           daysForGoal: d.days_for_goal || undefined,
-          focusLevel: d.focus_level || undefined,
+          sadnessLevel: d.sadness_level || undefined,
           anxietyLevel: d.anxiety_level || undefined,
           mentalTriggers: d.mental_triggers || undefined,
         })),
@@ -1352,25 +1370,26 @@ export const AppStoreProvider = ({ children }: { children: ReactNode }) => {
     mood: number
     stressLevel: number
     anxietyLevel: number
-    focusLevel: number
+    sadnessLevel: number
     sleepQuality: number
     mentalTriggers: string
+    date?: string
   }) => {
-    const today = todayStr()
+    const logDate = data.date || todayStr()
     const tempId = genId()
     const log: MentalHealthLog = {
       id: tempId,
-      date: today,
+      date: logDate,
       mood: data.mood,
       stressLevel: data.stressLevel,
       anxietyLevel: data.anxietyLevel,
-      focusLevel: data.focusLevel,
+      sadnessLevel: data.sadnessLevel,
       sleepQuality: data.sleepQuality,
       mentalTriggers: data.mentalTriggers,
       timestamp: nowIso(),
     }
     setMentalHealthLogs((prev) => {
-      const filtered = prev.filter((l) => l.date !== today)
+      const filtered = prev.filter((l) => l.date !== logDate)
       return [log, ...filtered]
     })
     supabase.auth.getUser().then(({ data: { user: u } }) => {
@@ -1378,11 +1397,11 @@ export const AppStoreProvider = ({ children }: { children: ReactNode }) => {
       ;(supabase as any)
         .from('body_metrics')
         .insert({
-          date: today,
+          date: logDate,
           mood: data.mood,
           stress_level: data.stressLevel,
           anxiety_level: data.anxietyLevel,
-          focus_level: data.focusLevel,
+          sadness_level: data.sadnessLevel,
           sleep_quality: data.sleepQuality,
           mental_triggers: data.mentalTriggers || null,
           user_id: u.id,
@@ -1405,10 +1424,10 @@ export const AppStoreProvider = ({ children }: { children: ReactNode }) => {
     const { data } = await (supabase as any)
       .from('body_metrics')
       .select(
-        'id, date, mood, stress_level, focus_level, anxiety_level, sleep_quality, mental_triggers, created_at',
+        'id, date, mood, stress_level, sadness_level, anxiety_level, sleep_quality, mental_triggers, created_at',
       )
       .eq('user_id', authUser.id)
-      .not('focus_level', 'is', null)
+      .not('sadness_level', 'is', null)
       .order('created_at', { ascending: false })
     if (data) {
       const uniqueByDate = new Map<string, any>()
@@ -1423,7 +1442,7 @@ export const AppStoreProvider = ({ children }: { children: ReactNode }) => {
           mood: d.mood || 3,
           stressLevel: d.stress_level || 3,
           anxietyLevel: d.anxiety_level || 0,
-          focusLevel: d.focus_level || 0,
+          sadnessLevel: d.sadness_level || 0,
           sleepQuality: d.sleep_quality || 3,
           mentalTriggers: d.mental_triggers || '',
           timestamp: d.created_at,
@@ -1451,15 +1470,15 @@ export const AppStoreProvider = ({ children }: { children: ReactNode }) => {
         })),
       )
   }
-  const upsertJournalEntry = async (content: string) => {
-    const today = todayStr()
-    const existing = journalEntries.find((e) => e.date === today)
+  const upsertJournalEntry = async (content: string, entryDate?: string) => {
+    const targetDate = entryDate || todayStr()
+    const existing = journalEntries.find((e) => e.date === targetDate)
     const tempId = existing?.id || genId()
     if (existing) {
       setJournalEntries((prev) => prev.map((e) => (e.id === tempId ? { ...e, content } : e)))
     } else {
       setJournalEntries((prev) => [
-        { id: tempId, date: today, content, createdAt: nowIso() },
+        { id: tempId, date: targetDate, content, createdAt: targetDate + 'T12:00:00Z' },
         ...prev,
       ])
     }
@@ -1472,12 +1491,62 @@ export const AppStoreProvider = ({ children }: { children: ReactNode }) => {
     } else {
       const { data } = await (supabase as any)
         .from('mind_journals')
-        .insert({ content, user_id: u.id })
+        .insert({ content, user_id: u.id, created_at: targetDate + 'T12:00:00Z' })
         .select()
         .single()
       if (data)
         setJournalEntries((prev) => prev.map((e) => (e.id === tempId ? { ...e, id: data.id } : e)))
     }
+  }
+  const fetchMindEvents = async () => {
+    const {
+      data: { user: authUser },
+    } = await supabase.auth.getUser()
+    if (!authUser) return
+    const { data } = await (supabase as any)
+      .from('mind_events')
+      .select('*')
+      .eq('user_id', authUser.id)
+      .order('created_at', { ascending: false })
+    if (data)
+      setMindEvents(
+        data.map((d: any) => ({
+          id: d.id,
+          description: d.description || '',
+          createdAt: d.created_at,
+          date: (d.created_at || '').split('T')[0],
+        })),
+      )
+  }
+  const addMindEvent = (description: string) => {
+    if (!description.trim()) return
+    const tempId = genId()
+    const now = nowIso()
+    const event: MindEvent = {
+      id: tempId,
+      description: description.trim(),
+      createdAt: now,
+      date: now.split('T')[0],
+    }
+    setMindEvents((p) => [event, ...p])
+    supabase.auth.getUser().then(({ data: { user: u } }) => {
+      if (!u) return
+      ;(supabase as any)
+        .from('mind_events')
+        .insert({ description: description.trim(), user_id: u.id })
+        .then(({ error }: { error: any }) => {
+          if (error) {
+            setMindEvents((p) => p.filter((e) => e.id !== tempId))
+            toast.error('Erro ao salvar acontecimento. Tente novamente.')
+          } else {
+            fetchMindEvents()
+          }
+        })
+    })
+  }
+  const deleteMindEvent = (id: string) => {
+    setMindEvents((p) => p.filter((e) => e.id !== id))
+    ;(supabase as any).from('mind_events').delete().eq('id', id).then()
   }
   const fetchPatientGoals = async () => {
     const {
@@ -1826,6 +1895,10 @@ export const AppStoreProvider = ({ children }: { children: ReactNode }) => {
     journalEntries,
     fetchJournalEntries,
     upsertJournalEntry,
+    mindEvents,
+    fetchMindEvents,
+    addMindEvent,
+    deleteMindEvent,
     fetchPatientGoals,
     updatePatientGoals,
     fetchMedicalExams,

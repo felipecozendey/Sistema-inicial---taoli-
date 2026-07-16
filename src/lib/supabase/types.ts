@@ -20,7 +20,6 @@ export type Database = {
           date: string
           days_for_goal: number | null
           fat_mass: number | null
-          focus_level: number | null
           gender: string | null
           get: number | null
           heart_rate_rest: number | null
@@ -32,9 +31,12 @@ export type Database = {
           mental_triggers: string | null
           met_activities: Json
           methodology_used: string | null
+          mood: number | null
           muscle_mass: number | null
+          notes: string | null
           photo_urls: string[]
           primary_goal: string | null
+          sadness_level: number | null
           sleep_quality: number | null
           stress_level: number | null
           target_weight: number | null
@@ -53,7 +55,6 @@ export type Database = {
           date?: string
           days_for_goal?: number | null
           fat_mass?: number | null
-          focus_level?: number | null
           gender?: string | null
           get?: number | null
           heart_rate_rest?: number | null
@@ -65,9 +66,12 @@ export type Database = {
           mental_triggers?: string | null
           met_activities?: Json
           methodology_used?: string | null
+          mood?: number | null
           muscle_mass?: number | null
+          notes?: string | null
           photo_urls?: string[]
           primary_goal?: string | null
+          sadness_level?: number | null
           sleep_quality?: number | null
           stress_level?: number | null
           target_weight?: number | null
@@ -86,7 +90,6 @@ export type Database = {
           date?: string
           days_for_goal?: number | null
           fat_mass?: number | null
-          focus_level?: number | null
           gender?: string | null
           get?: number | null
           heart_rate_rest?: number | null
@@ -98,9 +101,12 @@ export type Database = {
           mental_triggers?: string | null
           met_activities?: Json
           methodology_used?: string | null
+          mood?: number | null
           muscle_mass?: number | null
+          notes?: string | null
           photo_urls?: string[]
           primary_goal?: string | null
+          sadness_level?: number | null
           sleep_quality?: number | null
           stress_level?: number | null
           target_weight?: number | null
@@ -434,6 +440,27 @@ export type Database = {
           file_url?: string
           id?: string
           title?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      mind_journals: {
+        Row: {
+          content: string
+          created_at: string
+          id: string
+          user_id: string
+        }
+        Insert: {
+          content?: string
+          created_at?: string
+          id?: string
+          user_id: string
+        }
+        Update: {
+          content?: string
+          created_at?: string
+          id?: string
           user_id?: string
         }
         Relationships: []
