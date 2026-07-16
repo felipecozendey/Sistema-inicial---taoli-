@@ -1,9 +1,17 @@
 import { useState, useMemo, useEffect } from 'react'
 import { useFinanceStore } from '@/stores/useFinanceStore'
 import { cn } from '@/lib/utils'
-import { formatCurrency, filterByDateRange } from '@/lib/finance-utils'
+import {
+  formatCurrency,
+  filterByDateRange,
+  projectRecurringTransactions,
+  getMonthKey,
+  getMonthLabel,
+} from '@/lib/finance-utils'
 import { IncomeExpenseChart, ExpenseDistributionChart } from '@/components/finance/finance-charts'
 import { TrendingUp, TrendingDown, Wallet, AlertCircle, Pencil } from 'lucide-react'
+import { BarChart, Bar, XAxis, YAxis, ResponsiveContainer, Tooltip, Legend } from 'recharts'
+import { ChartContainer } from '@/components/ui/chart'
 
 export function DashboardTab() {
   const transactions = useFinanceStore((s) => s.transactions)
@@ -22,6 +30,11 @@ export function DashboardTab() {
   const filteredTx = useMemo(
     () => filterByDateRange(transactions, startDate, endDate),
     [transactions, startDate, endDate],
+  )
+
+  const projectedTx = useMemo(
+    () => projectRecurringTransactions(filteredTx, startDate, endDate),
+    [filteredTx, startDate, endDate],
   )
 
   const { balance, toReceive, toPay, periodExpenses, urgentReminders } = useMemo(() => {
@@ -58,6 +71,33 @@ export function DashboardTab() {
       urgentReminders: urgent,
     }
   }, [filteredTx])
+
+  const projectionData = useMemo(() => {
+    const pendingProjected = projectedTx.filter((t) => t.status === 'pending')
+    const byMonth: Record<string, { label: string; Receber: number; Pagar: number }> = {}
+
+    pendingProjected.forEach((t) => {
+      const key = getMonthKey(t.date)
+      if (!byMonth[key]) {
+        byMonth[key] = { label: getMonthLabel(t.date), Receber: 0, Pagar: 0 }
+      }
+      if (t.type === 'income') byMonth[key].Receber += t.amount
+      else byMonth[key].Pagar += t.amount
+    })
+
+    const sorted = Object.entries(byMonth)
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([, v]) => v)
+
+    const totalReceive = pendingProjected
+      .filter((t) => t.type === 'income')
+      .reduce((s, t) => s + t.amount, 0)
+    const totalPay = pendingProjected
+      .filter((t) => t.type === 'expense')
+      .reduce((s, t) => s + t.amount, 0)
+
+    return { chart: sorted, totalReceive, totalPay }
+  }, [projectedTx])
 
   const budgetPct = Math.min((periodExpenses / budget) * 100, 100)
   const budgetColor = budgetPct > 90 ? '#FF4B4B' : budgetPct > 70 ? '#FFC800' : '#58CC02'
@@ -141,6 +181,74 @@ export function DashboardTab() {
             ? '⚠️ Você estourou o orçamento!'
             : `${budgetPct.toFixed(0)}% do orçamento utilizado`}
         </p>
+      </div>
+
+      <div className="rounded-3xl p-6 bg-card border border-b-4 space-y-4">
+        <h3 className="font-extrabold text-lg">🔮 Programação & Projeção Futura</h3>
+        {projectionData.chart.length === 0 ? (
+          <p className="text-sm font-bold text-muted-foreground text-center py-8">
+            Sem projeções futuras no período.
+          </p>
+        ) : (
+          <>
+            <div className="h-56">
+              <ChartContainer config={{}} className="h-full">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={projectionData.chart}>
+                    <XAxis
+                      dataKey="label"
+                      tick={{ fontSize: 11 }}
+                      axisLine={false}
+                      tickLine={false}
+                    />
+                    <YAxis
+                      tick={{ fontSize: 11 }}
+                      axisLine={false}
+                      tickLine={false}
+                      width={60}
+                      tickFormatter={(v) => `R$${v}`}
+                    />
+                    <Tooltip
+                      cursor={{ fill: 'hsl(var(--muted))', opacity: 0.5 }}
+                      contentStyle={{
+                        borderRadius: '12px',
+                        border: '1px solid hsl(var(--border))',
+                      }}
+                      formatter={(v: number) => fmt(v)}
+                    />
+                    <Legend wrapperStyle={{ fontSize: 12 }} />
+                    <Bar
+                      dataKey="Receber"
+                      name="Previsto a Receber"
+                      fill="#58CC02"
+                      radius={[8, 8, 0, 0]}
+                    />
+                    <Bar
+                      dataKey="Pagar"
+                      name="Previsto a Pagar"
+                      fill="#FF4B4B"
+                      radius={[8, 8, 0, 0]}
+                    />
+                  </BarChart>
+                </ResponsiveContainer>
+              </ChartContainer>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="rounded-2xl p-4 bg-[#58CC02]/10 border border-[#58CC02]/30">
+                <p className="text-xs font-bold text-muted-foreground">Total Previsto a Receber</p>
+                <p className="text-xl font-extrabold text-[#58CC02]">
+                  {fmt(projectionData.totalReceive)}
+                </p>
+              </div>
+              <div className="rounded-2xl p-4 bg-[#FF4B4B]/10 border border-[#FF4B4B]/30">
+                <p className="text-xs font-bold text-muted-foreground">Total Previsto a Pagar</p>
+                <p className="text-xl font-extrabold text-[#FF4B4B]">
+                  {fmt(projectionData.totalPay)}
+                </p>
+              </div>
+            </div>
+          </>
+        )}
       </div>
 
       <div className="rounded-3xl p-6 bg-card border">

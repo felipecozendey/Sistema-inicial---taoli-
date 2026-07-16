@@ -9,6 +9,7 @@ import {
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { Switch } from '@/components/ui/switch'
 import {
   Select,
   SelectContent,
@@ -36,6 +37,8 @@ export function TransactionModal({
   const [description, setDescription] = useState('')
   const [date, setDate] = useState(new Date().toISOString().split('T')[0])
   const [isPaid, setIsPaid] = useState(false)
+  const [isRecurring, setIsRecurring] = useState(false)
+  const [recurrencePeriod, setRecurrencePeriod] = useState('monthly')
 
   const categoryOptions = useMemo(
     () => financeCategories.filter((c) => !c.parentId).map((c) => `${c.icon} ${c.name}`),
@@ -63,6 +66,8 @@ export function TransactionModal({
       setDescription('')
       setDate(new Date().toISOString().split('T')[0])
       setIsPaid(false)
+      setIsRecurring(false)
+      setRecurrencePeriod('monthly')
     }
   }, [open, categoryOptions])
 
@@ -80,6 +85,8 @@ export function TransactionModal({
       description: description.trim(),
       date,
       status: isPaid ? 'paid' : 'pending',
+      isRecurring,
+      recurrencePeriod: isRecurring ? recurrencePeriod : undefined,
     })
     toast.success('Transação adicionada! 🎉')
   }
@@ -203,6 +210,25 @@ export function TransactionModal({
               </button>
             </div>
           </div>
+          <div className="flex items-center justify-between p-4 rounded-2xl bg-muted/50">
+            <Label className="text-sm font-extrabold cursor-pointer">🔁 Registro Recorrente?</Label>
+            <Switch checked={isRecurring} onCheckedChange={setIsRecurring} />
+          </div>
+          {isRecurring && (
+            <div className="space-y-2 animate-fade-in-up">
+              <Label className="text-sm font-extrabold">Frequência</Label>
+              <Select value={recurrencePeriod} onValueChange={setRecurrencePeriod}>
+                <SelectTrigger className="rounded-xl font-bold">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="monthly">📅 Mensal</SelectItem>
+                  <SelectItem value="weekly">📆 Semanal</SelectItem>
+                  <SelectItem value="yearly">🗓️ Anual</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          )}
           <Button
             onClick={handleSubmit}
             className="w-full py-6 rounded-3xl bg-[#1CB0F6] hover:bg-[#1899D6] text-white font-extrabold border-b-4 border-[#1899D6] active:translate-y-1 active:border-b-0 transition-all duration-150"

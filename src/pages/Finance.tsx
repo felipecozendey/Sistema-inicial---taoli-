@@ -9,15 +9,7 @@ import { DreTab } from '@/components/finance/dre-tab'
 import { PasswordsTab } from '@/components/finance/passwords-tab'
 import { FinanceSettingsTab } from '@/components/finance/finance-settings-tab'
 import { useFinanceStore } from '@/stores/useFinanceStore'
-import { getMonthsAgoDate, getTodayDate } from '@/lib/finance-utils'
 import { Plus, CalendarRange } from 'lucide-react'
-
-const QUICK_RANGES = [
-  { label: '1 Mês', months: 1 },
-  { label: '3 Meses', months: 3 },
-  { label: '6 Meses', months: 6 },
-  { label: '1 Ano', months: 12 },
-]
 
 export default function FinancePage() {
   const [modalOpen, setModalOpen] = useState(false)
@@ -49,7 +41,7 @@ export default function FinancePage() {
           <CalendarRange className="w-5 h-5 text-[#1CB0F6]" />
           <span className="font-extrabold text-sm">Filtro de Período</span>
         </div>
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-2 gap-3 max-w-md mx-auto">
           <div className="space-y-1">
             <Label className="text-xs font-bold text-muted-foreground">Data Inicial</Label>
             <Input
@@ -68,22 +60,6 @@ export default function FinancePage() {
               className="rounded-xl font-bold"
             />
           </div>
-        </div>
-        <div className="flex gap-2 flex-wrap">
-          {QUICK_RANGES.map((range) => (
-            <button
-              key={range.label}
-              onClick={() =>
-                setFinanceDateRange({
-                  startDate: getMonthsAgoDate(range.months),
-                  endDate: getTodayDate(),
-                })
-              }
-              className="px-4 py-2 rounded-2xl bg-muted hover:bg-[#1CB0F6] hover:text-white text-sm font-extrabold border-b-4 border-muted-foreground/20 hover:border-[#1899D6] active:translate-y-0.5 active:border-b-2 transition-all duration-150"
-            >
-              {range.label}
-            </button>
-          ))}
         </div>
       </div>
 
