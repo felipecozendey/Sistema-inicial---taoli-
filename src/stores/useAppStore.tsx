@@ -138,10 +138,19 @@ export type BodyMetric = {
 export type MentalHealthLog = {
   id: string
   date: string
-  focusLevel: number
+  mood: number
+  stressLevel: number
   anxietyLevel: number
+  focusLevel: number
+  sleepQuality: number
   mentalTriggers: string
   timestamp: string
+}
+export type JournalEntry = {
+  id: string
+  date: string
+  content: string
+  createdAt: string
 }
 export type PatientGoal = {
   targetWeight: number
@@ -317,11 +326,17 @@ interface AppState {
   addBodyMetric: (metric: Omit<BodyMetric, 'id'>) => void
   mentalHealthLogs: MentalHealthLog[]
   addMentalHealthLog: (data: {
-    focusLevel: number
+    mood: number
+    stressLevel: number
     anxietyLevel: number
+    focusLevel: number
+    sleepQuality: number
     mentalTriggers: string
   }) => void
   fetchMentalHealthLogs: () => Promise<void>
+  journalEntries: JournalEntry[]
+  fetchJournalEntries: () => Promise<void>
+  upsertJournalEntry: (content: string) => Promise<void>
   fetchPatientGoals: () => Promise<void>
   updatePatientGoals: (updates: Partial<PatientGoal>) => void
   fetchMedicalExams: () => Promise<void>
@@ -518,48 +533,66 @@ const initialMentalHealthLogs: MentalHealthLog[] = [
   {
     id: 'mhl1',
     date: '2026-07-10',
-    focusLevel: 3,
+    mood: 3,
+    stressLevel: 3,
     anxietyLevel: 2,
+    focusLevel: 3,
+    sleepQuality: 3,
     mentalTriggers: 'Reunião difícil no trabalho',
     timestamp: '2026-07-10T14:00:00Z',
   },
   {
     id: 'mhl2',
     date: '2026-07-11',
-    focusLevel: 4,
+    mood: 4,
+    stressLevel: 2,
     anxietyLevel: 1,
+    focusLevel: 4,
+    sleepQuality: 4,
     mentalTriggers: '',
     timestamp: '2026-07-11T14:00:00Z',
   },
   {
     id: 'mhl3',
     date: '2026-07-12',
-    focusLevel: 2,
+    mood: 2,
+    stressLevel: 4,
     anxietyLevel: 4,
+    focusLevel: 2,
+    sleepQuality: 2,
     mentalTriggers: 'Prazo apertado e falta de sono',
     timestamp: '2026-07-12T14:00:00Z',
   },
   {
     id: 'mhl4',
     date: '2026-07-13',
-    focusLevel: 5,
+    mood: 5,
+    stressLevel: 1,
     anxietyLevel: 1,
+    focusLevel: 5,
+    sleepQuality: 5,
     mentalTriggers: '',
     timestamp: '2026-07-13T14:00:00Z',
   },
   {
     id: 'mhl5',
     date: '2026-07-14',
-    focusLevel: 3,
+    mood: 3,
+    stressLevel: 3,
     anxietyLevel: 3,
+    focusLevel: 3,
+    sleepQuality: 3,
     mentalTriggers: 'Discordância com colega',
     timestamp: '2026-07-14T14:00:00Z',
   },
   {
     id: 'mhl6',
     date: '2026-07-15',
-    focusLevel: 4,
+    mood: 4,
+    stressLevel: 2,
     anxietyLevel: 2,
+    focusLevel: 4,
+    sleepQuality: 4,
     mentalTriggers: 'Excesso de cafeína',
     timestamp: '2026-07-15T14:00:00Z',
   },
@@ -770,6 +803,10 @@ export const AppStoreProvider = ({ children }: { children: ReactNode }) => {
     const s = localStorage.getItem('vt_mental_health_logs')
     return s ? JSON.parse(s) : initialMentalHealthLogs
   })
+  const [journalEntries, setJournalEntries] = useState<JournalEntry[]>(() => {
+    const s = localStorage.getItem('vt_journal_entries')
+    return s ? JSON.parse(s) : []
+  })
   const [patientGoals, setPatientGoals] = useState<PatientGoal>(() => {
     const s = localStorage.getItem('vt_patient_goals')
     return s ? JSON.parse(s) : initialPatientGoals
@@ -855,6 +892,9 @@ export const AppStoreProvider = ({ children }: { children: ReactNode }) => {
   useEffect(() => {
     localStorage.setItem('vt_mental_health_logs', JSON.stringify(mentalHealthLogs))
   }, [mentalHealthLogs])
+  useEffect(() => {
+    localStorage.setItem('vt_journal_entries', JSON.stringify(journalEntries))
+  }, [journalEntries])
   useEffect(() => {
     localStorage.setItem('vt_patient_goals', JSON.stringify(patientGoals))
   }, [patientGoals])
@@ -1309,8 +1349,11 @@ export const AppStoreProvider = ({ children }: { children: ReactNode }) => {
     })
   }
   const addMentalHealthLog = (data: {
-    focusLevel: number
+    mood: number
+    stressLevel: number
     anxietyLevel: number
+    focusLevel: number
+    sleepQuality: number
     mentalTriggers: string
   }) => {
     const today = todayStr()
@@ -1318,8 +1361,11 @@ export const AppStoreProvider = ({ children }: { children: ReactNode }) => {
     const log: MentalHealthLog = {
       id: tempId,
       date: today,
-      focusLevel: data.focusLevel,
+      mood: data.mood,
+      stressLevel: data.stressLevel,
       anxietyLevel: data.anxietyLevel,
+      focusLevel: data.focusLevel,
+      sleepQuality: data.sleepQuality,
       mentalTriggers: data.mentalTriggers,
       timestamp: nowIso(),
     }
@@ -1333,8 +1379,11 @@ export const AppStoreProvider = ({ children }: { children: ReactNode }) => {
         .from('body_metrics')
         .insert({
           date: today,
-          focus_level: data.focusLevel,
+          mood: data.mood,
+          stress_level: data.stressLevel,
           anxiety_level: data.anxietyLevel,
+          focus_level: data.focusLevel,
+          sleep_quality: data.sleepQuality,
           mental_triggers: data.mentalTriggers || null,
           user_id: u.id,
         })
@@ -1355,21 +1404,80 @@ export const AppStoreProvider = ({ children }: { children: ReactNode }) => {
     if (!authUser) return
     const { data } = await (supabase as any)
       .from('body_metrics')
-      .select('id, date, focus_level, anxiety_level, mental_triggers, created_at')
+      .select(
+        'id, date, mood, stress_level, focus_level, anxiety_level, sleep_quality, mental_triggers, created_at',
+      )
       .eq('user_id', authUser.id)
       .not('focus_level', 'is', null)
       .order('created_at', { ascending: false })
-    if (data)
+    if (data) {
+      const uniqueByDate = new Map<string, any>()
+      data.forEach((d: any) => {
+        const date = (d.date || '').split('T')[0]
+        if (!uniqueByDate.has(date)) uniqueByDate.set(date, d)
+      })
       setMentalHealthLogs(
-        data.map((d: any) => ({
+        Array.from(uniqueByDate.values()).map((d: any) => ({
           id: d.id,
           date: (d.date || '').split('T')[0],
-          focusLevel: d.focus_level || 0,
+          mood: d.mood || 3,
+          stressLevel: d.stress_level || 3,
           anxietyLevel: d.anxiety_level || 0,
+          focusLevel: d.focus_level || 0,
+          sleepQuality: d.sleep_quality || 3,
           mentalTriggers: d.mental_triggers || '',
           timestamp: d.created_at,
         })),
       )
+    }
+  }
+  const fetchJournalEntries = async () => {
+    const {
+      data: { user: authUser },
+    } = await supabase.auth.getUser()
+    if (!authUser) return
+    const { data } = await (supabase as any)
+      .from('mind_journals')
+      .select('*')
+      .eq('user_id', authUser.id)
+      .order('created_at', { ascending: false })
+    if (data)
+      setJournalEntries(
+        data.map((d: any) => ({
+          id: d.id,
+          date: (d.created_at || '').split('T')[0],
+          content: d.content || '',
+          createdAt: d.created_at,
+        })),
+      )
+  }
+  const upsertJournalEntry = async (content: string) => {
+    const today = todayStr()
+    const existing = journalEntries.find((e) => e.date === today)
+    const tempId = existing?.id || genId()
+    if (existing) {
+      setJournalEntries((prev) => prev.map((e) => (e.id === tempId ? { ...e, content } : e)))
+    } else {
+      setJournalEntries((prev) => [
+        { id: tempId, date: today, content, createdAt: nowIso() },
+        ...prev,
+      ])
+    }
+    const {
+      data: { user: u },
+    } = await supabase.auth.getUser()
+    if (!u) return
+    if (existing) {
+      await (supabase as any).from('mind_journals').update({ content }).eq('id', tempId)
+    } else {
+      const { data } = await (supabase as any)
+        .from('mind_journals')
+        .insert({ content, user_id: u.id })
+        .select()
+        .single()
+      if (data)
+        setJournalEntries((prev) => prev.map((e) => (e.id === tempId ? { ...e, id: data.id } : e)))
+    }
   }
   const fetchPatientGoals = async () => {
     const {
@@ -1715,6 +1823,9 @@ export const AppStoreProvider = ({ children }: { children: ReactNode }) => {
     mentalHealthLogs,
     addMentalHealthLog,
     fetchMentalHealthLogs,
+    journalEntries,
+    fetchJournalEntries,
+    upsertJournalEntry,
     fetchPatientGoals,
     updatePatientGoals,
     fetchMedicalExams,

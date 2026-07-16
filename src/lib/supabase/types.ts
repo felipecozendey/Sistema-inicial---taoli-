@@ -13,12 +13,14 @@ export type Database = {
         Row: {
           activity_level: string | null
           age: number | null
+          anxiety_level: number | null
           blood_pressure: string | null
           body_fat_percentage: number | null
           created_at: string
           date: string
           days_for_goal: number | null
           fat_mass: number | null
+          focus_level: number | null
           gender: string | null
           get: number | null
           heart_rate_rest: number | null
@@ -27,6 +29,7 @@ export type Database = {
           injury_factor: number
           lean_mass: number | null
           measurements: Json
+          mental_triggers: string | null
           met_activities: Json
           methodology_used: string | null
           muscle_mass: number | null
@@ -43,12 +46,14 @@ export type Database = {
         Insert: {
           activity_level?: string | null
           age?: number | null
+          anxiety_level?: number | null
           blood_pressure?: string | null
           body_fat_percentage?: number | null
           created_at?: string
           date?: string
           days_for_goal?: number | null
           fat_mass?: number | null
+          focus_level?: number | null
           gender?: string | null
           get?: number | null
           heart_rate_rest?: number | null
@@ -57,6 +62,7 @@ export type Database = {
           injury_factor?: number
           lean_mass?: number | null
           measurements?: Json
+          mental_triggers?: string | null
           met_activities?: Json
           methodology_used?: string | null
           muscle_mass?: number | null
@@ -73,12 +79,14 @@ export type Database = {
         Update: {
           activity_level?: string | null
           age?: number | null
+          anxiety_level?: number | null
           blood_pressure?: string | null
           body_fat_percentage?: number | null
           created_at?: string
           date?: string
           days_for_goal?: number | null
           fat_mass?: number | null
+          focus_level?: number | null
           gender?: string | null
           get?: number | null
           heart_rate_rest?: number | null
@@ -87,6 +95,7 @@ export type Database = {
           injury_factor?: number
           lean_mass?: number | null
           measurements?: Json
+          mental_triggers?: string | null
           met_activities?: Json
           methodology_used?: string | null
           muscle_mass?: number | null
