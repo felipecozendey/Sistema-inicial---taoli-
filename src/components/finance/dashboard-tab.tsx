@@ -1,14 +1,16 @@
 import { useState, useMemo, useEffect } from 'react'
 import { useAppStore } from '@/stores/useAppStore'
 import { cn } from '@/lib/utils'
-import { formatCurrency } from '@/lib/finance-utils'
+import { formatCurrency, filterByDateRange } from '@/lib/finance-utils'
+import { IncomeExpenseChart, ExpenseDistributionChart } from '@/components/finance/finance-charts'
 import { TrendingUp, TrendingDown, Wallet, AlertCircle, Pencil } from 'lucide-react'
 
 export function DashboardTab() {
   const transactions = useAppStore((s) => s.transactions)
-  const [budget, setBudget] = useState(() => {
-    return parseFloat(localStorage.getItem('vt_monthly_budget') || '3000')
-  })
+  const financeDateRange = useAppStore((s) => s.financeDateRange)
+  const [budget, setBudget] = useState(() =>
+    parseFloat(localStorage.getItem('vt_monthly_budget') || '3000'),
+  )
   const [editingBudget, setEditingBudget] = useState(false)
   const [budgetInput, setBudgetInput] = useState('')
 
@@ -16,53 +18,48 @@ export function DashboardTab() {
     localStorage.setItem('vt_monthly_budget', String(budget))
   }, [budget])
 
-  const { balance, toReceive, toPay, monthExpenses, urgentReminders } = useMemo(() => {
-    const paidIncome = transactions
+  const filteredTx = useMemo(
+    () => filterByDateRange(transactions, financeDateRange.startDate, financeDateRange.endDate),
+    [transactions, financeDateRange],
+  )
+
+  const { balance, toReceive, toPay, periodExpenses, urgentReminders } = useMemo(() => {
+    const paidIncome = filteredTx
       .filter((t) => t.type === 'income' && t.status === 'paid')
       .reduce((s, t) => s + t.amount, 0)
-    const paidExpense = transactions
+    const paidExpense = filteredTx
       .filter((t) => t.type === 'expense' && t.status === 'paid')
       .reduce((s, t) => s + t.amount, 0)
-    const pendingIncome = transactions
+    const pendingIncome = filteredTx
       .filter((t) => t.type === 'income' && t.status === 'pending')
       .reduce((s, t) => s + t.amount, 0)
-    const pendingExpense = transactions
+    const pendingExpense = filteredTx
       .filter((t) => t.type === 'expense' && t.status === 'pending')
       .reduce((s, t) => s + t.amount, 0)
-    const now = new Date()
-    const monthExp = transactions
-      .filter(
-        (t) =>
-          t.type === 'expense' &&
-          new Date(t.date).getMonth() === now.getMonth() &&
-          new Date(t.date).getFullYear() === now.getFullYear(),
-      )
+    const periodExp = filteredTx
+      .filter((t) => t.type === 'expense')
       .reduce((s, t) => s + t.amount, 0)
-
     const today = new Date()
     today.setHours(0, 0, 0, 0)
     const limit = new Date()
     limit.setDate(limit.getDate() + 3)
     limit.setHours(23, 59, 59, 999)
-
-    const urgent = transactions.filter((t) => {
+    const urgent = filteredTx.filter((t) => {
       if (t.status !== 'pending') return false
       const d = new Date(t.date + 'T00:00:00')
       return d >= today && d <= limit
     })
-
     return {
       balance: paidIncome - paidExpense,
       toReceive: pendingIncome,
       toPay: pendingExpense,
-      monthExpenses: monthExp,
+      periodExpenses: periodExp,
       urgentReminders: urgent,
     }
-  }, [transactions])
+  }, [filteredTx])
 
-  const budgetPct = Math.min((monthExpenses / budget) * 100, 100)
+  const budgetPct = Math.min((periodExpenses / budget) * 100, 100)
   const budgetColor = budgetPct > 90 ? '#FF4B4B' : budgetPct > 70 ? '#FFC800' : '#58CC02'
-
   const fmt = formatCurrency
 
   const saveBudget = () => {
@@ -100,7 +97,7 @@ export function DashboardTab() {
 
       <div className="rounded-3xl p-6 bg-card border space-y-4">
         <div className="flex items-center justify-between">
-          <h3 className="font-extrabold text-lg">📊 Orçamento do Mês</h3>
+          <h3 className="font-extrabold text-lg">📊 Orçamento do Período</h3>
           {editingBudget ? (
             <div className="flex items-center gap-2">
               <input
@@ -135,7 +132,7 @@ export function DashboardTab() {
             style={{ width: `${budgetPct}%`, backgroundColor: budgetColor }}
           />
           <div className="absolute inset-0 flex items-center justify-center text-xs font-extrabold text-white drop-shadow">
-            {fmt(monthExpenses)} / {fmt(budget)}
+            {fmt(periodExpenses)} / {fmt(budget)}
           </div>
         </div>
         <p className="text-sm font-bold text-muted-foreground">
@@ -143,6 +140,20 @@ export function DashboardTab() {
             ? '⚠️ Você estourou o orçamento!'
             : `${budgetPct.toFixed(0)}% do orçamento utilizado`}
         </p>
+      </div>
+
+      <div className="rounded-3xl p-6 bg-card border">
+        <h3 className="font-extrabold text-lg mb-4">📈 Receitas vs Despesas</h3>
+        <IncomeExpenseChart
+          transactions={filteredTx}
+          startDate={financeDateRange.startDate}
+          endDate={financeDateRange.endDate}
+        />
+      </div>
+
+      <div className="rounded-3xl p-6 bg-card border">
+        <h3 className="font-extrabold text-lg mb-4">🥧 Distribuição de Despesas</h3>
+        <ExpenseDistributionChart transactions={filteredTx} />
       </div>
 
       <div className="rounded-3xl p-6 bg-card border space-y-3">

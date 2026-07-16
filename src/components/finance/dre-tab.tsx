@@ -1,6 +1,6 @@
 import { useMemo } from 'react'
 import { useAppStore } from '@/stores/useAppStore'
-import { formatCurrency } from '@/lib/finance-utils'
+import { formatCurrency, filterByDateRange, formatDateRangeLabel } from '@/lib/finance-utils'
 import { BarChart, Bar, XAxis, YAxis, ResponsiveContainer, Tooltip, Legend } from 'recharts'
 import { ChartContainer } from '@/components/ui/chart'
 
@@ -14,23 +14,22 @@ const ESSENTIAL_CATEGORIES = [
 
 export function DreTab() {
   const transactions = useAppStore((s) => s.transactions)
+  const financeDateRange = useAppStore((s) => s.financeDateRange)
 
   const dre = useMemo(() => {
-    const now = new Date()
-    const monthTx = transactions.filter((t) => {
-      const d = new Date(t.date + 'T00:00:00')
-      return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear()
-    })
-
-    const totalIncome = monthTx.filter((t) => t.type === 'income').reduce((s, t) => s + t.amount, 0)
-    const essentialExpenses = monthTx
+    const rangeTx = filterByDateRange(
+      transactions,
+      financeDateRange.startDate,
+      financeDateRange.endDate,
+    )
+    const totalIncome = rangeTx.filter((t) => t.type === 'income').reduce((s, t) => s + t.amount, 0)
+    const essentialExpenses = rangeTx
       .filter((t) => t.type === 'expense' && ESSENTIAL_CATEGORIES.includes(t.category))
       .reduce((s, t) => s + t.amount, 0)
-    const freeExpenses = monthTx
+    const freeExpenses = rangeTx
       .filter((t) => t.type === 'expense' && !ESSENTIAL_CATEGORIES.includes(t.category))
       .reduce((s, t) => s + t.amount, 0)
     const netResult = totalIncome - essentialExpenses - freeExpenses
-
     return {
       totalIncome,
       essentialExpenses,
@@ -38,11 +37,11 @@ export function DreTab() {
       netResult,
       totalExpenses: essentialExpenses + freeExpenses,
     }
-  }, [transactions])
+  }, [transactions, financeDateRange])
 
-  const chartData = [{ name: 'Mês Atual', Receitas: dre.totalIncome, Despesas: dre.totalExpenses }]
+  const chartData = [{ name: 'Período', Receitas: dre.totalIncome, Despesas: dre.totalExpenses }]
   const fmt = formatCurrency
-  const monthName = new Date().toLocaleDateString('pt-BR', { month: 'long' })
+  const periodLabel = formatDateRangeLabel(financeDateRange.startDate, financeDateRange.endDate)
 
   const rows = [
     {
@@ -68,7 +67,7 @@ export function DreTab() {
   return (
     <div className="space-y-6">
       <div className="rounded-3xl p-6 bg-card border">
-        <h3 className="font-extrabold text-lg mb-4">📊 Receitas vs Despesas — {monthName}</h3>
+        <h3 className="font-extrabold text-lg mb-4">📊 Receitas vs Despesas — {periodLabel}</h3>
         <div className="h-56">
           <ChartContainer config={{}} className="h-full">
             <ResponsiveContainer width="100%" height="100%">
@@ -96,7 +95,7 @@ export function DreTab() {
       </div>
 
       <div className="rounded-3xl p-6 bg-card border space-y-3">
-        <h3 className="font-extrabold text-lg mb-4">📋 DRE Pessoal — {monthName}</h3>
+        <h3 className="font-extrabold text-lg mb-4">📋 DRE Pessoal — {periodLabel}</h3>
         {rows.map((row) => (
           <div
             key={row.label}
@@ -122,7 +121,7 @@ export function DreTab() {
             Sobrou dinheiro para investir! 🎉
           </p>
           <p className="text-sm font-bold text-muted-foreground mt-1">
-            Você teve um superávit de {fmt(dre.netResult)} este mês.
+            Você teve um superávit de {fmt(dre.netResult)} no período.
           </p>
         </div>
       )}

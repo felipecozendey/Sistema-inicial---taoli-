@@ -20,35 +20,51 @@ import { useAppStore } from '@/stores/useAppStore'
 import { cn } from '@/lib/utils'
 import { toast } from 'sonner'
 
-interface TransactionModalProps {
+export function TransactionModal({
+  open,
+  onOpenChange,
+}: {
   open: boolean
   onOpenChange: (open: boolean) => void
-}
-
-export function TransactionModal({ open, onOpenChange }: TransactionModalProps) {
+}) {
   const addTransaction = useAppStore((s) => s.addTransaction)
   const financeCategories = useAppStore((s) => s.financeCategories)
-  const categoryOptions = useMemo(
-    () => financeCategories.map((c) => `${c.icon} ${c.name}`),
-    [financeCategories],
-  )
   const [type, setType] = useState<'income' | 'expense'>('expense')
   const [amount, setAmount] = useState('')
   const [category, setCategory] = useState('📦 Outros')
+  const [subcategory, setSubcategory] = useState('')
   const [description, setDescription] = useState('')
   const [date, setDate] = useState(new Date().toISOString().split('T')[0])
   const [isPaid, setIsPaid] = useState(false)
+
+  const categoryOptions = useMemo(
+    () => financeCategories.filter((c) => !c.parentId).map((c) => `${c.icon} ${c.name}`),
+    [financeCategories],
+  )
+
+  const selectedCategoryObj = useMemo(
+    () => financeCategories.find((c) => `${c.icon} ${c.name}` === category),
+    [financeCategories, category],
+  )
+
+  const subcategoryOptions = useMemo(() => {
+    if (!selectedCategoryObj) return []
+    return financeCategories
+      .filter((c) => c.parentId === selectedCategoryObj.id)
+      .map((c) => `${c.icon} ${c.name}`)
+  }, [financeCategories, selectedCategoryObj])
 
   useEffect(() => {
     if (!open) {
       setType('expense')
       setAmount('')
       setCategory(categoryOptions[0] || '📦 Outros')
+      setSubcategory('')
       setDescription('')
       setDate(new Date().toISOString().split('T')[0])
       setIsPaid(false)
     }
-  }, [open])
+  }, [open, categoryOptions])
 
   const handleSubmit = () => {
     if (!amount || parseFloat(amount) <= 0) {
@@ -60,12 +76,15 @@ export function TransactionModal({ open, onOpenChange }: TransactionModalProps) 
       type,
       amount: parseFloat(amount),
       category,
+      subcategory: subcategory || undefined,
       description: description.trim(),
       date,
       status: isPaid ? 'paid' : 'pending',
     })
     toast.success('Transação adicionada! 🎉')
   }
+
+  const noSubcategories = !selectedCategoryObj || subcategoryOptions.length === 0
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -74,7 +93,6 @@ export function TransactionModal({ open, onOpenChange }: TransactionModalProps) 
           <DialogTitle className="text-xl font-extrabold">Nova Transação</DialogTitle>
           <DialogDescription>Registre uma receita ou despesa</DialogDescription>
         </DialogHeader>
-
         <div className="space-y-5">
           <div className="grid grid-cols-2 gap-3">
             <button
@@ -100,7 +118,6 @@ export function TransactionModal({ open, onOpenChange }: TransactionModalProps) 
               🟢 Receita
             </button>
           </div>
-
           <div className="space-y-2">
             <Label className="text-sm font-extrabold">Valor (R$)</Label>
             <Input
@@ -112,10 +129,15 @@ export function TransactionModal({ open, onOpenChange }: TransactionModalProps) 
               className="rounded-xl text-center font-extrabold text-2xl h-16 border-2 border-b-4"
             />
           </div>
-
           <div className="space-y-2">
             <Label className="text-sm font-extrabold">Categoria</Label>
-            <Select value={category} onValueChange={setCategory}>
+            <Select
+              value={category}
+              onValueChange={(v) => {
+                setCategory(v)
+                setSubcategory('')
+              }}
+            >
               <SelectTrigger className="rounded-xl font-bold">
                 <SelectValue />
               </SelectTrigger>
@@ -128,7 +150,25 @@ export function TransactionModal({ open, onOpenChange }: TransactionModalProps) 
               </SelectContent>
             </Select>
           </div>
-
+          <div className="space-y-2">
+            <Label className="text-sm font-extrabold">Subcategoria</Label>
+            <Select value={subcategory} onValueChange={setSubcategory} disabled={noSubcategories}>
+              <SelectTrigger className="rounded-xl font-bold">
+                <SelectValue
+                  placeholder={
+                    noSubcategories ? 'Sem subcategorias disponíveis' : 'Selecione uma subcategoria'
+                  }
+                />
+              </SelectTrigger>
+              <SelectContent>
+                {subcategoryOptions.map((sub) => (
+                  <SelectItem key={sub} value={sub}>
+                    {sub}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
           <div className="space-y-2">
             <Label className="text-sm font-extrabold">Descrição</Label>
             <Input
@@ -138,7 +178,6 @@ export function TransactionModal({ open, onOpenChange }: TransactionModalProps) 
               className="rounded-xl"
             />
           </div>
-
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-2">
               <Label className="text-sm font-extrabold">Data</Label>
@@ -164,7 +203,6 @@ export function TransactionModal({ open, onOpenChange }: TransactionModalProps) 
               </button>
             </div>
           </div>
-
           <Button
             onClick={handleSubmit}
             className="w-full py-6 rounded-3xl bg-[#1CB0F6] hover:bg-[#1899D6] text-white font-extrabold border-b-4 border-[#1899D6] active:translate-y-1 active:border-b-0 transition-all duration-150"

@@ -165,6 +165,7 @@ export type Transaction = {
   type: 'income' | 'expense'
   amount: number
   category: string
+  subcategory?: string
   description: string
   date: string
   status: 'paid' | 'pending'
@@ -278,6 +279,8 @@ interface AppState {
   updateFinanceCategory: (id: string, updates: Partial<FinanceCategory>) => void
   deleteFinanceCategory: (id: string) => void
   fetchFinanceCategories: () => Promise<void>
+  financeDateRange: { startDate: string; endDate: string }
+  setFinanceDateRange: (range: Partial<{ startDate: string; endDate: string }>) => void
   updateUser: (u: Partial<User>) => void
   addTag: (name: string, color: string) => void
   updateTag: (id: string, updates: Partial<Pick<Tag, 'name' | 'color'>>) => void
@@ -868,6 +871,19 @@ export const AppStoreProvider = ({ children }: { children: ReactNode }) => {
     const s = localStorage.getItem('vt_finance_categories')
     return s ? JSON.parse(s) : initialFinanceCategories
   })
+  const [financeDateRange, setFinanceDateRangeState] = useState<{
+    startDate: string
+    endDate: string
+  }>(() => {
+    const s = localStorage.getItem('vt_finance_date_range')
+    if (s) return JSON.parse(s)
+    const now = new Date()
+    const start = new Date(now.getFullYear(), now.getMonth(), 1)
+    return {
+      startDate: start.toISOString().split('T')[0],
+      endDate: now.toISOString().split('T')[0],
+    }
+  })
 
   const escudoCheckRef = useRef(false)
 
@@ -950,6 +966,9 @@ export const AppStoreProvider = ({ children }: { children: ReactNode }) => {
   useEffect(() => {
     localStorage.setItem('vt_finance_categories', JSON.stringify(financeCategories))
   }, [financeCategories])
+  useEffect(() => {
+    localStorage.setItem('vt_finance_date_range', JSON.stringify(financeDateRange))
+  }, [financeDateRange])
 
   useEffect(() => {
     if (escudoCheckRef.current) return
@@ -1004,6 +1023,8 @@ export const AppStoreProvider = ({ children }: { children: ReactNode }) => {
 
   const getHealthRecord = (date: string): HealthRecord =>
     healthRecords[date] || { date, hydration: 0, mood: { level: 3 }, bowel: { type: null } }
+  const setFinanceDateRange = (range: Partial<{ startDate: string; endDate: string }>) =>
+    setFinanceDateRangeState((p) => ({ ...p, ...range }))
   const updateUser = (u: Partial<User>) => setUser((p) => ({ ...p, ...u }))
   const addTag = (name: string, color: string) =>
     setTags((p) => [...p, { id: genId(), name, color }])
@@ -1581,6 +1602,7 @@ export const AppStoreProvider = ({ children }: { children: ReactNode }) => {
           type: t.type,
           amount: t.amount,
           category: t.category,
+          subcategory: t.subcategory || null,
           description: t.description,
           date: t.date,
           status: t.status,
@@ -1629,6 +1651,7 @@ export const AppStoreProvider = ({ children }: { children: ReactNode }) => {
           amount: parseFloat(d.amount) || 0,
           category: d.category,
           description: d.description || '',
+          subcategory: d.subcategory || '',
           date: (d.date || '').split('T')[0],
           status: d.status || 'pending',
         })),
@@ -1865,6 +1888,8 @@ export const AppStoreProvider = ({ children }: { children: ReactNode }) => {
     updateFinanceCategory,
     deleteFinanceCategory,
     fetchFinanceCategories,
+    financeDateRange,
+    setFinanceDateRange,
     updateUser,
     addTag,
     updateTag,
