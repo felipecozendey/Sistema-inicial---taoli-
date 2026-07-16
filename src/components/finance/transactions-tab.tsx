@@ -1,8 +1,8 @@
 import { useMemo, useState } from 'react'
-import { useFinanceStore } from '@/stores/useFinanceStore'
+import { useFinanceStore, type Transaction } from '@/stores/useFinanceStore'
 import { cn } from '@/lib/utils'
 import { formatCurrency, filterByDateRange } from '@/lib/finance-utils'
-import { Trash2 } from 'lucide-react'
+import { Trash2, Pencil } from 'lucide-react'
 import {
   Select,
   SelectContent,
@@ -10,6 +10,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { TransactionModal } from '@/components/finance/transaction-modal'
 
 export function TransactionsTab() {
   const transactions = useFinanceStore((s) => s.transactions)
@@ -20,6 +21,8 @@ export function TransactionsTab() {
   const deleteTransaction = useFinanceStore((s) => s.deleteTransaction)
   const [filterCategory, setFilterCategory] = useState('all')
   const [filterSubcategory, setFilterSubcategory] = useState('all')
+  const [editingTx, setEditingTx] = useState<Transaction | null>(null)
+  const [modalOpen, setModalOpen] = useState(false)
 
   const categoryOptions = useMemo(
     () => financeCategories.filter((c) => !c.parentId).map((c) => `${c.icon} ${c.name}`),
@@ -44,6 +47,16 @@ export function TransactionsTab() {
   }, [transactions, startDate, endDate, filterCategory, filterSubcategory])
 
   const fmt = formatCurrency
+
+  const handleEdit = (tx: Transaction) => {
+    setEditingTx(tx)
+    setModalOpen(true)
+  }
+
+  const handleModalChange = (open: boolean) => {
+    setModalOpen(open)
+    if (!open) setEditingTx(null)
+  }
 
   return (
     <div className="space-y-3">
@@ -125,6 +138,7 @@ export function TransactionsTab() {
               <p className="text-xs text-muted-foreground">
                 {new Date(t.date + 'T00:00:00').toLocaleDateString('pt-BR')} ·{' '}
                 {t.status === 'paid' ? '✅ Pago' : '⏳ Pendente'}
+                {t.isFixed && ' · 🔒 Fixa'}
                 {t.subcategory && ` · ${t.subcategory}`}
               </p>
             </div>
@@ -139,6 +153,12 @@ export function TransactionsTab() {
                 {fmt(t.amount)}
               </span>
               <button
+                onClick={() => handleEdit(t)}
+                className="text-muted-foreground hover:text-[#1CB0F6] transition-colors p-1"
+              >
+                <Pencil className="w-4 h-4" />
+              </button>
+              <button
                 onClick={() => deleteTransaction(t.id)}
                 className="text-muted-foreground hover:text-[#FF4B4B] transition-colors p-1"
               >
@@ -148,6 +168,8 @@ export function TransactionsTab() {
           </div>
         ))
       )}
+
+      <TransactionModal open={modalOpen} onOpenChange={handleModalChange} transaction={editingTx} />
     </div>
   )
 }

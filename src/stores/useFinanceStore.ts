@@ -15,6 +15,7 @@ export interface Transaction {
   isRecurring: boolean
   recurrencePeriod: string | null
   parentId: string | null
+  isFixed: boolean
   isVirtual?: boolean
 }
 
@@ -52,6 +53,8 @@ export interface NewTransaction {
   status?: string
   isRecurring?: boolean
   recurrencePeriod?: string
+  recurrenceMonths?: number
+  isFixed?: boolean
 }
 
 interface FinanceStoreState {
@@ -67,6 +70,14 @@ interface FinanceStoreState {
   deleteTransaction: (id: string) => Promise<void>
   toggleTransactionStatus: (id: string) => Promise<void>
   setFinanceDateRange: (range: Partial<FinanceDateRange>) => void
+  addFinanceCategory: (cat: {
+    name: string
+    icon: string
+    color: string
+    parentId: string | null
+  }) => Promise<void>
+  updateFinanceCategory: (id: string, updates: Partial<FinanceCategory>) => Promise<void>
+  deleteFinanceCategory: (id: string) => Promise<void>
 }
 
 type Listener = () => void
@@ -85,6 +96,7 @@ function mapTransaction(data: Record<string, unknown>): Transaction {
     isRecurring: (data.is_recurring as boolean) ?? false,
     recurrencePeriod: (data.recurrence_period as string) ?? null,
     parentId: (data.parent_id as string) ?? null,
+    isFixed: (data.is_fixed as boolean) ?? false,
   }
 }
 
@@ -118,6 +130,12 @@ function emit() {
 function setState(partial: Partial<FinanceStoreState>) {
   state = { ...state, ...partial }
   emit()
+}
+
+function incrementMonth(dateStr: string): string {
+  const d = new Date(dateStr + 'T00:00:00')
+  d.setMonth(d.getMonth() + 1)
+  return d.toISOString().split('T')[0]
 }
 
 let state: FinanceStoreState = {
@@ -172,53 +190,70 @@ let state: FinanceStoreState = {
   },
 
   addTransaction: async (tx: NewTransaction) => {
-    const tempId = `temp-${Date.now()}`
-    const optimistic: Transaction = {
-      id: tempId,
-      type: tx.type,
-      amount: tx.amount,
-      category: tx.category,
-      subcategory: tx.subcategory ?? null,
-      description: tx.description ?? null,
-      date: tx.date,
-      status: tx.status ?? 'pending',
-      isRecurring: tx.isRecurring ?? false,
-      recurrencePeriod: tx.recurrencePeriod ?? null,
-      parentId: null,
-    }
-    setState({ transactions: [...state.transactions, optimistic] })
-
     const {
       data: { session },
     } = await supabase.auth.getSession()
     if (!session) return
 
-    const { data, error } = await supabase
-      .from('transactions')
-      .insert({
+    const months = tx.isRecurring ? Math.min(tx.recurrenceMonths || 1, 12) : 1
+    const records: Record<string, unknown>[] = []
+    let currentDate = tx.date
+
+    for (let i = 0; i < months; i++) {
+      records.push({
         user_id: session.user.id,
         type: tx.type,
         amount: tx.amount,
         category: tx.category,
         subcategory: tx.subcategory ?? null,
         description: tx.description ?? null,
-        date: tx.date,
+        date: currentDate,
         status: tx.status ?? 'pending',
         is_recurring: tx.isRecurring ?? false,
         recurrence_period: tx.recurrencePeriod ?? null,
+        is_fixed: tx.isFixed ?? false,
       })
-      .select()
-      .single()
+      if (tx.isRecurring) {
+        currentDate = incrementMonth(currentDate)
+      }
+    }
+
+    const tempIds: string[] = []
+    const optimisticTx: Transaction[] = records.map((r) => {
+      const tempId = `temp-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+      tempIds.push(tempId)
+      return {
+        id: tempId,
+        type: r.type as string,
+        amount: r.amount as number,
+        category: r.category as string,
+        subcategory: (r.subcategory as string) ?? null,
+        description: (r.description as string) ?? null,
+        date: r.date as string,
+        status: r.status as string,
+        isRecurring: r.is_recurring as boolean,
+        recurrencePeriod: (r.recurrence_period as string) ?? null,
+        parentId: null,
+        isFixed: r.is_fixed as boolean,
+      }
+    })
+
+    setState({ transactions: [...state.transactions, ...optimisticTx] })
+
+    const { data, error } = await supabase.from('transactions').insert(records).select()
 
     if (error || !data) {
-      setState({ transactions: state.transactions.filter((t) => t.id !== tempId) })
+      setState({ transactions: state.transactions.filter((t) => !tempIds.includes(t.id)) })
       toast.error('Erro ao adicionar transação')
       return
     }
 
-    const real = mapTransaction(data)
+    const realTxs = data.map(mapTransaction)
     setState({
-      transactions: state.transactions.map((t) => (t.id === tempId ? real : t)),
+      transactions: state.transactions.map((t) => {
+        const idx = tempIds.indexOf(t.id)
+        return idx >= 0 ? realTxs[idx] : t
+      }),
     })
   },
 
@@ -239,6 +274,7 @@ let state: FinanceStoreState = {
     if (updates.isRecurring !== undefined) dbUpdates.is_recurring = updates.isRecurring
     if (updates.recurrencePeriod !== undefined)
       dbUpdates.recurrence_period = updates.recurrencePeriod
+    if (updates.isFixed !== undefined) dbUpdates.is_fixed = updates.isFixed
 
     const { error } = await supabase.from('transactions').update(dbUpdates).eq('id', id)
 
@@ -269,6 +305,60 @@ let state: FinanceStoreState = {
     setState({
       financeDateRange: { ...state.financeDateRange, ...range },
     })
+  },
+
+  addFinanceCategory: async (cat: {
+    name: string
+    icon: string
+    color: string
+    parentId: string | null
+  }) => {
+    const {
+      data: { session },
+    } = await supabase.auth.getSession()
+    if (!session) return
+
+    const { data, error } = await supabase
+      .from('finance_categories')
+      .insert({
+        user_id: session.user.id,
+        name: cat.name,
+        icon: cat.icon,
+        color: cat.color,
+        parent_id: cat.parentId,
+      })
+      .select()
+      .single()
+
+    if (data) {
+      setState({ financeCategories: [...state.financeCategories, mapCategory(data)] })
+    }
+  },
+
+  updateFinanceCategory: async (id: string, updates: Partial<FinanceCategory>) => {
+    const prev = state.financeCategories
+    setState({
+      financeCategories: prev.map((c) => (c.id === id ? { ...c, ...updates } : c)),
+    })
+
+    const dbUpdates: Record<string, unknown> = {}
+    if (updates.name !== undefined) dbUpdates.name = updates.name
+    if (updates.icon !== undefined) dbUpdates.icon = updates.icon
+    if (updates.color !== undefined) dbUpdates.color = updates.color
+    if (updates.parentId !== undefined) dbUpdates.parent_id = updates.parentId
+
+    const { error } = await supabase.from('finance_categories').update(dbUpdates).eq('id', id)
+
+    if (error) {
+      setState({ financeCategories: prev })
+      toast.error('Erro ao atualizar categoria')
+    }
+  },
+
+  deleteFinanceCategory: async (id: string) => {
+    const prev = state.financeCategories
+    setState({ financeCategories: prev.filter((c) => c.id !== id) })
+    await supabase.from('finance_categories').delete().eq('id', id)
   },
 }
 

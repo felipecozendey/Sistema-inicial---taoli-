@@ -10,14 +10,6 @@ import {
 import { BarChart, Bar, XAxis, YAxis, ResponsiveContainer, Tooltip, Legend } from 'recharts'
 import { ChartContainer } from '@/components/ui/chart'
 
-const ESSENTIAL_CATEGORIES = [
-  '🏠 Casa',
-  '🍔 Alimentação',
-  '🚗 Transporte',
-  '💊 Saúde',
-  '📚 Educação',
-]
-
 interface GroupItem {
   name: string
   value: number
@@ -31,17 +23,18 @@ export function DreTab() {
 
   const dre = useMemo(() => {
     const rangeTx = filterByDateRange(transactions, startDate, endDate)
-    const incomes = rangeTx.filter((t) => t.type === 'income')
-    const essentialExp = rangeTx.filter(
-      (t) => t.type === 'expense' && ESSENTIAL_CATEGORIES.includes(t.category),
-    )
-    const variableExp = rangeTx.filter(
-      (t) => t.type === 'expense' && !ESSENTIAL_CATEGORIES.includes(t.category),
-    )
+    const fixedIncome = rangeTx.filter((t) => t.type === 'income' && t.isFixed)
+    const variableIncome = rangeTx.filter((t) => t.type === 'income' && !t.isFixed)
+    const fixedExp = rangeTx.filter((t) => t.type === 'expense' && t.isFixed)
+    const variableExp = rangeTx.filter((t) => t.type === 'expense' && !t.isFixed)
 
-    const totalIncome = incomes.reduce((s, t) => s + t.amount, 0)
-    const totalEssential = essentialExp.reduce((s, t) => s + t.amount, 0)
-    const totalVariable = variableExp.reduce((s, t) => s + t.amount, 0)
+    const totalFixedIncome = fixedIncome.reduce((s, t) => s + t.amount, 0)
+    const totalVariableIncome = variableIncome.reduce((s, t) => s + t.amount, 0)
+    const totalFixedExp = fixedExp.reduce((s, t) => s + t.amount, 0)
+    const totalVariableExp = variableExp.reduce((s, t) => s + t.amount, 0)
+    const totalIncome = totalFixedIncome + totalVariableIncome
+    const totalExpenses = totalFixedExp + totalVariableExp
+    const netResult = totalIncome - totalExpenses
 
     const groupBy = (txs: typeof rangeTx, base: number): GroupItem[] => {
       const map: Record<string, number> = {}
@@ -59,14 +52,17 @@ export function DreTab() {
     }
 
     return {
+      totalFixedIncome,
+      totalVariableIncome,
+      totalFixedExp,
+      totalVariableExp,
       totalIncome,
-      totalEssential,
-      totalVariable,
-      netResult: totalIncome - totalEssential - totalVariable,
-      totalExpenses: totalEssential + totalVariable,
-      incomeGroups: groupBy(incomes, totalIncome),
-      essentialGroups: groupBy(essentialExp, totalIncome),
-      variableGroups: groupBy(variableExp, totalIncome),
+      totalExpenses,
+      netResult,
+      fixedIncomeGroups: groupBy(fixedIncome, totalFixedIncome),
+      variableIncomeGroups: groupBy(variableIncome, totalVariableIncome),
+      fixedExpGroups: groupBy(fixedExp, totalFixedExp),
+      variableExpGroups: groupBy(variableExp, totalVariableExp),
     }
   }, [transactions, startDate, endDate])
 
@@ -128,64 +124,88 @@ export function DreTab() {
       </div>
 
       <div className="rounded-3xl p-6 bg-card border border-b-4">
-        <h3 className="font-extrabold text-lg mb-4">📋 DRE Clínico — {periodLabel}</h3>
+        <h3 className="font-extrabold text-lg mb-4">📋 DRE Profissional — {periodLabel}</h3>
         <Accordion
           type="multiple"
-          defaultValue={['income', 'essential', 'variable']}
+          defaultValue={['fixedIncome', 'variableIncome', 'fixedExp', 'variableExp']}
           className="space-y-2"
         >
           <AccordionItem
-            value="income"
+            value="fixedIncome"
             className="rounded-2xl bg-[#58CC02]/5 px-4 border border-[#58CC02]/20"
           >
             <AccordionTrigger className="hover:no-underline">
               <div className="flex items-center justify-between w-full pr-4">
-                <span className="font-extrabold text-sm">(+) Receitas Brutas</span>
+                <span className="font-extrabold text-sm">(+) Receitas Fixas</span>
                 <span className="font-extrabold text-sm text-[#58CC02]">
-                  {fmt(dre.totalIncome)}
+                  {fmt(dre.totalFixedIncome)}
                 </span>
               </div>
             </AccordionTrigger>
             <AccordionContent>
-              {renderGroup(dre.incomeGroups, 'text-[#58CC02]')}
+              {renderGroup(dre.fixedIncomeGroups, 'text-[#58CC02]')}
               <div className="flex items-center justify-between py-2 mt-1 border-t border-[#58CC02]/20">
-                <span className="text-sm font-extrabold pl-6">Total Receitas</span>
+                <span className="text-sm font-extrabold pl-6">Total Receitas Fixas</span>
                 <span className="text-sm font-extrabold text-[#58CC02]">
-                  {fmt(dre.totalIncome)} · 100%
+                  {fmt(dre.totalFixedIncome)}
                 </span>
               </div>
             </AccordionContent>
           </AccordionItem>
 
           <AccordionItem
-            value="essential"
+            value="variableIncome"
+            className="rounded-2xl bg-[#82D936]/5 px-4 border border-[#82D936]/20"
+          >
+            <AccordionTrigger className="hover:no-underline">
+              <div className="flex items-center justify-between w-full pr-4">
+                <span className="font-extrabold text-sm">(+) Receitas Variáveis</span>
+                <span className="font-extrabold text-sm text-[#82D936]">
+                  {fmt(dre.totalVariableIncome)}
+                </span>
+              </div>
+            </AccordionTrigger>
+            <AccordionContent>
+              {renderGroup(dre.variableIncomeGroups, 'text-[#82D936]')}
+              <div className="flex items-center justify-between py-2 mt-1 border-t border-[#82D936]/20">
+                <span className="text-sm font-extrabold pl-6">Total Receitas Variáveis</span>
+                <span className="text-sm font-extrabold text-[#82D936]">
+                  {fmt(dre.totalVariableIncome)}
+                </span>
+              </div>
+            </AccordionContent>
+          </AccordionItem>
+
+          <div className="flex items-center justify-between p-3 rounded-2xl bg-[#58CC02]/10 border border-[#58CC02]/30">
+            <span className="font-extrabold text-sm">(=) Subtotal de Receitas</span>
+            <span className="font-extrabold text-sm text-[#58CC02]">{fmt(dre.totalIncome)}</span>
+          </div>
+
+          <AccordionItem
+            value="fixedExp"
             className="rounded-2xl bg-[#FF4B4B]/5 px-4 border border-[#FF4B4B]/20"
           >
             <AccordionTrigger className="hover:no-underline">
               <div className="flex items-center justify-between w-full pr-4">
-                <span className="font-extrabold text-sm">(-) Despesas Operacionais Fixas</span>
+                <span className="font-extrabold text-sm">(-) Despesas Fixas / Operacionais</span>
                 <span className="font-extrabold text-sm text-[#FF4B4B]">
-                  {fmt(dre.totalEssential)}
+                  {fmt(dre.totalFixedExp)}
                 </span>
               </div>
             </AccordionTrigger>
             <AccordionContent>
-              {renderGroup(dre.essentialGroups, 'text-[#FF4B4B]')}
+              {renderGroup(dre.fixedExpGroups, 'text-[#FF4B4B]')}
               <div className="flex items-center justify-between py-2 mt-1 border-t border-[#FF4B4B]/20">
-                <span className="text-sm font-extrabold pl-6">Total Fixas</span>
+                <span className="text-sm font-extrabold pl-6">Total Despesas Fixas</span>
                 <span className="text-sm font-extrabold text-[#FF4B4B]">
-                  {fmt(dre.totalEssential)} ·{' '}
-                  {dre.totalIncome > 0
-                    ? ((dre.totalEssential / dre.totalIncome) * 100).toFixed(1)
-                    : '0'}
-                  %
+                  {fmt(dre.totalFixedExp)}
                 </span>
               </div>
             </AccordionContent>
           </AccordionItem>
 
           <AccordionItem
-            value="variable"
+            value="variableExp"
             className="rounded-2xl bg-[#FF9600]/5 px-4 border border-[#FF9600]/20"
           >
             <AccordionTrigger className="hover:no-underline">
@@ -194,20 +214,16 @@ export function DreTab() {
                   (-) Despesas Variáveis / Estilo de Vida
                 </span>
                 <span className="font-extrabold text-sm text-[#FF9600]">
-                  {fmt(dre.totalVariable)}
+                  {fmt(dre.totalVariableExp)}
                 </span>
               </div>
             </AccordionTrigger>
             <AccordionContent>
-              {renderGroup(dre.variableGroups, 'text-[#FF9600]')}
+              {renderGroup(dre.variableExpGroups, 'text-[#FF9600]')}
               <div className="flex items-center justify-between py-2 mt-1 border-t border-[#FF9600]/20">
-                <span className="text-sm font-extrabold pl-6">Total Variáveis</span>
+                <span className="text-sm font-extrabold pl-6">Total Despesas Variáveis</span>
                 <span className="text-sm font-extrabold text-[#FF9600]">
-                  {fmt(dre.totalVariable)} ·{' '}
-                  {dre.totalIncome > 0
-                    ? ((dre.totalVariable / dre.totalIncome) * 100).toFixed(1)
-                    : '0'}
-                  %
+                  {fmt(dre.totalVariableExp)}
                 </span>
               </div>
             </AccordionContent>
@@ -215,7 +231,7 @@ export function DreTab() {
         </Accordion>
 
         <div className="flex items-center justify-between p-4 mt-4 rounded-2xl bg-primary/10 border-2 border-primary">
-          <span className="font-extrabold text-sm">(=) Resultado Líquido (Poupança Real)</span>
+          <span className="font-extrabold text-sm">(=) Resultado Líquido do Mês</span>
           <span
             className={`font-extrabold text-lg ${dre.netResult >= 0 ? 'text-[#58CC02]' : 'text-[#FF4B4B]'}`}
           >

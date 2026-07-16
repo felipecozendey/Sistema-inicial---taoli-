@@ -8,7 +8,11 @@ import {
   getMonthKey,
   getMonthLabel,
 } from '@/lib/finance-utils'
-import { IncomeExpenseChart, ExpenseDistributionChart } from '@/components/finance/finance-charts'
+import {
+  IncomeExpenseChart,
+  ExpenseDistributionChart,
+  IncomeDistributionChart,
+} from '@/components/finance/finance-charts'
 import { TrendingUp, TrendingDown, Wallet, AlertCircle, Pencil } from 'lucide-react'
 import { BarChart, Bar, XAxis, YAxis, ResponsiveContainer, Tooltip, Legend } from 'recharts'
 import { ChartContainer } from '@/components/ui/chart'
@@ -257,8 +261,21 @@ export function DashboardTab() {
       </div>
 
       <div className="rounded-3xl p-6 bg-card border">
-        <h3 className="font-extrabold text-lg mb-4">🥧 Distribuição de Despesas</h3>
-        <ExpenseDistributionChart transactions={filteredTx} />
+        <h3 className="font-extrabold text-lg mb-4">🥧 Distribuição Financeira</h3>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div>
+            <p className="text-sm font-extrabold text-[#FF4B4B] mb-2 text-center">
+              Despesas por Categoria
+            </p>
+            <ExpenseDistributionChart transactions={filteredTx} />
+          </div>
+          <div>
+            <p className="text-sm font-extrabold text-[#58CC02] mb-2 text-center">
+              Receitas por Categoria
+            </p>
+            <IncomeDistributionChart transactions={filteredTx} />
+          </div>
+        </div>
       </div>
 
       <div className="rounded-3xl p-6 bg-card border space-y-3">

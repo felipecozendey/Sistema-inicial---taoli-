@@ -701,6 +701,9 @@ export type Database = {
           date: string
           description: string | null
           id: string
+          is_recurring: boolean
+          parent_id: string | null
+          recurrence_period: string | null
           status: string
           subcategory: string | null
           type: string
@@ -713,6 +716,9 @@ export type Database = {
           date?: string
           description?: string | null
           id?: string
+          is_recurring?: boolean
+          parent_id?: string | null
+          recurrence_period?: string | null
           status?: string
           subcategory?: string | null
           type: string
@@ -725,12 +731,23 @@ export type Database = {
           date?: string
           description?: string | null
           id?: string
+          is_recurring?: boolean
+          parent_id?: string | null
+          recurrence_period?: string | null
           status?: string
           subcategory?: string | null
           type?: string
           user_id?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: 'transactions_parent_id_fkey'
+            columns: ['parent_id']
+            isOneToOne: false
+            referencedRelation: 'transactions'
+            referencedColumns: ['id']
+          },
+        ]
       }
       workout_history: {
         Row: {

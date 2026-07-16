@@ -170,3 +170,48 @@ export function ExpenseDistributionChart({ transactions }: { transactions: Trans
     </div>
   )
 }
+
+export function IncomeDistributionChart({ transactions }: { transactions: Transaction[] }) {
+  const data = useMemo(() => {
+    const byCat: Record<string, number> = {}
+    transactions
+      .filter((t) => t.type === 'income')
+      .forEach((t) => {
+        byCat[t.category] = (byCat[t.category] || 0) + t.amount
+      })
+    return Object.entries(byCat).map(([name, value]) => ({ name, value }))
+  }, [transactions])
+
+  if (data.length === 0) {
+    return (
+      <p className="text-sm font-bold text-muted-foreground text-center py-8">
+        Sem receitas no período
+      </p>
+    )
+  }
+
+  return (
+    <div className="h-64">
+      <ChartContainer config={{}} className="h-full">
+        <ResponsiveContainer width="100%" height="100%">
+          <PieChart>
+            <Pie
+              data={data}
+              dataKey="value"
+              nameKey="name"
+              cx="50%"
+              cy="50%"
+              outerRadius={80}
+              label={(e: any) => e.name}
+            >
+              {data.map((_, i) => (
+                <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />
+              ))}
+            </Pie>
+            <Tooltip formatter={(v: number) => formatCurrency(v)} />
+          </PieChart>
+        </ResponsiveContainer>
+      </ChartContainer>
+    </div>
+  )
+}
