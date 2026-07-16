@@ -131,6 +131,17 @@ export type BodyMetric = {
   ventaTarget?: number
   targetWeight?: number
   daysForGoal?: number
+  focusLevel?: number
+  anxietyLevel?: number
+  mentalTriggers?: string
+}
+export type MentalHealthLog = {
+  id: string
+  date: string
+  focusLevel: number
+  anxietyLevel: number
+  mentalTriggers: string
+  timestamp: string
 }
 export type PatientGoal = {
   targetWeight: number
@@ -304,6 +315,13 @@ interface AppState {
   updatePersonalRecords: (updates: Partial<PersonalRecord>) => void
   fetchBodyMetrics: () => Promise<void>
   addBodyMetric: (metric: Omit<BodyMetric, 'id'>) => void
+  mentalHealthLogs: MentalHealthLog[]
+  addMentalHealthLog: (data: {
+    focusLevel: number
+    anxietyLevel: number
+    mentalTriggers: string
+  }) => void
+  fetchMentalHealthLogs: () => Promise<void>
   fetchPatientGoals: () => Promise<void>
   updatePatientGoals: (updates: Partial<PatientGoal>) => void
   fetchMedicalExams: () => Promise<void>
@@ -494,6 +512,57 @@ const initialMicroGoals: NutritionMicroGoal[] = [
   { id: 'mg4', title: '2L de Água', isActive: true, emoji: '💧' },
   { id: 'mg5', title: 'Sem Ultraprocessados', isActive: true, emoji: '⛔' },
   { id: 'mg6', title: 'Fibras no Prato', isActive: true, emoji: '🌾' },
+]
+
+const initialMentalHealthLogs: MentalHealthLog[] = [
+  {
+    id: 'mhl1',
+    date: '2026-07-10',
+    focusLevel: 3,
+    anxietyLevel: 2,
+    mentalTriggers: 'Reunião difícil no trabalho',
+    timestamp: '2026-07-10T14:00:00Z',
+  },
+  {
+    id: 'mhl2',
+    date: '2026-07-11',
+    focusLevel: 4,
+    anxietyLevel: 1,
+    mentalTriggers: '',
+    timestamp: '2026-07-11T14:00:00Z',
+  },
+  {
+    id: 'mhl3',
+    date: '2026-07-12',
+    focusLevel: 2,
+    anxietyLevel: 4,
+    mentalTriggers: 'Prazo apertado e falta de sono',
+    timestamp: '2026-07-12T14:00:00Z',
+  },
+  {
+    id: 'mhl4',
+    date: '2026-07-13',
+    focusLevel: 5,
+    anxietyLevel: 1,
+    mentalTriggers: '',
+    timestamp: '2026-07-13T14:00:00Z',
+  },
+  {
+    id: 'mhl5',
+    date: '2026-07-14',
+    focusLevel: 3,
+    anxietyLevel: 3,
+    mentalTriggers: 'Discordância com colega',
+    timestamp: '2026-07-14T14:00:00Z',
+  },
+  {
+    id: 'mhl6',
+    date: '2026-07-15',
+    focusLevel: 4,
+    anxietyLevel: 2,
+    mentalTriggers: 'Excesso de cafeína',
+    timestamp: '2026-07-15T14:00:00Z',
+  },
 ]
 
 const initialTags: Tag[] = [
@@ -697,6 +766,10 @@ export const AppStoreProvider = ({ children }: { children: ReactNode }) => {
     const s = localStorage.getItem('vt_body_metrics')
     return s ? JSON.parse(s) : initialBodyMetrics
   })
+  const [mentalHealthLogs, setMentalHealthLogs] = useState<MentalHealthLog[]>(() => {
+    const s = localStorage.getItem('vt_mental_health_logs')
+    return s ? JSON.parse(s) : initialMentalHealthLogs
+  })
   const [patientGoals, setPatientGoals] = useState<PatientGoal>(() => {
     const s = localStorage.getItem('vt_patient_goals')
     return s ? JSON.parse(s) : initialPatientGoals
@@ -779,6 +852,9 @@ export const AppStoreProvider = ({ children }: { children: ReactNode }) => {
   useEffect(() => {
     localStorage.setItem('vt_body_metrics', JSON.stringify(bodyMetrics))
   }, [bodyMetrics])
+  useEffect(() => {
+    localStorage.setItem('vt_mental_health_logs', JSON.stringify(mentalHealthLogs))
+  }, [mentalHealthLogs])
   useEffect(() => {
     localStorage.setItem('vt_patient_goals', JSON.stringify(patientGoals))
   }, [patientGoals])
@@ -1183,6 +1259,9 @@ export const AppStoreProvider = ({ children }: { children: ReactNode }) => {
           ventaTarget: d.venta_target || undefined,
           targetWeight: d.target_weight || undefined,
           daysForGoal: d.days_for_goal || undefined,
+          focusLevel: d.focus_level || undefined,
+          anxietyLevel: d.anxiety_level || undefined,
+          mentalTriggers: d.mental_triggers || undefined,
         })),
       )
   }
@@ -1228,6 +1307,69 @@ export const AppStoreProvider = ({ children }: { children: ReactNode }) => {
           }
         })
     })
+  }
+  const addMentalHealthLog = (data: {
+    focusLevel: number
+    anxietyLevel: number
+    mentalTriggers: string
+  }) => {
+    const today = todayStr()
+    const tempId = genId()
+    const log: MentalHealthLog = {
+      id: tempId,
+      date: today,
+      focusLevel: data.focusLevel,
+      anxietyLevel: data.anxietyLevel,
+      mentalTriggers: data.mentalTriggers,
+      timestamp: nowIso(),
+    }
+    setMentalHealthLogs((prev) => {
+      const filtered = prev.filter((l) => l.date !== today)
+      return [log, ...filtered]
+    })
+    supabase.auth.getUser().then(({ data: { user: u } }) => {
+      if (!u) return
+      ;(supabase as any)
+        .from('body_metrics')
+        .insert({
+          date: today,
+          focus_level: data.focusLevel,
+          anxiety_level: data.anxietyLevel,
+          mental_triggers: data.mentalTriggers || null,
+          user_id: u.id,
+        })
+        .then(({ error }: { error: any }) => {
+          if (error) {
+            setMentalHealthLogs((prev) => prev.filter((l) => l.id !== tempId))
+            toast.error('Erro ao salvar avaliação mental. Tente novamente.')
+          } else {
+            fetchMentalHealthLogs()
+          }
+        })
+    })
+  }
+  const fetchMentalHealthLogs = async () => {
+    const {
+      data: { user: authUser },
+    } = await supabase.auth.getUser()
+    if (!authUser) return
+    const { data } = await (supabase as any)
+      .from('body_metrics')
+      .select('id, date, focus_level, anxiety_level, mental_triggers, created_at')
+      .eq('user_id', authUser.id)
+      .not('focus_level', 'is', null)
+      .order('created_at', { ascending: false })
+    if (data)
+      setMentalHealthLogs(
+        data.map((d: any) => ({
+          id: d.id,
+          date: (d.date || '').split('T')[0],
+          focusLevel: d.focus_level || 0,
+          anxietyLevel: d.anxiety_level || 0,
+          mentalTriggers: d.mental_triggers || '',
+          timestamp: d.created_at,
+        })),
+      )
   }
   const fetchPatientGoals = async () => {
     const {
@@ -1570,6 +1712,9 @@ export const AppStoreProvider = ({ children }: { children: ReactNode }) => {
     updatePersonalRecords,
     fetchBodyMetrics,
     addBodyMetric,
+    mentalHealthLogs,
+    addMentalHealthLog,
+    fetchMentalHealthLogs,
     fetchPatientGoals,
     updatePatientGoals,
     fetchMedicalExams,

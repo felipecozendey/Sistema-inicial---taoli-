@@ -701,6 +701,7 @@ export type Database = {
           date: string
           description: string | null
           id: string
+          is_fixed: boolean
           is_recurring: boolean
           parent_id: string | null
           recurrence_period: string | null
@@ -716,6 +717,7 @@ export type Database = {
           date?: string
           description?: string | null
           id?: string
+          is_fixed?: boolean
           is_recurring?: boolean
           parent_id?: string | null
           recurrence_period?: string | null
@@ -731,6 +733,7 @@ export type Database = {
           date?: string
           description?: string | null
           id?: string
+          is_fixed?: boolean
           is_recurring?: boolean
           parent_id?: string | null
           recurrence_period?: string | null

@@ -3,11 +3,13 @@ import { HydrationWidget } from '@/components/health/hydration-widget'
 import { MoodWidget } from '@/components/health/mood-widget'
 import { BowelWidget } from '@/components/health/bowel-widget'
 import { UrineWidget } from '@/components/health/urine-widget'
-import { NutritionWidget } from '@/components/health/nutrition-widget'
+import { NutritionOverview } from '@/components/health/nutrition-overview'
+import { MealHistory } from '@/components/health/meal-history'
 import { ExerciseWidget } from '@/components/health/exercise-widget'
 import { BodyXrayTab } from '@/components/health/body-xray-tab'
 import { HealthHistory } from '@/components/health/health-history'
 import { FastingTab } from '@/components/health/fasting-tab'
+import { MindTab } from '@/components/health/mind-tab'
 
 export default function HealthPage() {
   return (
@@ -24,8 +26,8 @@ export default function HealthPage() {
           <TabsTrigger value="geral" className="rounded-xl font-bold">
             Geral
           </TabsTrigger>
-          <TabsTrigger value="jejum" className="rounded-xl font-bold">
-            Jejum
+          <TabsTrigger value="mente" className="rounded-xl font-bold">
+            🧠 Mente
           </TabsTrigger>
           <TabsTrigger value="nutricao" className="rounded-xl font-bold">
             Nutrição
@@ -62,12 +64,33 @@ export default function HealthPage() {
           </Tabs>
         </TabsContent>
 
-        <TabsContent value="jejum" className="mt-6 print:hidden">
-          <FastingTab />
+        <TabsContent value="mente" className="mt-6 print:hidden">
+          <MindTab />
         </TabsContent>
 
         <TabsContent value="nutricao" className="mt-6 print:hidden">
-          <NutritionWidget />
+          <Tabs defaultValue="visao-geral">
+            <TabsList className="w-full rounded-2xl print:hidden">
+              <TabsTrigger value="visao-geral" className="rounded-xl font-bold">
+                Visão Geral
+              </TabsTrigger>
+              <TabsTrigger value="historico" className="rounded-xl font-bold">
+                Histórico
+              </TabsTrigger>
+              <TabsTrigger value="jejum" className="rounded-xl font-bold">
+                Jejum
+              </TabsTrigger>
+            </TabsList>
+            <TabsContent value="visao-geral" className="mt-6">
+              <NutritionOverview />
+            </TabsContent>
+            <TabsContent value="historico" className="mt-6">
+              <MealHistory />
+            </TabsContent>
+            <TabsContent value="jejum" className="mt-6">
+              <FastingTab />
+            </TabsContent>
+          </Tabs>
         </TabsContent>
 
         <TabsContent value="exercicios" className="mt-6 print:hidden">
