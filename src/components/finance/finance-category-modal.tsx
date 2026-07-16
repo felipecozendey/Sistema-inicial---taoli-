@@ -9,7 +9,7 @@ import {
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { useAppStore, FinanceCategory } from '@/stores/useAppStore'
+import { useFinanceStore, FinanceCategory } from '@/stores/useFinanceStore'
 import { cn } from '@/lib/utils'
 import { toast } from 'sonner'
 
@@ -67,8 +67,8 @@ export function FinanceCategoryModal({
   editingCategory,
   parentCategory,
 }: FinanceCategoryModalProps) {
-  const addFinanceCategory = useAppStore((s) => s.addFinanceCategory)
-  const updateFinanceCategory = useAppStore((s) => s.updateFinanceCategory)
+  const addFinanceCategory = useFinanceStore((s) => s.addFinanceCategory)
+  const updateFinanceCategory = useFinanceStore((s) => s.updateFinanceCategory)
   const [name, setName] = useState('')
   const [icon, setIcon] = useState('📦')
   const [color, setColor] = useState('#1CB0F6')

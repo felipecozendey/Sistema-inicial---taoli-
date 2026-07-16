@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react'
-import { useAppStore } from '@/stores/useAppStore'
+import { useFinanceStore } from '@/stores/useFinanceStore'
 import { PasswordModal } from '@/components/finance/password-modal'
 import { toast } from 'sonner'
 import { Eye, EyeOff, Copy, Trash2, Plus, ExternalLink, Search } from 'lucide-react'
@@ -13,8 +13,8 @@ const CATEGORY_ICONS: Record<string, string> = {
 }
 
 export function PasswordsTab() {
-  const passwords = useAppStore((s) => s.passwords)
-  const deletePassword = useAppStore((s) => s.deletePassword)
+  const passwords = useFinanceStore((s) => s.passwords)
+  const deletePassword = useFinanceStore((s) => s.deletePassword)
   const [modalOpen, setModalOpen] = useState(false)
   const [visibleIds, setVisibleIds] = useState<Set<string>>(new Set())
   const [search, setSearch] = useState('')

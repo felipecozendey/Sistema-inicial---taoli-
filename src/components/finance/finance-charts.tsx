@@ -14,7 +14,7 @@ import {
 } from 'recharts'
 import { ChartContainer } from '@/components/ui/chart'
 import { formatCurrency } from '@/lib/finance-utils'
-import type { Transaction } from '@/stores/useAppStore'
+import type { Transaction } from '@/stores/useFinanceStore'
 
 const PIE_COLORS = [
   '#FF4B4B',

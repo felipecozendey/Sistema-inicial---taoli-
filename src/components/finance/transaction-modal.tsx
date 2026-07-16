@@ -16,7 +16,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { useAppStore } from '@/stores/useAppStore'
+import { useFinanceStore } from '@/stores/useFinanceStore'
 import { cn } from '@/lib/utils'
 import { toast } from 'sonner'
 
@@ -27,8 +27,8 @@ export function TransactionModal({
   open: boolean
   onOpenChange: (open: boolean) => void
 }) {
-  const addTransaction = useAppStore((s) => s.addTransaction)
-  const financeCategories = useAppStore((s) => s.financeCategories)
+  const addTransaction = useFinanceStore((s) => s.addTransaction)
+  const financeCategories = useFinanceStore((s) => s.financeCategories)
   const [type, setType] = useState<'income' | 'expense'>('expense')
   const [amount, setAmount] = useState('')
   const [category, setCategory] = useState('📦 Outros')

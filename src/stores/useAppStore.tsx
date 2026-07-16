@@ -160,31 +160,6 @@ export type FastingLog = {
   feeling: FastingFeeling
   completed: boolean
 }
-export type Transaction = {
-  id: string
-  type: 'income' | 'expense'
-  amount: number
-  category: string
-  subcategory?: string
-  description: string
-  date: string
-  status: 'paid' | 'pending'
-}
-export type Password = {
-  id: string
-  title: string
-  username: string
-  password: string
-  url: string
-  category: string
-}
-export type FinanceCategory = {
-  id: string
-  name: string
-  parentId: string | null
-  icon: string
-  color: string
-}
 export type Tag = { id: string; name: string; color: string }
 export type Task = {
   id: string
@@ -263,24 +238,6 @@ interface AppState {
   fastingLogs: FastingLog[]
   activeFastingStart: string | null
   selectedProtocol: number
-  transactions: Transaction[]
-  addTransaction: (t: Omit<Transaction, 'id'>) => void
-  updateTransaction: (id: string, updates: Partial<Transaction>) => void
-  deleteTransaction: (id: string) => void
-  toggleTransactionStatus: (id: string) => void
-  fetchTransactions: () => Promise<void>
-  passwords: Password[]
-  addPassword: (p: Omit<Password, 'id'>) => void
-  updatePassword: (id: string, updates: Partial<Password>) => void
-  deletePassword: (id: string) => void
-  fetchPasswords: () => Promise<void>
-  financeCategories: FinanceCategory[]
-  addFinanceCategory: (c: Omit<FinanceCategory, 'id'>) => void
-  updateFinanceCategory: (id: string, updates: Partial<FinanceCategory>) => void
-  deleteFinanceCategory: (id: string) => void
-  fetchFinanceCategories: () => Promise<void>
-  financeDateRange: { startDate: string; endDate: string }
-  setFinanceDateRange: (range: Partial<{ startDate: string; endDate: string }>) => void
   updateUser: (u: Partial<User>) => void
   addTag: (name: string, color: string) => void
   updateTag: (id: string, updates: Partial<Pick<Tag, 'name' | 'color'>>) => void
@@ -539,87 +496,6 @@ const initialMicroGoals: NutritionMicroGoal[] = [
   { id: 'mg6', title: 'Fibras no Prato', isActive: true, emoji: '🌾' },
 ]
 
-const initialTransactions: Transaction[] = [
-  {
-    id: 'tr1',
-    type: 'income',
-    amount: 5000,
-    category: '💰 Salário',
-    description: 'Salário mensal',
-    date: todayStr(),
-    status: 'paid',
-  },
-  {
-    id: 'tr2',
-    type: 'expense',
-    amount: 1200,
-    category: '🏠 Casa',
-    description: 'Aluguel',
-    date: todayStr(),
-    status: 'paid',
-  },
-  {
-    id: 'tr3',
-    type: 'expense',
-    amount: 450,
-    category: '🍔 Alimentação',
-    description: 'Supermercado',
-    date: todayStr(),
-    status: 'pending',
-  },
-  {
-    id: 'tr4',
-    type: 'expense',
-    amount: 200,
-    category: '🚗 Transporte',
-    description: 'Combustível',
-    date: todayStr(),
-    status: 'pending',
-  },
-  {
-    id: 'tr5',
-    type: 'income',
-    amount: 800,
-    category: '💼 Freelance',
-    description: 'Projeto extra',
-    date: todayStr(),
-    status: 'pending',
-  },
-  {
-    id: 'tr6',
-    type: 'expense',
-    amount: 89.9,
-    category: '📺 Streaming',
-    description: 'Netflix + Spotify',
-    date: todayStr(),
-    status: 'paid',
-  },
-  {
-    id: 'tr7',
-    type: 'expense',
-    amount: 150,
-    category: '🎮 Lazer',
-    description: 'Cinema e jantar',
-    date: todayStr(),
-    status: 'pending',
-  },
-]
-
-const initialFinanceCategories: FinanceCategory[] = [
-  { id: 'fc1', name: 'Casa', parentId: null, icon: '🏠', color: '#1CB0F6' },
-  { id: 'fc2', name: 'Alimentação', parentId: null, icon: '🍔', color: '#FF9600' },
-  { id: 'fc3', name: 'Transporte', parentId: null, icon: '🚗', color: '#82D936' },
-  { id: 'fc4', name: 'Salário', parentId: null, icon: '💰', color: '#58CC02' },
-  { id: 'fc5', name: 'Freelance', parentId: null, icon: '💼', color: '#CE82FF' },
-  { id: 'fc6', name: 'Streaming', parentId: null, icon: '📺', color: '#FF4B4B' },
-  { id: 'fc7', name: 'Academia', parentId: null, icon: '🏋️', color: '#FFC800' },
-  { id: 'fc8', name: 'Saúde', parentId: null, icon: '💊', color: '#FF4B4B' },
-  { id: 'fc9', name: 'Educação', parentId: null, icon: '📚', color: '#1CB0F6' },
-  { id: 'fc10', name: 'Lazer', parentId: null, icon: '🎮', color: '#CE82FF' },
-  { id: 'fc11', name: 'Compras', parentId: null, icon: '🛒', color: '#FF9600' },
-  { id: 'fc12', name: 'Outros', parentId: null, icon: '📦', color: '#AFAFAF' },
-]
-
 const initialTags: Tag[] = [
   { id: '1', name: 'Saúde', color: '#10b981' },
   { id: '2', name: 'Trabalho', color: '#3b82f6' },
@@ -859,32 +735,6 @@ export const AppStoreProvider = ({ children }: { children: ReactNode }) => {
     const s = localStorage.getItem('vt_selected_protocol')
     return s ? parseInt(s) : 16
   })
-  const [transactions, setTransactions] = useState<Transaction[]>(() => {
-    const s = localStorage.getItem('vt_transactions')
-    return s ? JSON.parse(s) : initialTransactions
-  })
-  const [passwords, setPasswords] = useState<Password[]>(() => {
-    const s = localStorage.getItem('vt_passwords')
-    return s ? JSON.parse(s) : []
-  })
-  const [financeCategories, setFinanceCategories] = useState<FinanceCategory[]>(() => {
-    const s = localStorage.getItem('vt_finance_categories')
-    return s ? JSON.parse(s) : initialFinanceCategories
-  })
-  const [financeDateRange, setFinanceDateRangeState] = useState<{
-    startDate: string
-    endDate: string
-  }>(() => {
-    const s = localStorage.getItem('vt_finance_date_range')
-    if (s) return JSON.parse(s)
-    const now = new Date()
-    const start = new Date(now.getFullYear(), now.getMonth(), 1)
-    return {
-      startDate: start.toISOString().split('T')[0],
-      endDate: now.toISOString().split('T')[0],
-    }
-  })
-
   const escudoCheckRef = useRef(false)
 
   useEffect(() => {
@@ -958,19 +808,6 @@ export const AppStoreProvider = ({ children }: { children: ReactNode }) => {
     localStorage.setItem('vt_selected_protocol', String(selectedProtocol))
   }, [selectedProtocol])
   useEffect(() => {
-    localStorage.setItem('vt_transactions', JSON.stringify(transactions))
-  }, [transactions])
-  useEffect(() => {
-    localStorage.setItem('vt_passwords', JSON.stringify(passwords))
-  }, [passwords])
-  useEffect(() => {
-    localStorage.setItem('vt_finance_categories', JSON.stringify(financeCategories))
-  }, [financeCategories])
-  useEffect(() => {
-    localStorage.setItem('vt_finance_date_range', JSON.stringify(financeDateRange))
-  }, [financeDateRange])
-
-  useEffect(() => {
     if (escudoCheckRef.current) return
     escudoCheckRef.current = true
     const yesterday = new Date()
@@ -1023,8 +860,6 @@ export const AppStoreProvider = ({ children }: { children: ReactNode }) => {
 
   const getHealthRecord = (date: string): HealthRecord =>
     healthRecords[date] || { date, hydration: 0, mood: { level: 3 }, bowel: { type: null } }
-  const setFinanceDateRange = (range: Partial<{ startDate: string; endDate: string }>) =>
-    setFinanceDateRangeState((p) => ({ ...p, ...range }))
   const updateUser = (u: Partial<User>) => setUser((p) => ({ ...p, ...u }))
   const addTag = (name: string, color: string) =>
     setTags((p) => [...p, { id: genId(), name, color }])
@@ -1591,191 +1426,6 @@ export const AppStoreProvider = ({ children }: { children: ReactNode }) => {
         })),
       )
   }
-  const addTransaction = (t: Omit<Transaction, 'id'>) => {
-    const tempId = genId()
-    setTransactions((p) => [{ ...t, id: tempId }, ...p])
-    supabase.auth.getUser().then(({ data: { user: u } }) => {
-      if (!u) return
-      ;(supabase as any)
-        .from('transactions')
-        .insert({
-          type: t.type,
-          amount: t.amount,
-          category: t.category,
-          subcategory: t.subcategory || null,
-          description: t.description,
-          date: t.date,
-          status: t.status,
-          user_id: u.id,
-        })
-        .then(({ error }: { error: any }) => {
-          if (error) {
-            setTransactions((p) => p.filter((tr) => tr.id !== tempId))
-            toast.error('Erro ao salvar transação. Tente novamente.')
-          } else {
-            fetchTransactions()
-          }
-        })
-    })
-  }
-  const updateTransaction = (id: string, updates: Partial<Transaction>) => {
-    setTransactions((p) => p.map((t) => (t.id === id ? { ...t, ...updates } : t)))
-    ;(supabase as any).from('transactions').update(updates).eq('id', id).then()
-  }
-  const deleteTransaction = (id: string) => {
-    setTransactions((p) => p.filter((t) => t.id !== id))
-    ;(supabase as any).from('transactions').delete().eq('id', id).then()
-  }
-  const toggleTransactionStatus = (id: string) => {
-    const transaction = transactions.find((t) => t.id === id)
-    if (!transaction) return
-    const newStatus = transaction.status === 'paid' ? 'pending' : 'paid'
-    setTransactions((p) => p.map((t) => (t.id === id ? { ...t, status: newStatus } : t)))
-    ;(supabase as any).from('transactions').update({ status: newStatus }).eq('id', id).then()
-  }
-  const fetchTransactions = async () => {
-    const {
-      data: { user: authUser },
-    } = await supabase.auth.getUser()
-    if (!authUser) return
-    const { data } = await (supabase as any)
-      .from('transactions')
-      .select('*')
-      .eq('user_id', authUser.id)
-      .order('date', { ascending: false })
-    if (data)
-      setTransactions(
-        data.map((d: any) => ({
-          id: d.id,
-          type: d.type,
-          amount: parseFloat(d.amount) || 0,
-          category: d.category,
-          description: d.description || '',
-          subcategory: d.subcategory || '',
-          date: (d.date || '').split('T')[0],
-          status: d.status || 'pending',
-        })),
-      )
-  }
-  const fetchPasswords = async () => {
-    const {
-      data: { user: authUser },
-    } = await supabase.auth.getUser()
-    if (!authUser) return
-    const { data } = await (supabase as any)
-      .from('passwords')
-      .select('*')
-      .eq('user_id', authUser.id)
-      .order('created_at', { ascending: false })
-    if (data)
-      setPasswords(
-        data.map((d: any) => ({
-          id: d.id,
-          title: d.title || '',
-          username: d.username || '',
-          password: d.password || '',
-          url: d.url || '',
-          category: d.category || 'other',
-        })),
-      )
-  }
-  const addPassword = (p: Omit<Password, 'id'>) => {
-    const tempId = genId()
-    setPasswords((prev) => [{ ...p, id: tempId }, ...prev])
-    supabase.auth.getUser().then(({ data: { user: u } }) => {
-      if (!u) return
-      ;(supabase as any)
-        .from('passwords')
-        .insert({
-          title: p.title,
-          username: p.username,
-          password: p.password,
-          url: p.url,
-          category: p.category,
-          user_id: u.id,
-        })
-        .then(({ error }: { error: any }) => {
-          if (error) {
-            setPasswords((prev) => prev.filter((pw) => pw.id !== tempId))
-            toast.error('Erro ao salvar senha. Tente novamente.')
-          } else {
-            fetchPasswords()
-          }
-        })
-    })
-  }
-  const updatePassword = (id: string, updates: Partial<Password>) => {
-    setPasswords((prev) => prev.map((p) => (p.id === id ? { ...p, ...updates } : p)))
-    const dbUpdates: Record<string, any> = {}
-    if (updates.title !== undefined) dbUpdates.title = updates.title
-    if (updates.username !== undefined) dbUpdates.username = updates.username
-    if (updates.password !== undefined) dbUpdates.password = updates.password
-    if (updates.url !== undefined) dbUpdates.url = updates.url
-    if (updates.category !== undefined) dbUpdates.category = updates.category
-    ;(supabase as any).from('passwords').update(dbUpdates).eq('id', id).then()
-  }
-  const deletePassword = (id: string) => {
-    setPasswords((prev) => prev.filter((p) => p.id !== id))
-    ;(supabase as any).from('passwords').delete().eq('id', id).then()
-  }
-  const fetchFinanceCategories = async () => {
-    const {
-      data: { user: authUser },
-    } = await supabase.auth.getUser()
-    if (!authUser) return
-    const { data } = await (supabase as any)
-      .from('finance_categories')
-      .select('*')
-      .eq('user_id', authUser.id)
-      .order('created_at', { ascending: true })
-    if (data)
-      setFinanceCategories(
-        data.map((d: any) => ({
-          id: d.id,
-          name: d.name || '',
-          parentId: d.parent_id || null,
-          icon: d.icon || '📦',
-          color: d.color || '#1CB0F6',
-        })),
-      )
-  }
-  const addFinanceCategory = (c: Omit<FinanceCategory, 'id'>) => {
-    const tempId = genId()
-    setFinanceCategories((prev) => [...prev, { ...c, id: tempId }])
-    supabase.auth.getUser().then(({ data: { user: u } }) => {
-      if (!u) return
-      ;(supabase as any)
-        .from('finance_categories')
-        .insert({
-          name: c.name,
-          parent_id: c.parentId,
-          icon: c.icon,
-          color: c.color,
-          user_id: u.id,
-        })
-        .then(({ error }: { error: any }) => {
-          if (error) {
-            setFinanceCategories((prev) => prev.filter((fc) => fc.id !== tempId))
-            toast.error('Erro ao salvar categoria. Tente novamente.')
-          } else {
-            fetchFinanceCategories()
-          }
-        })
-    })
-  }
-  const updateFinanceCategory = (id: string, updates: Partial<FinanceCategory>) => {
-    setFinanceCategories((prev) => prev.map((c) => (c.id === id ? { ...c, ...updates } : c)))
-    const dbUpdates: Record<string, any> = {}
-    if (updates.name !== undefined) dbUpdates.name = updates.name
-    if (updates.parentId !== undefined) dbUpdates.parent_id = updates.parentId
-    if (updates.icon !== undefined) dbUpdates.icon = updates.icon
-    if (updates.color !== undefined) dbUpdates.color = updates.color
-    ;(supabase as any).from('finance_categories').update(dbUpdates).eq('id', id).then()
-  }
-  const deleteFinanceCategory = (id: string) => {
-    setFinanceCategories((prev) => prev.filter((c) => c.id !== id && c.parentId !== id))
-    ;(supabase as any).from('finance_categories').delete().eq('id', id).then()
-  }
   const addToOfflineQueue = (action: OfflineAction) => setOfflineQueue((p) => [...p, action])
   const clearOfflineQueue = () => setOfflineQueue([])
   const hardReset = async () => {
@@ -1872,24 +1522,6 @@ export const AppStoreProvider = ({ children }: { children: ReactNode }) => {
     fastingLogs,
     activeFastingStart,
     selectedProtocol,
-    transactions,
-    addTransaction,
-    updateTransaction,
-    deleteTransaction,
-    toggleTransactionStatus,
-    fetchTransactions,
-    passwords,
-    addPassword,
-    updatePassword,
-    deletePassword,
-    fetchPasswords,
-    financeCategories,
-    addFinanceCategory,
-    updateFinanceCategory,
-    deleteFinanceCategory,
-    fetchFinanceCategories,
-    financeDateRange,
-    setFinanceDateRange,
     updateUser,
     addTag,
     updateTag,

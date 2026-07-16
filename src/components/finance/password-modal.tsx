@@ -16,7 +16,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { useAppStore } from '@/stores/useAppStore'
+import { useFinanceStore } from '@/stores/useFinanceStore'
 import { toast } from 'sonner'
 import { RefreshCw } from 'lucide-react'
 
@@ -37,7 +37,7 @@ interface PasswordModalProps {
 }
 
 export function PasswordModal({ open, onOpenChange }: PasswordModalProps) {
-  const addPassword = useAppStore((s) => s.addPassword)
+  const addPassword = useFinanceStore((s) => s.addPassword)
   const [title, setTitle] = useState('')
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')

@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { useAppStore } from '@/stores/useAppStore'
+import { useFinanceStore } from '@/stores/useFinanceStore'
 import { cn } from '@/lib/utils'
 import { formatCurrency, filterByDateRange } from '@/lib/finance-utils'
 import { Trash2 } from 'lucide-react'
@@ -12,11 +12,12 @@ import {
 } from '@/components/ui/select'
 
 export function TransactionsTab() {
-  const transactions = useAppStore((s) => s.transactions)
-  const financeDateRange = useAppStore((s) => s.financeDateRange)
-  const financeCategories = useAppStore((s) => s.financeCategories)
-  const toggleTransactionStatus = useAppStore((s) => s.toggleTransactionStatus)
-  const deleteTransaction = useAppStore((s) => s.deleteTransaction)
+  const transactions = useFinanceStore((s) => s.transactions)
+  const startDate = useFinanceStore((s) => s.financeDateRange.startDate)
+  const endDate = useFinanceStore((s) => s.financeDateRange.endDate)
+  const financeCategories = useFinanceStore((s) => s.financeCategories)
+  const toggleTransactionStatus = useFinanceStore((s) => s.toggleTransactionStatus)
+  const deleteTransaction = useFinanceStore((s) => s.deleteTransaction)
   const [filterCategory, setFilterCategory] = useState('all')
   const [filterSubcategory, setFilterSubcategory] = useState('all')
 
@@ -35,16 +36,12 @@ export function TransactionsTab() {
   }, [financeCategories, filterCategory])
 
   const filtered = useMemo(() => {
-    let result = filterByDateRange(
-      transactions,
-      financeDateRange.startDate,
-      financeDateRange.endDate,
-    )
+    let result = filterByDateRange(transactions, startDate, endDate)
     if (filterCategory !== 'all') result = result.filter((t) => t.category === filterCategory)
     if (filterSubcategory !== 'all')
       result = result.filter((t) => t.subcategory === filterSubcategory)
     return result.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
-  }, [transactions, financeDateRange, filterCategory, filterSubcategory])
+  }, [transactions, startDate, endDate, filterCategory, filterSubcategory])
 
   const fmt = formatCurrency
 

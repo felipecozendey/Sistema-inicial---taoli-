@@ -1,13 +1,14 @@
 import { useState, useMemo, useEffect } from 'react'
-import { useAppStore } from '@/stores/useAppStore'
+import { useFinanceStore } from '@/stores/useFinanceStore'
 import { cn } from '@/lib/utils'
 import { formatCurrency, filterByDateRange } from '@/lib/finance-utils'
 import { IncomeExpenseChart, ExpenseDistributionChart } from '@/components/finance/finance-charts'
 import { TrendingUp, TrendingDown, Wallet, AlertCircle, Pencil } from 'lucide-react'
 
 export function DashboardTab() {
-  const transactions = useAppStore((s) => s.transactions)
-  const financeDateRange = useAppStore((s) => s.financeDateRange)
+  const transactions = useFinanceStore((s) => s.transactions)
+  const startDate = useFinanceStore((s) => s.financeDateRange.startDate)
+  const endDate = useFinanceStore((s) => s.financeDateRange.endDate)
   const [budget, setBudget] = useState(() =>
     parseFloat(localStorage.getItem('vt_monthly_budget') || '3000'),
   )
@@ -19,8 +20,8 @@ export function DashboardTab() {
   }, [budget])
 
   const filteredTx = useMemo(
-    () => filterByDateRange(transactions, financeDateRange.startDate, financeDateRange.endDate),
-    [transactions, financeDateRange],
+    () => filterByDateRange(transactions, startDate, endDate),
+    [transactions, startDate, endDate],
   )
 
   const { balance, toReceive, toPay, periodExpenses, urgentReminders } = useMemo(() => {
@@ -144,11 +145,7 @@ export function DashboardTab() {
 
       <div className="rounded-3xl p-6 bg-card border">
         <h3 className="font-extrabold text-lg mb-4">📈 Receitas vs Despesas</h3>
-        <IncomeExpenseChart
-          transactions={filteredTx}
-          startDate={financeDateRange.startDate}
-          endDate={financeDateRange.endDate}
-        />
+        <IncomeExpenseChart transactions={filteredTx} startDate={startDate} endDate={endDate} />
       </div>
 
       <div className="rounded-3xl p-6 bg-card border">

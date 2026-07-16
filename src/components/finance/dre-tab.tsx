@@ -1,5 +1,5 @@
 import { useMemo } from 'react'
-import { useAppStore } from '@/stores/useAppStore'
+import { useFinanceStore } from '@/stores/useFinanceStore'
 import { formatCurrency, filterByDateRange, formatDateRangeLabel } from '@/lib/finance-utils'
 import { BarChart, Bar, XAxis, YAxis, ResponsiveContainer, Tooltip, Legend } from 'recharts'
 import { ChartContainer } from '@/components/ui/chart'
@@ -13,15 +13,12 @@ const ESSENTIAL_CATEGORIES = [
 ]
 
 export function DreTab() {
-  const transactions = useAppStore((s) => s.transactions)
-  const financeDateRange = useAppStore((s) => s.financeDateRange)
+  const transactions = useFinanceStore((s) => s.transactions)
+  const startDate = useFinanceStore((s) => s.financeDateRange.startDate)
+  const endDate = useFinanceStore((s) => s.financeDateRange.endDate)
 
   const dre = useMemo(() => {
-    const rangeTx = filterByDateRange(
-      transactions,
-      financeDateRange.startDate,
-      financeDateRange.endDate,
-    )
+    const rangeTx = filterByDateRange(transactions, startDate, endDate)
     const totalIncome = rangeTx.filter((t) => t.type === 'income').reduce((s, t) => s + t.amount, 0)
     const essentialExpenses = rangeTx
       .filter((t) => t.type === 'expense' && ESSENTIAL_CATEGORIES.includes(t.category))
@@ -37,32 +34,39 @@ export function DreTab() {
       netResult,
       totalExpenses: essentialExpenses + freeExpenses,
     }
-  }, [transactions, financeDateRange])
+  }, [transactions, startDate, endDate])
 
-  const chartData = [{ name: 'Período', Receitas: dre.totalIncome, Despesas: dre.totalExpenses }]
+  const chartData = useMemo(
+    () => [{ name: 'Período', Receitas: dre.totalIncome, Despesas: dre.totalExpenses }],
+    [dre],
+  )
+
   const fmt = formatCurrency
-  const periodLabel = formatDateRangeLabel(financeDateRange.startDate, financeDateRange.endDate)
+  const periodLabel = formatDateRangeLabel(startDate, endDate)
 
-  const rows = [
-    {
-      label: 'Receitas Totais',
-      value: dre.totalIncome,
-      color: 'text-[#58CC02]',
-      bg: 'bg-[#58CC02]/10',
-    },
-    {
-      label: 'Despesas Essenciais',
-      value: dre.essentialExpenses,
-      color: 'text-[#FF4B4B]',
-      bg: 'bg-[#FF4B4B]/10',
-    },
-    {
-      label: 'Despesas Livres',
-      value: dre.freeExpenses,
-      color: 'text-[#FF4B4B]',
-      bg: 'bg-[#FF4B4B]/5',
-    },
-  ]
+  const rows = useMemo(
+    () => [
+      {
+        label: 'Receitas Totais',
+        value: dre.totalIncome,
+        color: 'text-[#58CC02]',
+        bg: 'bg-[#58CC02]/10',
+      },
+      {
+        label: 'Despesas Essenciais',
+        value: dre.essentialExpenses,
+        color: 'text-[#FF4B4B]',
+        bg: 'bg-[#FF4B4B]/10',
+      },
+      {
+        label: 'Despesas Livres',
+        value: dre.freeExpenses,
+        color: 'text-[#FF4B4B]',
+        bg: 'bg-[#FF4B4B]/5',
+      },
+    ],
+    [dre],
+  )
 
   return (
     <div className="space-y-6">

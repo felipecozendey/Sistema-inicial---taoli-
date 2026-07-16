@@ -1,12 +1,12 @@
 import { useState, useMemo } from 'react'
-import { useAppStore, FinanceCategory } from '@/stores/useAppStore'
+import { useFinanceStore, FinanceCategory } from '@/stores/useFinanceStore'
 import { FinanceCategoryModal } from '@/components/finance/finance-category-modal'
 import { toast } from 'sonner'
 import { Plus, Pencil, Trash2, ChevronRight } from 'lucide-react'
 
 export function FinanceSettingsTab() {
-  const financeCategories = useAppStore((s) => s.financeCategories)
-  const deleteFinanceCategory = useAppStore((s) => s.deleteFinanceCategory)
+  const financeCategories = useFinanceStore((s) => s.financeCategories)
+  const deleteFinanceCategory = useFinanceStore((s) => s.deleteFinanceCategory)
   const [modalOpen, setModalOpen] = useState(false)
   const [editingCategory, setEditingCategory] = useState<FinanceCategory | null>(null)
   const [parentCategory, setParentCategory] = useState<FinanceCategory | null>(null)

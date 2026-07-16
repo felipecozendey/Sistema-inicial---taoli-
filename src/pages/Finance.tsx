@@ -8,7 +8,7 @@ import { TransactionsTab } from '@/components/finance/transactions-tab'
 import { DreTab } from '@/components/finance/dre-tab'
 import { PasswordsTab } from '@/components/finance/passwords-tab'
 import { FinanceSettingsTab } from '@/components/finance/finance-settings-tab'
-import { useAppStore } from '@/stores/useAppStore'
+import { useFinanceStore } from '@/stores/useFinanceStore'
 import { getMonthsAgoDate, getTodayDate } from '@/lib/finance-utils'
 import { Plus, CalendarRange } from 'lucide-react'
 
@@ -22,11 +22,12 @@ const QUICK_RANGES = [
 export default function FinancePage() {
   const [modalOpen, setModalOpen] = useState(false)
   const [activeTab, setActiveTab] = useState('Dashboard')
-  const fetchTransactions = useAppStore((s) => s.fetchTransactions)
-  const fetchPasswords = useAppStore((s) => s.fetchPasswords)
-  const fetchFinanceCategories = useAppStore((s) => s.fetchFinanceCategories)
-  const financeDateRange = useAppStore((s) => s.financeDateRange)
-  const setFinanceDateRange = useAppStore((s) => s.setFinanceDateRange)
+  const fetchTransactions = useFinanceStore((s) => s.fetchTransactions)
+  const fetchPasswords = useFinanceStore((s) => s.fetchPasswords)
+  const fetchFinanceCategories = useFinanceStore((s) => s.fetchFinanceCategories)
+  const startDate = useFinanceStore((s) => s.financeDateRange.startDate)
+  const endDate = useFinanceStore((s) => s.financeDateRange.endDate)
+  const setFinanceDateRange = useFinanceStore((s) => s.setFinanceDateRange)
 
   useEffect(() => {
     fetchTransactions()
@@ -53,7 +54,7 @@ export default function FinancePage() {
             <Label className="text-xs font-bold text-muted-foreground">Data Inicial</Label>
             <Input
               type="date"
-              value={financeDateRange.startDate}
+              value={startDate}
               onChange={(e) => setFinanceDateRange({ startDate: e.target.value })}
               className="rounded-xl font-bold"
             />
@@ -62,7 +63,7 @@ export default function FinancePage() {
             <Label className="text-xs font-bold text-muted-foreground">Data Final</Label>
             <Input
               type="date"
-              value={financeDateRange.endDate}
+              value={endDate}
               onChange={(e) => setFinanceDateRange({ endDate: e.target.value })}
               className="rounded-xl font-bold"
             />

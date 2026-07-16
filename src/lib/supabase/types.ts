@@ -702,6 +702,7 @@ export type Database = {
           description: string | null
           id: string
           status: string
+          subcategory: string | null
           type: string
           user_id: string
         }
@@ -713,6 +714,7 @@ export type Database = {
           description?: string | null
           id?: string
           status?: string
+          subcategory?: string | null
           type: string
           user_id: string
         }
@@ -724,6 +726,7 @@ export type Database = {
           description?: string | null
           id?: string
           status?: string
+          subcategory?: string | null
           type?: string
           user_id?: string
         }
