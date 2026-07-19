@@ -189,6 +189,21 @@ export type FastingLog = {
   feeling: FastingFeeling
   completed: boolean
 }
+export type JiuBelt = 'White' | 'Blue' | 'Purple' | 'Brown' | 'Black'
+export type JiuProfile = { belt: JiuBelt; stripes: number }
+export type JiuTechnique = {
+  id: string
+  name: string
+  category: string
+  proficiency: number
+}
+export type JiuLog = {
+  id: string
+  date: string
+  durationMinutes: number
+  sparringRounds: number
+  notes: string
+}
 export type Tag = { id: string; name: string; color: string }
 export type Task = {
   id: string
@@ -267,6 +282,9 @@ interface AppState {
   fastingLogs: FastingLog[]
   activeFastingStart: string | null
   selectedProtocol: number
+  jiuProfile: JiuProfile | null
+  jiuTechniques: JiuTechnique[]
+  jiuLogs: JiuLog[]
   updateUser: (u: Partial<User>) => void
   addTag: (name: string, color: string) => void
   updateTag: (id: string, updates: Partial<Pick<Tag, 'name' | 'color'>>) => void
@@ -310,6 +328,15 @@ interface AppState {
   endFastingTimer: (feeling: FastingFeeling) => void
   deleteFastingLog: (id: string) => void
   fetchFastingLogs: () => Promise<void>
+  fetchJiuProfile: () => Promise<void>
+  updateJiuProfile: (updates: Partial<JiuProfile>) => void
+  fetchJiuTechniques: () => Promise<void>
+  addJiuTechnique: (data: { name: string; category: string; proficiency: number }) => void
+  updateJiuTechnique: (id: string, updates: Partial<JiuTechnique>) => void
+  deleteJiuTechnique: (id: string) => void
+  fetchJiuLogs: () => Promise<void>
+  addJiuLog: (data: { durationMinutes: number; sparringRounds: number; notes: string }) => void
+  deleteJiuLog: (id: string) => void
   addMealLog: (data: {
     mealType: string
     description: string
@@ -874,6 +901,18 @@ export const AppStoreProvider = ({ children }: { children: ReactNode }) => {
     const s = localStorage.getItem('vt_selected_protocol')
     return s ? parseInt(s) : 16
   })
+  const [jiuProfile, setJiuProfile] = useState<JiuProfile | null>(() => {
+    const s = localStorage.getItem('vt_jiu_profile')
+    return s ? JSON.parse(s) : null
+  })
+  const [jiuTechniques, setJiuTechniques] = useState<JiuTechnique[]>(() => {
+    const s = localStorage.getItem('vt_jiu_techniques')
+    return s ? JSON.parse(s) : []
+  })
+  const [jiuLogs, setJiuLogs] = useState<JiuLog[]>(() => {
+    const s = localStorage.getItem('vt_jiu_logs')
+    return s ? JSON.parse(s) : []
+  })
   const escudoCheckRef = useRef(false)
 
   useEffect(() => {
@@ -955,6 +994,15 @@ export const AppStoreProvider = ({ children }: { children: ReactNode }) => {
   useEffect(() => {
     localStorage.setItem('vt_selected_protocol', String(selectedProtocol))
   }, [selectedProtocol])
+  useEffect(() => {
+    localStorage.setItem('vt_jiu_profile', JSON.stringify(jiuProfile))
+  }, [jiuProfile])
+  useEffect(() => {
+    localStorage.setItem('vt_jiu_techniques', JSON.stringify(jiuTechniques))
+  }, [jiuTechniques])
+  useEffect(() => {
+    localStorage.setItem('vt_jiu_logs', JSON.stringify(jiuLogs))
+  }, [jiuLogs])
   useEffect(() => {
     if (escudoCheckRef.current) return
     escudoCheckRef.current = true
@@ -1837,6 +1885,143 @@ export const AppStoreProvider = ({ children }: { children: ReactNode }) => {
         })),
       )
   }
+  const fetchJiuProfile = async () => {
+    const {
+      data: { user: authUser },
+    } = await supabase.auth.getUser()
+    if (!authUser) return
+    const { data } = await (supabase as any)
+      .from('jiu_profiles')
+      .select('*')
+      .eq('user_id', authUser.id)
+      .maybeSingle()
+    if (data) setJiuProfile({ belt: data.belt, stripes: data.stripes })
+  }
+  const updateJiuProfile = (updates: Partial<JiuProfile>) => {
+    setJiuProfile((p) => {
+      const base: JiuProfile = p || { belt: 'White', stripes: 0 }
+      const newProfile = { ...base, ...updates }
+      supabase.auth.getUser().then(({ data: { user: u } }) => {
+        if (u)
+          (supabase as any)
+            .from('jiu_profiles')
+            .upsert(
+              { user_id: u.id, belt: newProfile.belt, stripes: newProfile.stripes },
+              { onConflict: 'user_id' },
+            )
+            .then()
+      })
+      return newProfile
+    })
+  }
+  const fetchJiuTechniques = async () => {
+    const {
+      data: { user: authUser },
+    } = await supabase.auth.getUser()
+    if (!authUser) return
+    const { data } = await (supabase as any)
+      .from('jiu_techniques')
+      .select('*')
+      .eq('user_id', authUser.id)
+      .order('created_at', { ascending: false })
+    if (data)
+      setJiuTechniques(
+        data.map((d: any) => ({
+          id: d.id,
+          name: d.name,
+          category: d.category,
+          proficiency: d.proficiency,
+        })),
+      )
+  }
+  const addJiuTechnique = (techData: { name: string; category: string; proficiency: number }) => {
+    const tempId = genId()
+    setJiuTechniques((p) => [...p, { id: tempId, ...techData }])
+    supabase.auth.getUser().then(({ data: { user: u } }) => {
+      if (!u) return
+      ;(supabase as any)
+        .from('jiu_techniques')
+        .insert({ ...techData, user_id: u.id })
+        .then(({ error }: { error: any }) => {
+          if (error) {
+            setJiuTechniques((p) => p.filter((t) => t.id !== tempId))
+            toast.error('Erro ao salvar técnica. Tente novamente.')
+          } else {
+            fetchJiuTechniques()
+          }
+        })
+    })
+  }
+  const deleteJiuTechnique = (id: string) => {
+    setJiuTechniques((p) => p.filter((t) => t.id !== id))
+    ;(supabase as any).from('jiu_techniques').delete().eq('id', id).then()
+  }
+  const updateJiuTechnique = (id: string, updates: Partial<JiuTechnique>) => {
+    setJiuTechniques((p) => p.map((t) => (t.id === id ? { ...t, ...updates } : t)))
+    const dbUpdates: Record<string, any> = {}
+    if (updates.name !== undefined) dbUpdates.name = updates.name
+    if (updates.category !== undefined) dbUpdates.category = updates.category
+    if (updates.proficiency !== undefined) dbUpdates.proficiency = updates.proficiency
+    ;(supabase as any).from('jiu_techniques').update(dbUpdates).eq('id', id).then()
+  }
+  const fetchJiuLogs = async () => {
+    const {
+      data: { user: authUser },
+    } = await supabase.auth.getUser()
+    if (!authUser) return
+    const { data } = await (supabase as any)
+      .from('jiu_logs')
+      .select('*')
+      .eq('user_id', authUser.id)
+      .order('date', { ascending: false })
+    if (data)
+      setJiuLogs(
+        data.map((d: any) => ({
+          id: d.id,
+          date: (d.date || '').split('T')[0],
+          durationMinutes: d.duration_minutes || 0,
+          sparringRounds: d.sparring_rounds || 0,
+          notes: d.notes || '',
+        })),
+      )
+  }
+  const addJiuLog = (logData: {
+    durationMinutes: number
+    sparringRounds: number
+    notes: string
+  }) => {
+    const tempId = genId()
+    const log: JiuLog = {
+      id: tempId,
+      date: todayStr(),
+      ...logData,
+    }
+    setJiuLogs((p) => [log, ...p])
+    supabase.auth.getUser().then(({ data: { user: u } }) => {
+      if (!u) return
+      ;(supabase as any)
+        .from('jiu_logs')
+        .insert({
+          date: log.date,
+          duration_minutes: logData.durationMinutes,
+          sparring_rounds: logData.sparringRounds,
+          notes: logData.notes,
+          user_id: u.id,
+        })
+        .then(({ error }: { error: any }) => {
+          if (error) {
+            setJiuLogs((p) => p.filter((l) => l.id !== tempId))
+            toast.error('Erro ao salvar treino. Tente novamente.')
+          } else {
+            fetchJiuLogs()
+          }
+        })
+    })
+  }
+  const deleteJiuLog = (id: string) => {
+    setJiuLogs((p) => p.filter((l) => l.id !== id))
+    ;(supabase as any).from('jiu_logs').delete().eq('id', id).then()
+  }
   const addToOfflineQueue = (action: OfflineAction) => setOfflineQueue((p) => [...p, action])
   const clearOfflineQueue = () => setOfflineQueue([])
   const hardReset = async () => {
@@ -1933,6 +2118,18 @@ export const AppStoreProvider = ({ children }: { children: ReactNode }) => {
     fastingLogs,
     activeFastingStart,
     selectedProtocol,
+    jiuProfile,
+    jiuTechniques,
+    jiuLogs,
+    fetchJiuProfile,
+    updateJiuProfile,
+    fetchJiuTechniques,
+    addJiuTechnique,
+    deleteJiuTechnique,
+    updateJiuTechnique,
+    fetchJiuLogs,
+    addJiuLog,
+    deleteJiuLog,
     updateUser,
     addTag,
     updateTag,
