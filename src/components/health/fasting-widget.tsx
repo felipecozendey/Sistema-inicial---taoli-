@@ -142,6 +142,21 @@ export function FastingWidget({ onEndFasting }: FastingWidgetProps) {
           </div>
         </div>
 
+        {activeFastingStart && (
+          <div className="mb-6">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-xs font-bold text-muted-foreground">Progresso do Jejum</span>
+              <span className="text-xs font-extrabold text-[#FF9600]">{progress.toFixed(0)}%</span>
+            </div>
+            <div className="h-4 rounded-full bg-muted/50 border-2 border-[#E5E5E5] dark:border-[#3B4A55] overflow-hidden">
+              <div
+                className="h-full rounded-full bg-[#FF9600] transition-all duration-1000 ease-linear"
+                style={{ width: `${progress}%` }}
+              />
+            </div>
+          </div>
+        )}
+
         {activeFastingStart && startTime && endTime && (
           <div className="flex justify-center gap-8 mb-6">
             <div className="text-center">
@@ -209,12 +224,15 @@ export function FastingWidget({ onEndFasting }: FastingWidgetProps) {
                     </p>
                   </div>
                 </div>
-                <span className="text-xs font-bold">
-                  {log.completed
-                    ? log.actualHours >= log.targetHours
-                      ? '🏆 Meta'
-                      : 'Concluído'
-                    : 'Interrompido'}
+                <span
+                  className={cn(
+                    'px-2.5 py-1 rounded-lg text-[10px] font-extrabold text-white border-b-2',
+                    log.completed
+                      ? 'bg-[#58CC02] border-[#46A302]'
+                      : 'bg-[#FFC800] border-[#CCA200]',
+                  )}
+                >
+                  {log.completed ? '✅ Meta' : '⏹ Interrompido'}
                 </span>
               </div>
             ))}

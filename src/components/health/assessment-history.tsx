@@ -22,7 +22,11 @@ const ACTIVITY_LABELS: Record<string, string> = {
 export function AssessmentHistory() {
   const { bodyMetrics } = useAppStore()
   const [selected, setSelected] = useState<BodyMetric | null>(null)
+  const [currentPage, setCurrentPage] = useState(0)
   const sorted = [...bodyMetrics].sort((a, b) => b.date.localeCompare(a.date))
+  const itemsPerPage = 5
+  const totalPages = Math.ceil(sorted.length / itemsPerPage)
+  const paginated = sorted.slice(currentPage * itemsPerPage, (currentPage + 1) * itemsPerPage)
 
   if (sorted.length === 0) {
     return (
@@ -45,7 +49,7 @@ export function AssessmentHistory() {
   return (
     <div className="space-y-3">
       <h3 className="text-lg font-extrabold">Histórico de Avaliações</h3>
-      {sorted.map((m) => (
+      {paginated.map((m) => (
         <button
           key={m.id}
           onClick={() => setSelected(m)}
@@ -225,6 +229,28 @@ export function AssessmentHistory() {
           )}
         </DialogContent>
       </Dialog>
+
+      {totalPages > 1 && (
+        <div className="flex gap-3 pt-2">
+          <button
+            disabled={currentPage === 0}
+            onClick={() => setCurrentPage((p) => Math.max(0, p - 1))}
+            className="flex-1 py-3 rounded-2xl bg-card border-2 border-b-4 border-[#E5E5E5] dark:border-[#3B4A55] font-extrabold text-sm transition-all active:translate-y-0.5 active:border-b-2 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-muted/30"
+          >
+            ← Anterior
+          </button>
+          <span className="flex items-center px-4 text-sm font-bold text-muted-foreground">
+            {currentPage + 1}/{totalPages}
+          </span>
+          <button
+            disabled={currentPage >= totalPages - 1}
+            onClick={() => setCurrentPage((p) => Math.min(totalPages - 1, p + 1))}
+            className="flex-1 py-3 rounded-2xl bg-card border-2 border-b-4 border-[#E5E5E5] dark:border-[#3B4A55] font-extrabold text-sm transition-all active:translate-y-0.5 active:border-b-2 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-muted/30"
+          >
+            Próxima →
+          </button>
+        </div>
+      )}
     </div>
   )
 }

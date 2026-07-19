@@ -11,7 +11,7 @@ import {
 } from 'recharts'
 import { ChartContainer } from '@/components/ui/chart'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
-import { BookOpen, Zap, TrendingUp } from 'lucide-react'
+import { BookOpen, TrendingUp } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { SCORE_METRICS } from '@/components/health/mind-constants'
 
@@ -30,7 +30,6 @@ export function MindClinicalReport() {
     sleep: false,
     sadness: false,
   })
-  const [eventDate, setEventDate] = useState(defaultEnd)
   const [dialog, setDialog] = useState<DialogState>(null)
 
   const chartData = useMemo(() => {
@@ -72,13 +71,27 @@ export function MindClinicalReport() {
     }
   }, [chartData])
 
-  const dayEvents = useMemo(
-    () =>
-      mindEvents
-        .filter((e) => e.date === eventDate)
-        .sort((a, b) => a.createdAt.localeCompare(b.createdAt)),
-    [mindEvents, eventDate],
-  )
+  const timelineItems = useMemo(() => {
+    const journals = journalEntries
+      .filter((e) => e.date >= startDate && e.date <= endDate)
+      .map((e) => ({
+        type: 'journal' as const,
+        id: e.id,
+        time: e.createdAt,
+        content: e.content,
+        date: e.date,
+      }))
+    const events = mindEvents
+      .filter((e) => e.date >= startDate && e.date <= endDate)
+      .map((e) => ({
+        type: 'event' as const,
+        id: e.id,
+        time: e.createdAt,
+        content: e.description,
+        date: e.date,
+      }))
+    return [...journals, ...events].sort((a, b) => b.time.localeCompare(a.time))
+  }, [journalEntries, mindEvents, startDate, endDate])
 
   const toggleMetric = (key: string) => setActiveMetrics((p) => ({ ...p, [key]: !p[key] }))
   const dateInputClass =
@@ -207,43 +220,60 @@ export function MindClinicalReport() {
 
         <div className="bg-card border-2 border-b-4 border-[#E5E5E5] dark:border-[#3B4A55] rounded-3xl p-6 shadow-sm">
           <div className="flex items-center gap-2 mb-4">
-            <div className="w-10 h-10 rounded-2xl bg-[#58CC02]/15 flex items-center justify-center">
-              <BookOpen className="w-5 h-5 text-[#58CC02]" />
+            <div className="w-10 h-10 rounded-2xl bg-[#CE82FF]/15 flex items-center justify-center">
+              <BookOpen className="w-5 h-5 text-[#CE82FF]" />
             </div>
-            <h3 className="text-lg font-extrabold">Diário Emocional</h3>
+            <h3 className="text-lg font-extrabold">📝 Linha do Tempo: Vivências e Desabafos</h3>
           </div>
-          <div className="space-y-2 max-h-96 overflow-y-auto">
-            {journalEntries.length === 0 ? (
+          <div className="space-y-2 max-h-[28rem] overflow-y-auto">
+            {timelineItems.length === 0 ? (
               <p className="text-sm font-bold text-muted-foreground text-center py-4">
-                Nenhuma entrada.
+                Nenhum registro no período.
               </p>
             ) : (
-              journalEntries.map((entry) => (
+              timelineItems.map((item) => (
                 <button
-                  key={entry.id}
+                  key={`${item.type}-${item.id}`}
                   onClick={() =>
-                    setDialog({
-                      title: new Date(entry.date + 'T00:00:00').toLocaleDateString('pt-BR', {
-                        day: '2-digit',
-                        month: 'long',
-                        year: 'numeric',
-                      }),
-                      content: entry.content,
-                      isHtml: true,
-                    })
+                    item.type === 'journal'
+                      ? setDialog({
+                          title: new Date(item.date + 'T00:00:00').toLocaleDateString('pt-BR', {
+                            day: '2-digit',
+                            month: 'long',
+                            year: 'numeric',
+                          }),
+                          content: item.content,
+                          isHtml: true,
+                        })
+                      : undefined
                   }
-                  className="w-full text-left flex items-center gap-3 bg-muted/40 rounded-xl px-3 py-2.5 hover:bg-muted/60 transition-colors"
+                  className={cn(
+                    'w-full text-left flex items-center gap-3 bg-muted/40 rounded-xl px-3 py-2.5 transition-colors',
+                    item.type === 'journal' && 'hover:bg-muted/60 cursor-pointer',
+                  )}
                 >
-                  <BookOpen className="w-4 h-4 text-[#58CC02] shrink-0" />
-                  <div className="min-w-0">
-                    <p className="text-xs font-extrabold">
-                      {new Date(entry.date + 'T00:00:00').toLocaleDateString('pt-BR', {
-                        day: '2-digit',
-                        month: 'short',
-                      })}
-                    </p>
+                  <span className="text-base shrink-0">
+                    {item.type === 'journal' ? '📖' : '⚡'}
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2">
+                      <p className="text-xs font-extrabold">
+                        {new Date(item.date + 'T00:00:00').toLocaleDateString('pt-BR', {
+                          day: '2-digit',
+                          month: 'short',
+                        })}
+                      </p>
+                      <span className="text-[10px] font-bold text-muted-foreground">
+                        {new Date(item.time).toLocaleTimeString('pt-BR', {
+                          hour: '2-digit',
+                          minute: '2-digit',
+                        })}
+                      </span>
+                    </div>
                     <p className="text-[10px] text-muted-foreground font-semibold truncate">
-                      {entry.content.replace(/<[^>]*>/g, '').slice(0, 50) || 'Vazio'}
+                      {item.type === 'journal'
+                        ? item.content.replace(/<[^>]*>/g, '').slice(0, 50) || 'Vazio'
+                        : item.content}
                     </p>
                   </div>
                 </button>
@@ -251,48 +281,6 @@ export function MindClinicalReport() {
             )}
           </div>
         </div>
-      </div>
-
-      <div className="bg-card border-2 border-b-4 border-[#E5E5E5] dark:border-[#3B4A55] rounded-3xl p-6 shadow-sm">
-        <div className="flex items-center gap-2 mb-4">
-          <div className="w-10 h-10 rounded-2xl bg-[#1CB0F6]/15 flex items-center justify-center">
-            <Zap className="w-5 h-5 text-[#1CB0F6]" />
-          </div>
-          <h3 className="text-lg font-extrabold">O que aconteceu nesse dia?</h3>
-        </div>
-        <div className="mb-4">
-          <input
-            type="date"
-            value={eventDate}
-            onChange={(e) => setEventDate(e.target.value)}
-            className={dateInputClass + ' max-w-xs'}
-          />
-        </div>
-        {dayEvents.length === 0 ? (
-          <p className="text-sm font-bold text-muted-foreground text-center py-4">
-            Nenhum evento registrado neste dia.
-          </p>
-        ) : (
-          <div className="space-y-2">
-            {dayEvents.map((event, i) => (
-              <div
-                key={event.id}
-                className="flex items-start gap-3 bg-muted/40 rounded-xl px-3 py-2.5"
-              >
-                <span className="text-xs font-extrabold text-muted-foreground shrink-0 w-6">
-                  {i + 1}.
-                </span>
-                <span className="text-sm font-semibold flex-1">{event.description}</span>
-                <span className="text-[10px] text-muted-foreground font-bold shrink-0">
-                  {new Date(event.createdAt).toLocaleTimeString('pt-BR', {
-                    hour: '2-digit',
-                    minute: '2-digit',
-                  })}
-                </span>
-              </div>
-            ))}
-          </div>
-        )}
       </div>
 
       <button

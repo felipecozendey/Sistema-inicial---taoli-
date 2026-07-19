@@ -9,8 +9,9 @@ import { MedicalExamsSection } from '@/components/health/medical-exams-section'
 import { MetabolicDashboard } from '@/components/health/metabolic-dashboard'
 import { AssessmentHistory } from '@/components/health/assessment-history'
 import { GameButton } from '@/components/ui/game-button'
-import { Plus, Heart, Moon, Brain, Scale, Flame, Dumbbell } from 'lucide-react'
+import { Plus, Scale, Flame, Dumbbell } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { VitalsChart } from '@/components/health/vitals-chart'
 
 function getBmiStatus(bmi: number) {
   if (bmi <= 0)
@@ -44,8 +45,6 @@ function getBmiStatus(bmi: number) {
   }
 }
 
-const STRESS_EMOJIS = ['😌', '🙂', '😐', '😟', '😰']
-
 export function BodyXrayTab() {
   const bodyMetrics = useAppStore((s) => s.bodyMetrics)
   const patientGoals = useAppStore((s) => s.patientGoals)
@@ -72,19 +71,6 @@ export function BodyXrayTab() {
   }, [latest, patientGoals.height])
 
   const bmiStatus = useMemo(() => getBmiStatus(bmi), [bmi])
-
-  const v = useMemo(
-    () =>
-      latest
-        ? {
-            hr: latest.heartRateRest,
-            sleep: latest.sleepQuality,
-            stress: latest.stressLevel,
-            bp: latest.bloodPressure,
-          }
-        : null,
-    [latest],
-  )
 
   return (
     <div className="space-y-6 animate-fade-in-up">
@@ -151,73 +137,7 @@ export function BodyXrayTab() {
               </div>
             </div>
 
-            <div className="bg-card border-2 border-b-4 border-[#E5E5E5] dark:border-[#3B4A55] rounded-3xl p-6 shadow-sm">
-              <h4 className="text-base font-extrabold flex items-center gap-2 mb-4">
-                <Heart className="w-5 h-5 text-[#FF4B4B]" />
-                Sinais Vitais & Bem-Estar
-              </h4>
-              <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <Heart className="w-4 h-4 text-[#FF4B4B] animate-pulse" />
-                    <span className="text-sm font-bold">Freq. Cardíaca</span>
-                  </div>
-                  <span className="font-extrabold">
-                    {v?.hr || '—'}{' '}
-                    <span className="text-xs text-muted-foreground font-bold">bpm</span>
-                  </span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <span className="text-base">🩺</span>
-                    <span className="text-sm font-bold">Pressão Arterial</span>
-                  </div>
-                  <span className="font-extrabold">{v?.bp || '—'}</span>
-                </div>
-                <div>
-                  <div className="flex items-center justify-between mb-1">
-                    <div className="flex items-center gap-2">
-                      <Moon className="w-4 h-4 text-[#8B5CF6]" />
-                      <span className="text-sm font-bold">Qualidade do Sono</span>
-                    </div>
-                    <div className="flex gap-0.5">
-                      {[1, 2, 3, 4, 5].map((n) => (
-                        <span
-                          key={n}
-                          className={cn(
-                            'text-sm',
-                            (v?.sleep || 0) >= n ? 'opacity-100' : 'opacity-20',
-                          )}
-                        >
-                          ⭐
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                  <div className="h-2 rounded-full bg-muted overflow-hidden">
-                    <div
-                      className="h-full rounded-full bg-[#8B5CF6] transition-all duration-500"
-                      style={{ width: `${((v?.sleep || 0) / 5) * 100}%` }}
-                    />
-                  </div>
-                </div>
-                <div>
-                  <div className="flex items-center justify-between mb-1">
-                    <div className="flex items-center gap-2">
-                      <Brain className="w-4 h-4 text-[#FF9600]" />
-                      <span className="text-sm font-bold">Nível de Estresse</span>
-                    </div>
-                    <span className="text-lg">{v?.stress ? STRESS_EMOJIS[v.stress - 1] : '—'}</span>
-                  </div>
-                  <div className="h-2 rounded-full bg-muted overflow-hidden">
-                    <div
-                      className="h-full rounded-full bg-[#FF9600] transition-all duration-500"
-                      style={{ width: `${((v?.stress || 0) / 5) * 100}%` }}
-                    />
-                  </div>
-                </div>
-              </div>
-            </div>
+            <VitalsChart />
           </div>
 
           <MetabolicDashboard />
