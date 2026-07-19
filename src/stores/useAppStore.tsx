@@ -196,6 +196,12 @@ export type JiuTechnique = {
   name: string
   category: string
   proficiency: number
+  notes: string
+  videoUrl: string
+}
+export type JiuCategory = {
+  id: string
+  name: string
 }
 export type JiuLog = {
   id: string
@@ -285,6 +291,7 @@ interface AppState {
   jiuProfile: JiuProfile | null
   jiuTechniques: JiuTechnique[]
   jiuLogs: JiuLog[]
+  jiuCategories: JiuCategory[]
   updateUser: (u: Partial<User>) => void
   addTag: (name: string, color: string) => void
   updateTag: (id: string, updates: Partial<Pick<Tag, 'name' | 'color'>>) => void
@@ -331,12 +338,26 @@ interface AppState {
   fetchJiuProfile: () => Promise<void>
   updateJiuProfile: (updates: Partial<JiuProfile>) => void
   fetchJiuTechniques: () => Promise<void>
-  addJiuTechnique: (data: { name: string; category: string; proficiency: number }) => void
+  addJiuTechnique: (data: {
+    name: string
+    category: string
+    proficiency: number
+    notes?: string
+    videoUrl?: string
+  }) => void
   updateJiuTechnique: (id: string, updates: Partial<JiuTechnique>) => void
   deleteJiuTechnique: (id: string) => void
   fetchJiuLogs: () => Promise<void>
-  addJiuLog: (data: { durationMinutes: number; sparringRounds: number; notes: string }) => void
+  addJiuLog: (data: {
+    durationMinutes: number
+    sparringRounds: number
+    notes: string
+    date?: string
+  }) => void
   deleteJiuLog: (id: string) => void
+  fetchJiuCategories: () => Promise<void>
+  addJiuCategory: (name: string) => void
+  deleteJiuCategory: (id: string) => void
   addMealLog: (data: {
     mealType: string
     description: string
@@ -913,6 +934,10 @@ export const AppStoreProvider = ({ children }: { children: ReactNode }) => {
     const s = localStorage.getItem('vt_jiu_logs')
     return s ? JSON.parse(s) : []
   })
+  const [jiuCategories, setJiuCategories] = useState<JiuCategory[]>(() => {
+    const s = localStorage.getItem('vt_jiu_categories')
+    return s ? JSON.parse(s) : []
+  })
   const escudoCheckRef = useRef(false)
 
   useEffect(() => {
@@ -1003,6 +1028,9 @@ export const AppStoreProvider = ({ children }: { children: ReactNode }) => {
   useEffect(() => {
     localStorage.setItem('vt_jiu_logs', JSON.stringify(jiuLogs))
   }, [jiuLogs])
+  useEffect(() => {
+    localStorage.setItem('vt_jiu_categories', JSON.stringify(jiuCategories))
+  }, [jiuCategories])
   useEffect(() => {
     if (escudoCheckRef.current) return
     escudoCheckRef.current = true
@@ -1931,17 +1959,40 @@ export const AppStoreProvider = ({ children }: { children: ReactNode }) => {
           name: d.name,
           category: d.category,
           proficiency: d.proficiency,
+          notes: d.notes || '',
+          videoUrl: d.video_url || '',
         })),
       )
   }
-  const addJiuTechnique = (techData: { name: string; category: string; proficiency: number }) => {
+  const addJiuTechnique = (techData: {
+    name: string
+    category: string
+    proficiency: number
+    notes?: string
+    videoUrl?: string
+  }) => {
     const tempId = genId()
-    setJiuTechniques((p) => [...p, { id: tempId, ...techData }])
+    const tech: JiuTechnique = {
+      id: tempId,
+      name: techData.name,
+      category: techData.category,
+      proficiency: techData.proficiency,
+      notes: techData.notes || '',
+      videoUrl: techData.videoUrl || '',
+    }
+    setJiuTechniques((p) => [...p, tech])
     supabase.auth.getUser().then(({ data: { user: u } }) => {
       if (!u) return
       ;(supabase as any)
         .from('jiu_techniques')
-        .insert({ ...techData, user_id: u.id })
+        .insert({
+          name: techData.name,
+          category: techData.category,
+          proficiency: techData.proficiency,
+          notes: techData.notes || '',
+          video_url: techData.videoUrl || '',
+          user_id: u.id,
+        })
         .then(({ error }: { error: any }) => {
           if (error) {
             setJiuTechniques((p) => p.filter((t) => t.id !== tempId))
@@ -1962,6 +2013,8 @@ export const AppStoreProvider = ({ children }: { children: ReactNode }) => {
     if (updates.name !== undefined) dbUpdates.name = updates.name
     if (updates.category !== undefined) dbUpdates.category = updates.category
     if (updates.proficiency !== undefined) dbUpdates.proficiency = updates.proficiency
+    if (updates.notes !== undefined) dbUpdates.notes = updates.notes
+    if (updates.videoUrl !== undefined) dbUpdates.video_url = updates.videoUrl
     ;(supabase as any).from('jiu_techniques').update(dbUpdates).eq('id', id).then()
   }
   const fetchJiuLogs = async () => {
@@ -1989,12 +2042,15 @@ export const AppStoreProvider = ({ children }: { children: ReactNode }) => {
     durationMinutes: number
     sparringRounds: number
     notes: string
+    date?: string
   }) => {
     const tempId = genId()
     const log: JiuLog = {
       id: tempId,
-      date: todayStr(),
-      ...logData,
+      date: logData.date || todayStr(),
+      durationMinutes: logData.durationMinutes,
+      sparringRounds: logData.sparringRounds,
+      notes: logData.notes,
     }
     setJiuLogs((p) => [log, ...p])
     supabase.auth.getUser().then(({ data: { user: u } }) => {
@@ -2021,6 +2077,40 @@ export const AppStoreProvider = ({ children }: { children: ReactNode }) => {
   const deleteJiuLog = (id: string) => {
     setJiuLogs((p) => p.filter((l) => l.id !== id))
     ;(supabase as any).from('jiu_logs').delete().eq('id', id).then()
+  }
+  const fetchJiuCategories = async () => {
+    const {
+      data: { user: authUser },
+    } = await supabase.auth.getUser()
+    if (!authUser) return
+    const { data } = await (supabase as any)
+      .from('jiu_categories')
+      .select('*')
+      .eq('user_id', authUser.id)
+      .order('name', { ascending: true })
+    if (data) setJiuCategories(data.map((d: any) => ({ id: d.id, name: d.name })))
+  }
+  const addJiuCategory = (name: string) => {
+    const tempId = genId()
+    setJiuCategories((p) => [...p, { id: tempId, name }])
+    supabase.auth.getUser().then(({ data: { user: u } }) => {
+      if (!u) return
+      ;(supabase as any)
+        .from('jiu_categories')
+        .insert({ name, user_id: u.id })
+        .then(({ error }: { error: any }) => {
+          if (error) {
+            setJiuCategories((p) => p.filter((c) => c.id !== tempId))
+            toast.error('Erro ao salvar categoria.')
+          } else {
+            fetchJiuCategories()
+          }
+        })
+    })
+  }
+  const deleteJiuCategory = (id: string) => {
+    setJiuCategories((p) => p.filter((c) => c.id !== id))
+    ;(supabase as any).from('jiu_categories').delete().eq('id', id).then()
   }
   const addToOfflineQueue = (action: OfflineAction) => setOfflineQueue((p) => [...p, action])
   const clearOfflineQueue = () => setOfflineQueue([])
@@ -2121,6 +2211,7 @@ export const AppStoreProvider = ({ children }: { children: ReactNode }) => {
     jiuProfile,
     jiuTechniques,
     jiuLogs,
+    jiuCategories,
     fetchJiuProfile,
     updateJiuProfile,
     fetchJiuTechniques,
@@ -2130,6 +2221,9 @@ export const AppStoreProvider = ({ children }: { children: ReactNode }) => {
     fetchJiuLogs,
     addJiuLog,
     deleteJiuLog,
+    fetchJiuCategories,
+    addJiuCategory,
+    deleteJiuCategory,
     updateUser,
     addTag,
     updateTag,

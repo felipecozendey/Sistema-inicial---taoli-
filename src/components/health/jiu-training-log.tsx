@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { useAppStore } from '@/stores/useAppStore'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
@@ -17,6 +17,7 @@ export function JiuTrainingLog() {
   const deleteJiuLog = useAppStore((s) => s.deleteJiuLog)
   const [modalOpen, setModalOpen] = useState(false)
   const [page, setPage] = useState(0)
+  const [date, setDate] = useState(new Date().toISOString().split('T')[0])
   const [duration, setDuration] = useState('')
   const [rounds, setRounds] = useState('')
   const [notes, setNotes] = useState('')
@@ -25,52 +26,69 @@ export function JiuTrainingLog() {
     fetchJiuLogs()
   }, [fetchJiuLogs])
 
-  const totalPages = Math.ceil(jiuLogs.length / PAGE_SIZE)
-  const pageLogs = jiuLogs.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE)
+  const sortedLogs = useMemo(
+    () => [...jiuLogs].sort((a, b) => b.date.localeCompare(a.date)),
+    [jiuLogs],
+  )
+
+  const totalPages = Math.ceil(sortedLogs.length / PAGE_SIZE)
+  const pageLogs = sortedLogs.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE)
+  const today = new Date().toISOString().split('T')[0]
 
   const handleSubmit = () => {
     const dur = parseInt(duration) || 0
     const rnd = parseInt(rounds) || 0
     if (dur <= 0) return
-    addJiuLog({ durationMinutes: dur, sparringRounds: rnd, notes: notes.trim() })
+    addJiuLog({ durationMinutes: dur, sparringRounds: rnd, notes: notes.trim(), date })
     setModalOpen(false)
     setDuration('')
     setRounds('')
     setNotes('')
+    setDate(new Date().toISOString().split('T')[0])
     toast.success('Mais um dia de sobrevivência no tatame! Oss! 🥋')
   }
 
   return (
     <div className="space-y-4">
       {pageLogs.length > 0 ? (
-        pageLogs.map((log) => (
-          <div
-            key={log.id}
-            className="bg-card rounded-3xl p-5 border-2 border-b-4 border-[#E5E5E5] dark:border-[#3B4A55]"
-          >
-            <div className="flex items-start justify-between">
-              <div>
-                <p className="font-extrabold text-lg">
-                  {new Date(log.date + 'T12:00:00').toLocaleDateString('pt-BR', {
-                    day: '2-digit',
-                    month: 'long',
-                  })}
-                </p>
-                <div className="flex gap-4 mt-2 text-sm">
-                  <span className="font-bold text-[#1CB0F6]">⏱ {log.durationMinutes} min</span>
-                  <span className="font-bold text-[#58CC02]">🤼 {log.sparringRounds} rolas</span>
+        pageLogs.map((log) => {
+          const isPlanned = log.date > today
+          return (
+            <div
+              key={log.id}
+              className="bg-card rounded-3xl p-5 border-2 border-b-4 border-[#E5E5E5] dark:border-[#3B4A55]"
+            >
+              <div className="flex items-start justify-between">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <p className="font-extrabold text-lg">
+                      {new Date(log.date + 'T12:00:00').toLocaleDateString('pt-BR', {
+                        day: '2-digit',
+                        month: 'long',
+                      })}
+                    </p>
+                    {isPlanned && (
+                      <span className="text-xs font-extrabold px-2 py-1 rounded-full border-b-2 bg-[#FF9600]/10 text-[#FF9600] border-[#FF9600]">
+                        ⏳ Planejado
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex gap-4 mt-2 text-sm">
+                    <span className="font-bold text-[#1CB0F6]">⏱ {log.durationMinutes} min</span>
+                    <span className="font-bold text-[#58CC02]">🤼 {log.sparringRounds} rolas</span>
+                  </div>
                 </div>
+                <button
+                  onClick={() => deleteJiuLog(log.id)}
+                  className="text-muted-foreground hover:text-red-500 text-sm"
+                >
+                  ✕
+                </button>
               </div>
-              <button
-                onClick={() => deleteJiuLog(log.id)}
-                className="text-muted-foreground hover:text-red-500 text-sm"
-              >
-                ✕
-              </button>
+              {log.notes && <p className="mt-3 text-sm text-muted-foreground">{log.notes}</p>}
             </div>
-            {log.notes && <p className="mt-3 text-sm text-muted-foreground">{log.notes}</p>}
-          </div>
-        ))
+          )
+        })
       ) : (
         <div className="text-center py-12 text-muted-foreground">
           <p className="text-5xl mb-3">📝</p>
@@ -123,6 +141,15 @@ export function JiuTrainingLog() {
             <DialogTitle className="text-xl font-extrabold">Registrar Treino</DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
+            <div className="space-y-2">
+              <Label className="text-sm font-extrabold">Data</Label>
+              <Input
+                type="date"
+                value={date}
+                onChange={(e) => setDate(e.target.value)}
+                className="rounded-xl font-bold"
+              />
+            </div>
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-2">
                 <Label className="text-sm font-extrabold">Duração (min)</Label>
@@ -146,7 +173,7 @@ export function JiuTrainingLog() {
               </div>
             </div>
             <div className="space-y-2">
-              <Label className="text-sm font-extrabold">Notas</Label>
+              <Label className="text-sm font-extrabold">Plano de Aula / O que rolou</Label>
               <Textarea
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}

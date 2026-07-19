@@ -2,6 +2,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { JiuDashboard } from '@/components/health/jiu-dashboard'
 import { JiuArsenal } from '@/components/health/jiu-arsenal'
 import { JiuTrainingLog } from '@/components/health/jiu-training-log'
+import { JiuSettingsTab } from '@/components/health/jiu-settings-tab'
 
 export function MyJiuTab() {
   return (
@@ -16,6 +17,9 @@ export function MyJiuTab() {
         <TabsTrigger value="diario" className="rounded-xl font-bold">
           📝 Diário
         </TabsTrigger>
+        <TabsTrigger value="config" className="rounded-xl font-bold">
+          ⚙️ Config
+        </TabsTrigger>
       </TabsList>
       <TabsContent value="tatame" className="mt-6">
         <JiuDashboard />
@@ -25,6 +29,9 @@ export function MyJiuTab() {
       </TabsContent>
       <TabsContent value="diario" className="mt-6">
         <JiuTrainingLog />
+      </TabsContent>
+      <TabsContent value="config" className="mt-6">
+        <JiuSettingsTab />
       </TabsContent>
     </Tabs>
   )
