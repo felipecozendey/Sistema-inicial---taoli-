@@ -86,12 +86,15 @@ export type WorkoutRoutine = {
   id: string
   title: string
   exercises: WorkoutExercise[]
+  description?: string
 }
 export type WorkoutHistory = {
   id: string
   routineId: string
   completedAt: string
   data: Record<string, any>
+  durationMinutes?: number
+  totalVolumeKg?: number
 }
 export type PersonalRecord = {
   benchPress: string
@@ -322,10 +325,21 @@ interface AppState {
   dailyChecklist: Record<string, boolean>
   fetchDailyChecklist: () => Promise<void>
   toggleChecklistItem: (key: string) => void
-  addWorkoutRoutine: (title: string, exercises: WorkoutExercise[]) => void
+  addWorkoutRoutine: (title: string, exercises: WorkoutExercise[], description?: string) => void
   deleteWorkoutRoutine: (id: string) => void
   fetchWorkoutRoutines: () => Promise<void>
   addWorkoutHistory: (routineId: string, data: Record<string, any>) => void
+  updateWorkoutRoutine: (
+    id: string,
+    updates: Partial<Pick<WorkoutRoutine, 'title' | 'exercises' | 'description'>>,
+  ) => void
+  fetchWorkoutHistory: () => Promise<void>
+  addWorkoutLog: (
+    routineId: string,
+    data: Record<string, any>,
+    durationMinutes: number,
+    totalVolumeKg: number,
+  ) => void
   completeWorkoutSet: () => void
   updatePersonalRecords: (updates: Partial<PersonalRecord>) => void
   fetchBodyMetrics: () => Promise<void>
@@ -1230,14 +1244,19 @@ export const AppStoreProvider = ({ children }: { children: ReactNode }) => {
       return newChecklist
     })
   }
-  const addWorkoutRoutine = (title: string, exercises: WorkoutExercise[]) => {
-    const routine: WorkoutRoutine = { id: genId(), title, exercises }
+  const addWorkoutRoutine = (title: string, exercises: WorkoutExercise[], description?: string) => {
+    const routine: WorkoutRoutine = {
+      id: genId(),
+      title,
+      exercises,
+      description: description || '',
+    }
     setWorkoutRoutines((p) => [...p, routine])
     supabase.auth.getUser().then(({ data: { user: u } }) => {
       if (u)
         (supabase as any)
           .from('workout_routines')
-          .insert({ title, exercises, user_id: u.id })
+          .insert({ title, exercises, description: description || '', user_id: u.id })
           .then()
     })
   }
@@ -1259,6 +1278,7 @@ export const AppStoreProvider = ({ children }: { children: ReactNode }) => {
           id: d.id,
           title: d.title,
           exercises: d.exercises || [],
+          description: d.description || '',
         })),
       )
   }
@@ -1273,6 +1293,78 @@ export const AppStoreProvider = ({ children }: { children: ReactNode }) => {
           .from('workout_history')
           .insert({ routine_id: routineId, data: sessionData, user_id: u.id })
           .then()
+    })
+  }
+  const updateWorkoutRoutine = (
+    id: string,
+    updates: Partial<Pick<WorkoutRoutine, 'title' | 'exercises' | 'description'>>,
+  ) => {
+    setWorkoutRoutines((p) => p.map((r) => (r.id === id ? { ...r, ...updates } : r)))
+    const dbUpdates: Record<string, any> = {}
+    if (updates.title !== undefined) dbUpdates.title = updates.title
+    if (updates.exercises !== undefined) dbUpdates.exercises = updates.exercises
+    if (updates.description !== undefined) dbUpdates.description = updates.description
+    ;(supabase as any).from('workout_routines').update(dbUpdates).eq('id', id).then()
+  }
+  const fetchWorkoutHistory = async () => {
+    const {
+      data: { user: authUser },
+    } = await supabase.auth.getUser()
+    if (!authUser) return
+    const { data } = await (supabase as any)
+      .from('workout_history')
+      .select('*')
+      .eq('user_id', authUser.id)
+      .order('completed_at', { ascending: false })
+    if (data)
+      setWorkoutHistory(
+        data.map((d: any) => ({
+          id: d.id,
+          routineId: d.routine_id || '',
+          completedAt: d.completed_at,
+          data: d.data || {},
+          durationMinutes: d.duration_minutes || 0,
+          totalVolumeKg: Number(d.total_volume_kg) || 0,
+        })),
+      )
+  }
+  const addWorkoutLog = (
+    routineId: string,
+    logData: Record<string, any>,
+    durationMinutes: number,
+    totalVolumeKg: number,
+  ) => {
+    const tempId = genId()
+    setWorkoutHistory((p) => [
+      {
+        id: tempId,
+        routineId,
+        completedAt: nowIso(),
+        data: logData,
+        durationMinutes,
+        totalVolumeKg,
+      },
+      ...p,
+    ])
+    supabase.auth.getUser().then(({ data: { user: u } }) => {
+      if (!u) return
+      ;(supabase as any)
+        .from('workout_history')
+        .insert({
+          routine_id: routineId,
+          data: logData,
+          duration_minutes: durationMinutes,
+          total_volume_kg: totalVolumeKg,
+          user_id: u.id,
+        })
+        .then(({ error }: { error: any }) => {
+          if (error) {
+            setWorkoutHistory((p) => p.filter((h) => h.id !== tempId))
+            toast.error('Erro ao salvar treino. Tente novamente.')
+          } else {
+            fetchWorkoutHistory()
+          }
+        })
     })
   }
   const completeWorkoutSet = () => addCoins(2)
@@ -1885,6 +1977,9 @@ export const AppStoreProvider = ({ children }: { children: ReactNode }) => {
     deleteWorkoutRoutine,
     fetchWorkoutRoutines,
     addWorkoutHistory,
+    updateWorkoutRoutine,
+    fetchWorkoutHistory,
+    addWorkoutLog,
     completeWorkoutSet,
     updatePersonalRecords,
     fetchBodyMetrics,

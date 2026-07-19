@@ -4,7 +4,7 @@ import { BowelWidget } from '@/components/health/bowel-widget'
 import { UrineWidget } from '@/components/health/urine-widget'
 import { NutritionOverview } from '@/components/health/nutrition-overview'
 import { MealHistory } from '@/components/health/meal-history'
-import { ExerciseWidget } from '@/components/health/exercise-widget'
+import { ExercisesTab } from '@/components/health/exercises-tab'
 import { BodyXrayTab } from '@/components/health/body-xray-tab'
 import { HealthHistory } from '@/components/health/health-history'
 import { FastingTab } from '@/components/health/fasting-tab'
@@ -92,7 +92,7 @@ export default function HealthPage() {
         </TabsContent>
 
         <TabsContent value="exercicios" className="mt-6 print:hidden">
-          <ExerciseWidget />
+          <ExercisesTab />
         </TabsContent>
 
         <TabsContent value="raio-x" className="mt-6 print:hidden">
