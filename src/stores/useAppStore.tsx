@@ -137,6 +137,7 @@ export type BodyMetric = {
   sadnessLevel?: number
   anxietyLevel?: number
   mentalTriggers?: string
+  glucose?: number
 }
 export type MentalHealthLog = {
   id: string
@@ -392,6 +393,11 @@ interface AppState {
   updatePersonalRecords: (updates: Partial<PersonalRecord>) => void
   fetchBodyMetrics: () => Promise<void>
   addBodyMetric: (metric: Omit<BodyMetric, 'id'>) => void
+  addQuickVitals: (data: {
+    heartRateRest?: number
+    bloodPressure?: string
+    glucose?: number
+  }) => void
   mentalHealthLogs: MentalHealthLog[]
   addMentalHealthLog: (data: {
     mood: number
@@ -1488,6 +1494,7 @@ export const AppStoreProvider = ({ children }: { children: ReactNode }) => {
           sadnessLevel: d.sadness_level || undefined,
           anxietyLevel: d.anxiety_level || undefined,
           mentalTriggers: d.mental_triggers || undefined,
+          glucose: d.glucose ? Number(d.glucose) : undefined,
         })),
       )
   }
@@ -1524,12 +1531,54 @@ export const AppStoreProvider = ({ children }: { children: ReactNode }) => {
           venta_target: metric.ventaTarget || null,
           target_weight: metric.targetWeight || null,
           days_for_goal: metric.daysForGoal || null,
+          glucose: metric.glucose || null,
           user_id: u.id,
         })
         .then(({ error }: { error: any }) => {
           if (error) {
             setBodyMetrics((p) => p.filter((m) => m.id !== tempId))
             toast.error('Erro ao salvar avaliação. Tente novamente.')
+          }
+        })
+    })
+  }
+  const addQuickVitals = (data: {
+    heartRateRest?: number
+    bloodPressure?: string
+    glucose?: number
+  }) => {
+    const tempId = genId()
+    const today = todayStr()
+    setBodyMetrics((p) => [
+      ...p,
+      {
+        id: tempId,
+        date: today,
+        weight: 0,
+        bodyFatPercentage: 0,
+        muscleMass: 0,
+        measurements: {},
+        photoUrls: [],
+        heartRateRest: data.heartRateRest,
+        bloodPressure: data.bloodPressure,
+        glucose: data.glucose,
+      },
+    ])
+    supabase.auth.getUser().then(({ data: { user: u } }) => {
+      if (!u) return
+      ;(supabase as any)
+        .from('body_metrics')
+        .insert({
+          date: today,
+          heart_rate_rest: data.heartRateRest || null,
+          blood_pressure: data.bloodPressure || null,
+          glucose: data.glucose || null,
+          user_id: u.id,
+        })
+        .then(({ error }: { error: any }) => {
+          if (error) {
+            setBodyMetrics((p) => p.filter((m) => m.id !== tempId))
+            toast.error('Erro ao salvar sinais vitais.')
           }
         })
     })
@@ -2275,6 +2324,7 @@ export const AppStoreProvider = ({ children }: { children: ReactNode }) => {
     updatePersonalRecords,
     fetchBodyMetrics,
     addBodyMetric,
+    addQuickVitals,
     mentalHealthLogs,
     addMentalHealthLog,
     fetchMentalHealthLogs,

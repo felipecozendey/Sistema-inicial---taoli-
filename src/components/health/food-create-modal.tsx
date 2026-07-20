@@ -31,6 +31,7 @@ export function FoodCreateModal({ open, onOpenChange }: Props) {
     setTags((prev) => (prev.includes(tag) ? prev.filter((t) => t !== tag) : [...prev, tag]))
 
   const handleSubmit = async () => {
+    onOpenChange(false)
     if (!name.trim()) {
       toast.error('Adicione um nome')
       return
@@ -39,7 +40,6 @@ export function FoodCreateModal({ open, onOpenChange }: Props) {
       toast.error('Adicione as calorias')
       return
     }
-    onOpenChange(false)
     await addCustomFood({
       name: name.trim(),
       baseUnit: baseUnit.trim() || '100g',

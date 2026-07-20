@@ -117,11 +117,11 @@ export function FoodEntryModal({ open, onOpenChange, planId }: Props) {
   }, [])
 
   const handleSubmit = useCallback(() => {
+    onOpenChange(false)
     if (!selected || !calc || !planId) {
       toast.error('Selecione um alimento')
       return
     }
-    onOpenChange(false)
     const unitPart = selected.baseUnit.replace(/[\d.\s]+/g, '').trim()
     addDietPlanItem(planId, {
       description: selected.name,

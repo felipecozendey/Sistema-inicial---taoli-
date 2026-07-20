@@ -96,37 +96,45 @@ export function NutritionSettingsTab() {
             <p className="font-bold text-muted-foreground">Nenhum alimento encontrado</p>
           </div>
         ) : (
-          <div className="space-y-2">
+          <div className="space-y-1.5">
+            <div className="hidden md:grid grid-cols-[1fr_80px_70px_60px_60px_60px_40px] gap-2 px-4 py-1 text-[10px] font-extrabold text-muted-foreground uppercase tracking-wide">
+              <span>Nome</span>
+              <span className="text-center">Porção</span>
+              <span className="text-center">Kcal</span>
+              <span className="text-center">Carbo</span>
+              <span className="text-center">Prot</span>
+              <span className="text-center">Gord</span>
+              <span />
+            </div>
             {paginated.map((f) => (
               <div
                 key={f.id}
                 onClick={() => setDetailFoodId(f.id)}
-                className="bg-card border-2 border-[#E5E5E5] dark:border-[#3B4A55] rounded-2xl p-4 flex items-center gap-3 cursor-pointer hover:border-[#1CB0F6]/50 transition-colors duration-150"
+                className="grid grid-cols-[1fr_70px_55px_45px_45px_45px_32px] md:grid-cols-[1fr_80px_70px_60px_60px_60px_40px] gap-2 items-center bg-card border-2 border-[#E5E5E5] dark:border-[#3B4A55] rounded-3xl px-4 py-2.5 cursor-pointer hover:border-[#1CB0F6]/50 hover:bg-[#1CB0F6]/5 transition-all duration-150"
               >
-                <div className="flex-1 min-w-0">
-                  <h4 className="font-extrabold truncate">{f.name}</h4>
-                  <p className="font-bold text-muted-foreground">{f.baseUnit}</p>
-                  <div className="flex gap-3 mt-1">
-                    <span className="font-bold text-[#FF4B4B]">{f.calories} kcal</span>
-                    <span className="font-bold text-[#FFC800]">{f.carbsG}g</span>
-                    <span className="font-bold text-[#FF4B4B]">{f.proteinG}g P</span>
-                    <span className="font-bold text-[#1CB0F6]">{f.fatG}g G</span>
-                  </div>
-                </div>
+                <span className="font-extrabold text-sm truncate">{f.name}</span>
+                <span className="font-bold text-xs text-muted-foreground text-center">
+                  {f.baseUnit}
+                </span>
+                <span className="font-extrabold text-sm text-[#FF4B4B] text-center">
+                  {f.calories}
+                </span>
+                <span className="font-bold text-xs text-[#FFC800] text-center">{f.carbsG}g</span>
+                <span className="font-bold text-xs text-[#FF4B4B] text-center">{f.proteinG}g</span>
+                <span className="font-bold text-xs text-[#1CB0F6] text-center">{f.fatG}g</span>
                 <button
                   onClick={(e) => {
                     e.stopPropagation()
                     setEditingFoodId(f.id)
                   }}
-                  className="p-2 rounded-xl hover:bg-[#1CB0F6]/10 transition-colors shrink-0"
+                  className="p-1.5 rounded-lg hover:bg-[#1CB0F6]/10 transition-colors flex items-center justify-center"
                 >
-                  <Pencil className="w-4 h-4 text-[#1CB0F6]" />
+                  <Pencil className="w-3.5 h-3.5 text-[#1CB0F6]" />
                 </button>
               </div>
             ))}
-
             <div className="flex items-center justify-between pt-3 px-1">
-              <span className="font-bold text-muted-foreground">
+              <span className="font-bold text-muted-foreground text-sm">
                 {currentPage * ITEMS_PER_PAGE + 1}–
                 {Math.min((currentPage + 1) * ITEMS_PER_PAGE, filtered.length)} de {filtered.length}
               </span>

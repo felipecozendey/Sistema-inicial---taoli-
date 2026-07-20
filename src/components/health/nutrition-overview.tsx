@@ -6,7 +6,6 @@ import { MicroGoalsChecklist } from '@/components/health/micro-goals-checklist'
 import { NewMealModal } from '@/components/health/new-meal-modal'
 import { Plus } from 'lucide-react'
 
-const DAILY_CALORIE_GOAL = 2000
 const PROTEIN_GOAL = 150
 const CARBS_GOAL = 250
 const FAT_GOAL = 65
@@ -27,22 +26,12 @@ export function NutritionOverview() {
 
   const totals = useMemo(
     () => ({
-      calories: todayMeals.reduce((sum: number, m: any) => sum + (m.calories || 0), 0),
-      protein: todayMeals.reduce((sum: number, m: any) => sum + (m.protein || 0), 0),
-      carbs: todayMeals.reduce((sum: number, m: any) => sum + (m.carbs || 0), 0),
-      fat: todayMeals.reduce((sum: number, m: any) => sum + (m.fat || 0), 0),
+      calories: todayMeals.reduce((s: number, m: any) => s + (m.calories || 0), 0),
+      protein: todayMeals.reduce((s: number, m: any) => s + (m.protein || 0), 0),
+      carbs: todayMeals.reduce((s: number, m: any) => s + (m.carbs || 0), 0),
+      fat: todayMeals.reduce((s: number, m: any) => s + (m.fat || 0), 0),
     }),
     [todayMeals],
-  )
-
-  const percentages = useMemo(
-    () => ({
-      calories: Math.min((totals.calories / DAILY_CALORIE_GOAL) * 100, 100),
-      protein: Math.min((totals.protein / PROTEIN_GOAL) * 100, 100),
-      carbs: Math.min((totals.carbs / CARBS_GOAL) * 100, 100),
-      fat: Math.min((totals.fat / FAT_GOAL) * 100, 100),
-    }),
-    [totals],
   )
 
   const sortedMetrics = useMemo(
@@ -50,8 +39,7 @@ export function NutritionOverview() {
     [bodyMetrics],
   )
   const latest = sortedMetrics[sortedMetrics.length - 1]
-  const tmb = latest?.tmb || 2000
-  const get = latest?.get || 2500
+  const ventaGoal = latest?.ventaTarget || latest?.get || 2000
 
   const planTotals = useMemo(
     () =>
@@ -68,22 +56,6 @@ export function NutritionOverview() {
         { calories: 0, carbsG: 0, proteinG: 0, fatG: 0 },
       ),
     [dietPlans],
-  )
-
-  const planBars = useMemo(
-    () => [
-      {
-        label: 'Calorias',
-        value: planTotals.calories,
-        target: get,
-        color: '#FF4B4B',
-        unit: 'kcal',
-      },
-      { label: 'Carboidratos', value: planTotals.carbsG, target: 250, color: '#FFC800', unit: 'g' },
-      { label: 'Proteínas', value: planTotals.proteinG, target: 150, color: '#FF4B4B', unit: 'g' },
-      { label: 'Gorduras', value: planTotals.fatG, target: 65, color: '#1CB0F6', unit: 'g' },
-    ],
-    [planTotals, get],
   )
 
   const macroCalories = useMemo(
@@ -104,8 +76,30 @@ export function NutritionOverview() {
     [macroCalories, macroTotal],
   )
 
+  const caloriePct = Math.min((totals.calories / ventaGoal) * 100, 100)
   const handleOpenModal = useCallback(() => setModalOpen(true), [])
   const handleCloseModal = useCallback((open: boolean) => setModalOpen(open), [])
+
+  const macroBars = useMemo(
+    () => [
+      {
+        emoji: '🥩',
+        label: 'Proteínas',
+        value: totals.protein,
+        goal: PROTEIN_GOAL,
+        color: '#FF4B4B',
+      },
+      {
+        emoji: '🍞',
+        label: 'Carboidratos',
+        value: totals.carbs,
+        goal: CARBS_GOAL,
+        color: '#FFC800',
+      },
+      { emoji: '🥑', label: 'Gorduras', value: totals.fat, goal: FAT_GOAL, color: '#1CB0F6' },
+    ],
+    [totals],
+  )
 
   return (
     <div className="space-y-6">
@@ -118,44 +112,20 @@ export function NutritionOverview() {
 
       <div className="bg-card border-2 border-b-4 border-[#E5E5E5] dark:border-[#3B4A55] rounded-3xl p-6 shadow-sm">
         <div className="flex items-center justify-between mb-4">
-          <h3 className="text-lg font-extrabold">Resumo do Plano</h3>
-          <span className="text-xs font-bold text-muted-foreground">
-            TMB: {tmb} · GET: {get}
-          </span>
+          <h3 className="text-lg font-extrabold">Painel Metabólico Diário</h3>
+          <span className="text-xs font-bold text-muted-foreground">VENTA: {ventaGoal} kcal</span>
         </div>
-        <div className="space-y-3 mb-4">
-          {planBars.map((b) => {
-            const pct = Math.min((b.value / b.target) * 100, 100)
-            return (
-              <div key={b.label}>
-                <div className="flex items-center justify-between mb-1">
-                  <span className="text-sm font-extrabold">{b.label}</span>
-                  <span className="text-sm font-bold text-muted-foreground">
-                    {Math.round(b.value)}
-                    {b.unit} / {b.target}
-                    {b.unit}
-                  </span>
-                </div>
-                <div className="w-full h-4 rounded-full bg-muted overflow-hidden">
-                  <div
-                    className="h-full rounded-full transition-all duration-500"
-                    style={{ width: `${pct}%`, backgroundColor: b.color }}
-                  />
-                </div>
-              </div>
-            )
-          })}
-        </div>
-        {macroTotal > 0 && (
-          <div className="flex items-center gap-4 bg-muted/30 rounded-2xl p-4">
+
+        <div className="flex flex-col md:flex-row gap-6 mb-4">
+          <div className="flex items-center gap-4">
             <MacroPieChart
               carbsG={macroCalories.carbs}
               proteinG={macroCalories.protein}
               fatG={macroCalories.fat}
-              size={100}
+              size={110}
             />
-            <div className="space-y-1.5 flex-1">
-              <h4 className="text-sm font-extrabold mb-1">Distribuição Calórica</h4>
+            <div className="space-y-1.5">
+              <h4 className="text-sm font-extrabold mb-1">Distribuição</h4>
               <div className="flex items-center gap-2">
                 <span className="w-3 h-3 rounded-full bg-[#FFC800]" />
                 <span className="text-sm font-bold">Carbo: {macroPct.carbs}%</span>
@@ -170,82 +140,52 @@ export function NutritionOverview() {
               </div>
             </div>
           </div>
-        )}
-      </div>
-
-      <div className="bg-card border-2 border-b-4 border-[#E5E5E5] dark:border-[#3B4A55] rounded-3xl p-6 shadow-sm">
-        <div className="flex items-center justify-between mb-3">
-          <div>
-            <h3 className="text-lg font-extrabold">Calorias de Hoje</h3>
-            <p className="text-sm text-muted-foreground font-bold">
-              Meta: {DAILY_CALORIE_GOAL} kcal
-            </p>
-          </div>
-          <div className="text-right">
-            <span className="text-3xl font-extrabold text-[#FF4B4B]">
-              {Math.round(totals.calories)}
-            </span>
-            <span className="text-sm font-bold text-muted-foreground"> / {DAILY_CALORIE_GOAL}</span>
-          </div>
-        </div>
-        <div className="w-full h-6 rounded-full bg-muted overflow-hidden">
-          <div
-            className="h-full rounded-full bg-gradient-to-r from-[#FF4B4B] to-[#FF8A4B] transition-all duration-500"
-            style={{ width: `${percentages.calories}%` }}
-          />
-        </div>
-        <p className="text-xs font-bold text-muted-foreground mt-2">
-          {percentages.calories >= 100
-            ? '🔥 Meta atingida!'
-            : `${Math.round(DAILY_CALORIE_GOAL - totals.calories)} kcal restantes`}
-        </p>
-      </div>
-
-      <div className="bg-card border-2 border-b-4 border-[#E5E5E5] dark:border-[#3B4A55] rounded-3xl p-6 shadow-sm space-y-5">
-        <h3 className="text-lg font-extrabold">Macronutrientes</h3>
-        {[
-          {
-            emoji: '🥩',
-            label: 'Proteínas',
-            value: totals.protein,
-            goal: PROTEIN_GOAL,
-            pct: percentages.protein,
-            color: '#FF4B4B',
-          },
-          {
-            emoji: '🍞',
-            label: 'Carboidratos',
-            value: totals.carbs,
-            goal: CARBS_GOAL,
-            pct: percentages.carbs,
-            color: '#FFC800',
-          },
-          {
-            emoji: '🥑',
-            label: 'Gorduras',
-            value: totals.fat,
-            goal: FAT_GOAL,
-            pct: percentages.fat,
-            color: '#1CB0F6',
-          },
-        ].map((m) => (
-          <div key={m.label}>
-            <div className="flex items-center justify-between mb-1.5">
-              <span className="text-sm font-extrabold flex items-center gap-1.5">
-                <span>{m.emoji}</span> {m.label}
-              </span>
-              <span className="text-sm font-bold text-muted-foreground">
-                {Math.round(m.value)}g / {m.goal}g
-              </span>
-            </div>
-            <div className="w-full h-4 rounded-full bg-muted overflow-hidden">
-              <div
-                className="h-full rounded-full transition-all duration-500"
-                style={{ width: `${m.pct}%`, backgroundColor: m.color }}
-              />
+          <div className="flex-1 space-y-3">
+            <div>
+              <div className="flex items-center justify-between mb-1">
+                <span className="text-sm font-extrabold">Calorias</span>
+                <span className="text-sm font-bold text-muted-foreground">
+                  {Math.round(totals.calories)} / {ventaGoal} kcal
+                </span>
+              </div>
+              <div className="w-full h-6 rounded-full bg-muted overflow-hidden">
+                <div
+                  className="h-full rounded-full bg-gradient-to-r from-[#FF4B4B] to-[#FF8A4B] transition-all duration-500"
+                  style={{ width: `${caloriePct}%` }}
+                />
+              </div>
+              <p className="text-xs font-bold text-muted-foreground mt-1">
+                {caloriePct >= 100
+                  ? '🔥 Meta atingida!'
+                  : `${Math.round(ventaGoal - totals.calories)} kcal restantes`}
+              </p>
             </div>
           </div>
-        ))}
+        </div>
+
+        <div className="space-y-3 border-t-2 border-muted pt-4">
+          {macroBars.map((m) => {
+            const pct = Math.min((m.value / m.goal) * 100, 100)
+            return (
+              <div key={m.label}>
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-sm font-extrabold flex items-center gap-1.5">
+                    <span>{m.emoji}</span> {m.label}
+                  </span>
+                  <span className="text-sm font-bold text-muted-foreground">
+                    {Math.round(m.value)}g / {m.goal}g
+                  </span>
+                </div>
+                <div className="w-full h-4 rounded-full bg-muted overflow-hidden">
+                  <div
+                    className="h-full rounded-full transition-all duration-500"
+                    style={{ width: `${pct}%`, backgroundColor: m.color }}
+                  />
+                </div>
+              </div>
+            )
+          })}
+        </div>
       </div>
 
       <MicroGoalsChecklist />

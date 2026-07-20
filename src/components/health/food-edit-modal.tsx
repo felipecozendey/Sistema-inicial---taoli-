@@ -47,11 +47,11 @@ export function FoodEditModal({ open, onOpenChange, food }: Props) {
     setTags((prev) => (prev.includes(tag) ? prev.filter((t) => t !== tag) : [...prev, tag]))
 
   const handleSubmit = async () => {
+    onOpenChange(false)
     if (!food || !name.trim()) {
       toast.error('Nome é obrigatório')
       return
     }
-    onOpenChange(false)
     await updateCustomFood(food.id, {
       name: name.trim(),
       baseUnit: baseUnit.trim() || '100g',
