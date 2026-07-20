@@ -9,6 +9,8 @@ import { BodyXrayTab } from '@/components/health/body-xray-tab'
 import { HealthHistory } from '@/components/health/health-history'
 import { FastingTab } from '@/components/health/fasting-tab'
 import { MindTab } from '@/components/health/mind-tab'
+import { MealPlanTab } from '@/components/health/meal-plan-tab'
+import { NutritionSettingsTab } from '@/components/health/nutrition-settings-tab'
 
 export default function HealthPage() {
   return (
@@ -78,6 +80,12 @@ export default function HealthPage() {
               <TabsTrigger value="jejum" className="rounded-xl font-bold">
                 Jejum
               </TabsTrigger>
+              <TabsTrigger value="plano" className="rounded-xl font-bold">
+                Plano
+              </TabsTrigger>
+              <TabsTrigger value="config" className="rounded-xl font-bold">
+                Config
+              </TabsTrigger>
             </TabsList>
             <TabsContent value="visao-geral" className="mt-6">
               <NutritionOverview />
@@ -87,6 +95,12 @@ export default function HealthPage() {
             </TabsContent>
             <TabsContent value="jejum" className="mt-6">
               <FastingTab />
+            </TabsContent>
+            <TabsContent value="plano" className="mt-6">
+              <MealPlanTab />
+            </TabsContent>
+            <TabsContent value="config" className="mt-6">
+              <NutritionSettingsTab />
             </TabsContent>
           </Tabs>
         </TabsContent>
