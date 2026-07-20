@@ -6,7 +6,14 @@ export function parseBase(unit: string): number {
 export function calcMacrosForAmount(
   baseUnit: string,
   amount: string,
-  macros: { calories: number; carbsG: number; proteinG: number; fatG: number },
+  macros: {
+    calories: number
+    carbsG: number
+    proteinG: number
+    fatG: number
+    fibersG?: number
+    sodiumMg?: number
+  },
 ) {
   const base = parseBase(baseUnit)
   const qty = parseFloat(amount) || 0
@@ -16,6 +23,8 @@ export function calcMacrosForAmount(
     carbsG: +(macros.carbsG * factor).toFixed(1),
     proteinG: +(macros.proteinG * factor).toFixed(1),
     fatG: +(macros.fatG * factor).toFixed(1),
+    fibersG: +((macros.fibersG || 0) * factor).toFixed(1),
+    sodiumMg: Math.round((macros.sodiumMg || 0) * factor),
   }
 }
 

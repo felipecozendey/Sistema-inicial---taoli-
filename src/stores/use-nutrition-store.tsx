@@ -11,6 +11,9 @@ export type DietPlanItem = {
   carbsG: number
   proteinG: number
   fatG: number
+  fibersG: number
+  sodiumMg: number
+  allergens: string | null
 }
 export type DietPlan = {
   id: string
@@ -27,6 +30,9 @@ export type CustomFood = {
   carbsG: number
   proteinG: number
   fatG: number
+  fibersG: number
+  sodiumMg: number
+  allergens: string | null
   tags: string[]
 }
 export type RecipeIngredient = {
@@ -39,6 +45,8 @@ export type RecipeIngredient = {
   carbsG: number
   proteinG: number
   fatG: number
+  fibersG: number
+  sodiumMg: number
 }
 export type NutritionRecipe = {
   id: string
@@ -66,6 +74,9 @@ const initialDietPlans: DietPlan[] = [
         carbsG: 32,
         proteinG: 5,
         fatG: 3,
+        fibersG: 4,
+        sodiumMg: 2,
+        allergens: null,
       },
       {
         id: 'di2',
@@ -75,6 +86,9 @@ const initialDietPlans: DietPlan[] = [
         carbsG: 1.2,
         proteinG: 12.6,
         fatG: 10.6,
+        fibersG: 0,
+        sodiumMg: 124,
+        allergens: 'ovos',
       },
     ],
   },
@@ -92,6 +106,9 @@ const initialDietPlans: DietPlan[] = [
         carbsG: 0,
         proteinG: 62,
         fatG: 7.2,
+        fibersG: 0,
+        sodiumMg: 120,
+        allergens: null,
       },
       {
         id: 'di4',
@@ -101,6 +118,9 @@ const initialDietPlans: DietPlan[] = [
         carbsG: 35,
         proteinG: 3.5,
         fatG: 1.2,
+        fibersG: 1.5,
+        sodiumMg: 5,
+        allergens: null,
       },
     ],
   },
@@ -115,6 +135,9 @@ const initialCustomFoods: CustomFood[] = [
     carbsG: 3,
     proteinG: 24,
     fatG: 1.5,
+    fibersG: 0,
+    sodiumMg: 50,
+    allergens: 'leite',
     tags: ['Alta Proteína'],
   },
   {
@@ -125,9 +148,38 @@ const initialCustomFoods: CustomFood[] = [
     carbsG: 20,
     proteinG: 1.6,
     fatG: 0.1,
+    fibersG: 3,
+    sodiumMg: 18,
+    allergens: null,
     tags: ['Vegano', 'Vegetariano'],
   },
 ]
+
+const mapDietItem = (i: any): DietPlanItem => ({
+  id: i.id,
+  description: i.description || '',
+  quantity: i.quantity || '',
+  calories: Number(i.calories) || 0,
+  carbsG: Number(i.carbs_g) || 0,
+  proteinG: Number(i.protein_g) || 0,
+  fatG: Number(i.fat_g) || 0,
+  fibersG: Number(i.fibers_g) || 0,
+  sodiumMg: Number(i.sodium_mg) || 0,
+  allergens: i.allergens || null,
+})
+const mapFood = (d: any): CustomFood => ({
+  id: d.id,
+  name: d.name,
+  baseUnit: d.base_unit || '100g',
+  calories: Number(d.calories) || 0,
+  carbsG: Number(d.carbs_g) || 0,
+  proteinG: Number(d.protein_g) || 0,
+  fatG: Number(d.fat_g) || 0,
+  fibersG: Number(d.fibers_g) || 0,
+  sodiumMg: Number(d.sodium_mg) || 0,
+  allergens: d.allergens || null,
+  tags: d.tags || [],
+})
 
 interface NutritionState {
   dietPlans: DietPlan[]
@@ -185,7 +237,7 @@ export const NutritionStoreProvider = ({ children }: { children: ReactNode }) =>
       data: { user },
     } = await supabase.auth.getUser()
     if (!user) return
-    const { data } = await (supabase as any)
+    const { data } = await supabase
       .from('diet_plans')
       .select('*, diet_plan_items(*)')
       .eq('user_id', user.id)
@@ -197,15 +249,7 @@ export const NutritionStoreProvider = ({ children }: { children: ReactNode }) =>
           name: d.name,
           time: d.time || '',
           orderIndex: d.order_index || 0,
-          items: (d.diet_plan_items || []).map((i: any) => ({
-            id: i.id,
-            description: i.description || '',
-            quantity: i.quantity || '',
-            calories: Number(i.calories) || 0,
-            carbsG: Number(i.carbs_g) || 0,
-            proteinG: Number(i.protein_g) || 0,
-            fatG: Number(i.fat_g) || 0,
-          })),
+          items: (d.diet_plan_items || []).map(mapDietItem),
         })),
       )
   }
@@ -214,10 +258,10 @@ export const NutritionStoreProvider = ({ children }: { children: ReactNode }) =>
     setDietPlans((p) => [...p, { id: tempId, name, time, orderIndex: p.length, items: [] }])
     supabase.auth.getUser().then(({ data: { user: u } }) => {
       if (!u) return
-      ;(supabase as any)
+      supabase
         .from('diet_plans')
         .insert({ name, time, order_index: dietPlans.length, user_id: u.id })
-        .then(({ error }: { error: any }) => {
+        .then(({ error }: any) => {
           if (error) {
             setDietPlans((p) => p.filter((d) => d.id !== tempId))
             toast.error('Erro ao criar refeição.')
@@ -227,7 +271,7 @@ export const NutritionStoreProvider = ({ children }: { children: ReactNode }) =>
   }
   const deleteDietPlan = (id: string) => {
     setDietPlans((p) => p.filter((d) => d.id !== id))
-    ;(supabase as any).from('diet_plans').delete().eq('id', id).then()
+    supabase.from('diet_plans').delete().eq('id', id).then()
   }
   const addDietPlanItem = (planId: string, item: Omit<DietPlanItem, 'id'>) => {
     const tempId = genId()
@@ -236,7 +280,7 @@ export const NutritionStoreProvider = ({ children }: { children: ReactNode }) =>
     )
     supabase.auth.getUser().then(({ data: { user: u } }) => {
       if (!u) return
-      ;(supabase as any)
+      supabase
         .from('diet_plan_items')
         .insert({
           plan_id: planId,
@@ -246,8 +290,11 @@ export const NutritionStoreProvider = ({ children }: { children: ReactNode }) =>
           carbs_g: item.carbsG,
           protein_g: item.proteinG,
           fat_g: item.fatG,
+          fibers_g: item.fibersG,
+          sodium_mg: item.sodiumMg,
+          allergens: item.allergens,
         })
-        .then(({ error }: { error: any }) => {
+        .then(({ error }: any) => {
           if (error) {
             setDietPlans((p) =>
               p.map((d) =>
@@ -272,18 +319,21 @@ export const NutritionStoreProvider = ({ children }: { children: ReactNode }) =>
             },
       ),
     )
-    const dbUpdates: Record<string, any> = {}
-    if (updates.description !== undefined) dbUpdates.description = updates.description
-    if (updates.quantity !== undefined) dbUpdates.quantity = updates.quantity
-    if (updates.calories !== undefined) dbUpdates.calories = updates.calories
-    if (updates.carbsG !== undefined) dbUpdates.carbs_g = updates.carbsG
-    if (updates.proteinG !== undefined) dbUpdates.protein_g = updates.proteinG
-    if (updates.fatG !== undefined) dbUpdates.fat_g = updates.fatG
-    ;(supabase as any)
+    const dbU: Record<string, any> = {}
+    if (updates.description !== undefined) dbU.description = updates.description
+    if (updates.quantity !== undefined) dbU.quantity = updates.quantity
+    if (updates.calories !== undefined) dbU.calories = updates.calories
+    if (updates.carbsG !== undefined) dbU.carbs_g = updates.carbsG
+    if (updates.proteinG !== undefined) dbU.protein_g = updates.proteinG
+    if (updates.fatG !== undefined) dbU.fat_g = updates.fatG
+    if (updates.fibersG !== undefined) dbU.fibers_g = updates.fibersG
+    if (updates.sodiumMg !== undefined) dbU.sodium_mg = updates.sodiumMg
+    if (updates.allergens !== undefined) dbU.allergens = updates.allergens
+    supabase
       .from('diet_plan_items')
-      .update(dbUpdates)
+      .update(dbU)
       .eq('id', itemId)
-      .then(({ error }: { error: any }) => {
+      .then(({ error }: any) => {
         if (error) {
           toast.error('Erro ao atualizar item.')
           fetchDietPlans()
@@ -294,31 +344,19 @@ export const NutritionStoreProvider = ({ children }: { children: ReactNode }) =>
     setDietPlans((p) =>
       p.map((d) => (d.id === planId ? { ...d, items: d.items.filter((i) => i.id !== itemId) } : d)),
     )
-    ;(supabase as any).from('diet_plan_items').delete().eq('id', itemId).then()
+    supabase.from('diet_plan_items').delete().eq('id', itemId).then()
   }
   const fetchCustomFoods = async () => {
     const {
       data: { user },
     } = await supabase.auth.getUser()
     if (!user) return
-    const { data } = await (supabase as any)
+    const { data } = await supabase
       .from('custom_foods')
       .select('*')
       .eq('user_id', user.id)
       .order('created_at', { ascending: false })
-    if (data)
-      setCustomFoods(
-        data.map((d: any) => ({
-          id: d.id,
-          name: d.name,
-          baseUnit: d.base_unit || '100g',
-          calories: Number(d.calories) || 0,
-          carbsG: Number(d.carbs_g) || 0,
-          proteinG: Number(d.protein_g) || 0,
-          fatG: Number(d.fat_g) || 0,
-          tags: d.tags || [],
-        })),
-      )
+    if (data) setCustomFoods(data.map(mapFood))
   }
   const addCustomFood = async (food: Omit<CustomFood, 'id'>) => {
     const tempId = genId()
@@ -327,7 +365,7 @@ export const NutritionStoreProvider = ({ children }: { children: ReactNode }) =>
       data: { user: u },
     } = await supabase.auth.getUser()
     if (!u) return
-    const { data } = await (supabase as any)
+    const { data } = await supabase
       .from('custom_foods')
       .insert({
         name: food.name,
@@ -336,24 +374,34 @@ export const NutritionStoreProvider = ({ children }: { children: ReactNode }) =>
         carbs_g: food.carbsG,
         protein_g: food.proteinG,
         fat_g: food.fatG,
+        fibers_g: food.fibersG,
+        sodium_mg: food.sodiumMg,
+        allergens: food.allergens,
         tags: food.tags,
         user_id: u.id,
       })
       .select()
       .single()
     if (data) setCustomFoods((p) => p.map((f) => (f.id === tempId ? { ...f, id: data.id } : f)))
+    else {
+      setCustomFoods((p) => p.filter((f) => f.id !== tempId))
+      toast.error('Erro ao cadastrar alimento.')
+    }
   }
   const updateCustomFood = async (id: string, updates: Partial<Omit<CustomFood, 'id'>>) => {
     setCustomFoods((p) => p.map((f) => (f.id === id ? { ...f, ...updates } : f)))
-    const dbUpdates: Record<string, any> = {}
-    if (updates.name !== undefined) dbUpdates.name = updates.name
-    if (updates.baseUnit !== undefined) dbUpdates.base_unit = updates.baseUnit
-    if (updates.calories !== undefined) dbUpdates.calories = updates.calories
-    if (updates.carbsG !== undefined) dbUpdates.carbs_g = updates.carbsG
-    if (updates.proteinG !== undefined) dbUpdates.protein_g = updates.proteinG
-    if (updates.fatG !== undefined) dbUpdates.fat_g = updates.fatG
-    if (updates.tags !== undefined) dbUpdates.tags = updates.tags
-    const { error } = await (supabase as any).from('custom_foods').update(dbUpdates).eq('id', id)
+    const dbU: Record<string, any> = {}
+    if (updates.name !== undefined) dbU.name = updates.name
+    if (updates.baseUnit !== undefined) dbU.base_unit = updates.baseUnit
+    if (updates.calories !== undefined) dbU.calories = updates.calories
+    if (updates.carbsG !== undefined) dbU.carbs_g = updates.carbsG
+    if (updates.proteinG !== undefined) dbU.protein_g = updates.proteinG
+    if (updates.fatG !== undefined) dbU.fat_g = updates.fatG
+    if (updates.fibersG !== undefined) dbU.fibers_g = updates.fibersG
+    if (updates.sodiumMg !== undefined) dbU.sodium_mg = updates.sodiumMg
+    if (updates.allergens !== undefined) dbU.allergens = updates.allergens
+    if (updates.tags !== undefined) dbU.tags = updates.tags
+    const { error } = await supabase.from('custom_foods').update(dbU).eq('id', id)
     if (error) {
       toast.error('Erro ao atualizar alimento.')
       fetchCustomFoods()
@@ -361,14 +409,14 @@ export const NutritionStoreProvider = ({ children }: { children: ReactNode }) =>
   }
   const deleteCustomFood = (id: string) => {
     setCustomFoods((p) => p.filter((f) => f.id !== id))
-    ;(supabase as any).from('custom_foods').delete().eq('id', id).then()
+    supabase.from('custom_foods').delete().eq('id', id).then()
   }
   const fetchRecipes = async () => {
     const {
       data: { user },
     } = await supabase.auth.getUser()
     if (!user) return
-    const { data } = await (supabase as any)
+    const { data } = await supabase
       .from('nutrition_recipes')
       .select('*, recipe_ingredients(*, custom_foods(*))')
       .eq('user_id', user.id)
@@ -388,6 +436,8 @@ export const NutritionStoreProvider = ({ children }: { children: ReactNode }) =>
               carbsG: Number(food?.carbs_g) || 0,
               proteinG: Number(food?.protein_g) || 0,
               fatG: Number(food?.fat_g) || 0,
+              fibersG: Number(food?.fibers_g) || 0,
+              sodiumMg: Number(food?.sodium_mg) || 0,
             })
             return {
               id: ri.id,
@@ -408,31 +458,7 @@ export const NutritionStoreProvider = ({ children }: { children: ReactNode }) =>
     tags: string[],
     ingredients: { foodId: string; amount: string }[],
   ) => {
-    const {
-      data: { user: u },
-    } = await supabase.auth.getUser()
-    if (!u) return
-    const { data: recipeData, error } = await (supabase as any)
-      .from('nutrition_recipes')
-      .insert({
-        name,
-        description,
-        instructions,
-        tags,
-        user_id: u.id,
-      })
-      .select()
-      .single()
-    if (error || !recipeData) {
-      toast.error('Erro ao criar receita.')
-      return
-    }
-    const ingredientsToInsert = ingredients.map((ing) => ({
-      recipe_id: recipeData.id,
-      food_id: ing.foodId,
-      amount: ing.amount,
-    }))
-    await (supabase as any).from('recipe_ingredients').insert(ingredientsToInsert)
+    const tempId = genId()
     const recipeIngredients: RecipeIngredient[] = ingredients.map((ing, i) => {
       const food = customFoods.find((f) => f.id === ing.foodId)
       const macros = calcMacrosForAmount(food?.baseUnit || '100g', ing.amount || '', {
@@ -440,6 +466,8 @@ export const NutritionStoreProvider = ({ children }: { children: ReactNode }) =>
         carbsG: food?.carbsG || 0,
         proteinG: food?.proteinG || 0,
         fatG: food?.fatG || 0,
+        fibersG: food?.fibersG || 0,
+        sodiumMg: food?.sodiumMg || 0,
       })
       return {
         id: `temp_${i}`,
@@ -451,13 +479,37 @@ export const NutritionStoreProvider = ({ children }: { children: ReactNode }) =>
       }
     })
     setNutritionRecipes((p) => [
-      { id: recipeData.id, name, description, instructions, tags, ingredients: recipeIngredients },
+      { id: tempId, name, description, instructions, tags, ingredients: recipeIngredients },
       ...p,
     ])
+    const {
+      data: { user: u },
+    } = await supabase.auth.getUser()
+    if (!u) return
+    const { data: recipeData, error } = await supabase
+      .from('nutrition_recipes')
+      .insert({ name, description, instructions, tags, user_id: u.id })
+      .select()
+      .single()
+    if (error || !recipeData) {
+      setNutritionRecipes((p) => p.filter((r) => r.id !== tempId))
+      toast.error('Erro ao criar receita.')
+      return
+    }
+    await supabase
+      .from('recipe_ingredients')
+      .insert(
+        ingredients.map((ing) => ({
+          recipe_id: recipeData.id,
+          food_id: ing.foodId,
+          amount: ing.amount,
+        })),
+      )
+    setNutritionRecipes((p) => p.map((r) => (r.id === tempId ? { ...r, id: recipeData.id } : r)))
   }
   const deleteRecipe = (id: string) => {
     setNutritionRecipes((p) => p.filter((r) => r.id !== id))
-    ;(supabase as any).from('nutrition_recipes').delete().eq('id', id).then()
+    supabase.from('nutrition_recipes').delete().eq('id', id).then()
   }
 
   return (

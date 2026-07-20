@@ -93,6 +93,7 @@ export function RecipeCreatorModal({ open, onOpenChange }: Props) {
       toast.error('Adicione pelo menos um ingrediente')
       return
     }
+    onOpenChange(false)
     await addRecipe(
       name.trim(),
       description.trim(),
@@ -101,7 +102,6 @@ export function RecipeCreatorModal({ open, onOpenChange }: Props) {
       ingredients.map((i) => ({ foodId: i.foodId, amount: i.amount || '1' })),
     )
     toast.success('Receita criada! 🍳')
-    onOpenChange(false)
     setName('')
     setDescription('')
     setInstructions('')

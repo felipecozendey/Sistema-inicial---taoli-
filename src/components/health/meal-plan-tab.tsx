@@ -6,92 +6,31 @@ import {
   AccordionTrigger,
 } from '@/components/ui/accordion'
 import { useNutritionStore, type DietPlanItem } from '@/stores/use-nutrition-store'
-import { useAppStore } from '@/stores/useAppStore'
 import { FoodEntryModal } from '@/components/health/food-entry-modal'
 import { NewMealPlanModal } from '@/components/health/new-meal-plan-modal'
 import { DietItemEditModal } from '@/components/health/diet-item-edit-modal'
+import { MacroPieChart } from '@/components/health/macro-pie-chart'
 import { Plus, Trash2, Clock, Pencil } from 'lucide-react'
 
 export function MealPlanTab() {
-  const { dietPlans, fetchDietPlans, deleteDietPlanItem, deleteDietPlan } = useNutritionStore()
-  const bodyMetrics = useAppStore((s) => s.bodyMetrics)
+  const { dietPlans, fetchDietPlans, fetchRecipes, deleteDietPlanItem, deleteDietPlan } =
+    useNutritionStore()
   const [foodModalPlanId, setFoodModalPlanId] = useState<string | null>(null)
   const [mealModalOpen, setMealModalOpen] = useState(false)
   const [editItem, setEditItem] = useState<{ planId: string; item: DietPlanItem } | null>(null)
 
   useEffect(() => {
     fetchDietPlans()
-  }, [fetchDietPlans])
-
-  const sortedMetrics = [...bodyMetrics].sort((a, b) => a.date.localeCompare(b.date))
-  const latest = sortedMetrics[sortedMetrics.length - 1]
-  const tmb = latest?.tmb || 2000
-  const get = latest?.get || 2500
-
-  const totals = useMemo(
-    () =>
-      dietPlans.reduce(
-        (acc, p) => {
-          p.items.forEach((i) => {
-            acc.calories += i.calories
-            acc.carbsG += i.carbsG
-            acc.proteinG += i.proteinG
-            acc.fatG += i.fatG
-          })
-          return acc
-        },
-        { calories: 0, carbsG: 0, proteinG: 0, fatG: 0 },
-      ),
-    [dietPlans],
-  )
-
-  const bars = [
-    { label: 'Calorias', value: totals.calories, target: get, color: '#FF4B4B', unit: 'kcal' },
-    { label: 'Carboidratos', value: totals.carbsG, target: 250, color: '#FFC800', unit: 'g' },
-    { label: 'Proteínas', value: totals.proteinG, target: 150, color: '#FF4B4B', unit: 'g' },
-    { label: 'Gorduras', value: totals.fatG, target: 65, color: '#1CB0F6', unit: 'g' },
-  ]
+    fetchRecipes()
+  }, [fetchDietPlans, fetchRecipes])
 
   return (
     <div className="space-y-6">
-      <div className="bg-card border-2 border-b-4 border-[#E5E5E5] dark:border-[#3B4A55] rounded-3xl p-6 shadow-sm">
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="text-lg font-extrabold">Resumo do Plano</h3>
-          <span className="text-xs font-bold text-muted-foreground">
-            TMB: {tmb} · GET: {get}
-          </span>
-        </div>
-        <div className="space-y-3">
-          {bars.map((b) => {
-            const pct = Math.min((b.value / b.target) * 100, 100)
-            return (
-              <div key={b.label}>
-                <div className="flex items-center justify-between mb-1">
-                  <span className="text-sm font-extrabold">{b.label}</span>
-                  <span className="text-sm font-bold text-muted-foreground">
-                    {Math.round(b.value)}
-                    {b.unit} / {b.target}
-                    {b.unit}
-                  </span>
-                </div>
-                <div className="w-full h-4 rounded-full bg-muted overflow-hidden">
-                  <div
-                    className="h-full rounded-full transition-all duration-500"
-                    style={{ width: `${pct}%`, backgroundColor: b.color }}
-                  />
-                </div>
-              </div>
-            )
-          })}
-        </div>
-      </div>
-
       <button
         onClick={() => setMealModalOpen(true)}
         className="w-full py-5 rounded-3xl bg-[#1CB0F6] hover:bg-[#1A9BE0] text-white font-extrabold text-lg border-b-4 border-[#1890D0] active:translate-y-1 active:border-b-0 transition-all duration-150 flex items-center justify-center gap-2"
       >
-        <Plus className="w-6 h-6" strokeWidth={3} />
-        Nova Refeição
+        <Plus className="w-6 h-6" strokeWidth={3} /> Nova Refeição
       </button>
 
       {dietPlans.length === 0 ? (
@@ -104,6 +43,14 @@ export function MealPlanTab() {
         <Accordion type="single" collapsible className="space-y-3">
           {dietPlans.map((plan) => {
             const cals = plan.items.reduce((s, i) => s + i.calories, 0)
+            const macros = plan.items.reduce(
+              (a, i) => ({
+                carbsG: a.carbsG + i.carbsG,
+                proteinG: a.proteinG + i.proteinG,
+                fatG: a.fatG + i.fatG,
+              }),
+              { carbsG: 0, proteinG: 0, fatG: 0 },
+            )
             return (
               <AccordionItem
                 key={plan.id}
@@ -111,20 +58,39 @@ export function MealPlanTab() {
                 className="border-2 border-b-4 border-[#E5E5E5] dark:border-[#3B4A55] rounded-3xl px-5 overflow-hidden"
               >
                 <AccordionTrigger className="hover:no-underline">
-                  <div className="flex flex-col items-start text-left">
-                    <span className="font-extrabold text-base">{plan.name}</span>
-                    <div className="flex items-center gap-2">
-                      <Clock className="w-3 h-3 text-muted-foreground" />
-                      <span className="text-xs font-bold text-muted-foreground">
-                        {plan.time || 'Sem horário'}
-                      </span>
-                      <span className="text-xs font-extrabold text-[#FF4B4B]">
-                        {Math.round(cals)} kcal
-                      </span>
+                  <div className="flex items-center gap-3">
+                    <MacroPieChart
+                      carbsG={macros.carbsG}
+                      proteinG={macros.proteinG}
+                      fatG={macros.fatG}
+                      size={48}
+                    />
+                    <div className="flex flex-col items-start text-left">
+                      <span className="font-extrabold text-base">{plan.name}</span>
+                      <div className="flex items-center gap-2">
+                        <Clock className="w-3 h-3 text-muted-foreground" />
+                        <span className="text-xs font-bold text-muted-foreground">
+                          {plan.time || 'Sem horário'}
+                        </span>
+                        <span className="text-xs font-extrabold text-[#FF4B4B]">
+                          {Math.round(cals)} kcal
+                        </span>
+                      </div>
                     </div>
                   </div>
                 </AccordionTrigger>
                 <AccordionContent className="space-y-3 pt-2">
+                  <div className="flex items-center justify-center gap-4 bg-muted/30 rounded-2xl py-2">
+                    <span className="text-xs font-extrabold">
+                      <span className="text-[#FFC800]">●</span> Carb {Math.round(macros.carbsG)}g
+                    </span>
+                    <span className="text-xs font-extrabold">
+                      <span className="text-[#FF4B4B]">●</span> Prot {Math.round(macros.proteinG)}g
+                    </span>
+                    <span className="text-xs font-extrabold">
+                      <span className="text-[#1CB0F6]">●</span> Gord {Math.round(macros.fatG)}g
+                    </span>
+                  </div>
                   {plan.items.map((item) => (
                     <div
                       key={item.id}
@@ -168,15 +134,13 @@ export function MealPlanTab() {
                     onClick={() => setFoodModalPlanId(plan.id)}
                     className="w-full py-3 rounded-2xl bg-[#58CC02]/10 hover:bg-[#58CC02]/20 text-[#58CC02] font-extrabold border-2 border-b-4 border-[#58CC02]/30 active:translate-y-1 active:border-b-0 transition-all duration-150 flex items-center justify-center gap-2"
                   >
-                    <Plus className="w-4 h-4" strokeWidth={3} />
-                    Adicionar Alimento
+                    <Plus className="w-4 h-4" strokeWidth={3} /> Adicionar Alimento
                   </button>
                   <button
                     onClick={() => deleteDietPlan(plan.id)}
                     className="w-full py-2 rounded-xl text-[#FF4B4B] font-bold text-xs hover:bg-[#FF4B4B]/10 transition-colors flex items-center justify-center gap-1"
                   >
-                    <Trash2 className="w-3 h-3" />
-                    Excluir Refeição
+                    <Trash2 className="w-3 h-3" /> Excluir Refeição
                   </button>
                 </AccordionContent>
               </AccordionItem>

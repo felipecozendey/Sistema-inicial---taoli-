@@ -22,6 +22,9 @@ export function DietItemEditModal({ open, onOpenChange, planId, item }: Props) {
   const [carbs, setCarbs] = useState('')
   const [protein, setProtein] = useState('')
   const [fat, setFat] = useState('')
+  const [fibers, setFibers] = useState('')
+  const [sodium, setSodium] = useState('')
+  const [allergens, setAllergens] = useState('')
 
   useEffect(() => {
     if (item) {
@@ -31,6 +34,9 @@ export function DietItemEditModal({ open, onOpenChange, planId, item }: Props) {
       setCarbs(String(item.carbsG))
       setProtein(String(item.proteinG))
       setFat(String(item.fatG))
+      setFibers(String(item.fibersG))
+      setSodium(String(item.sodiumMg))
+      setAllergens(item.allergens || '')
     }
   }, [item])
 
@@ -40,6 +46,7 @@ export function DietItemEditModal({ open, onOpenChange, planId, item }: Props) {
       toast.error('Nome é obrigatório')
       return
     }
+    onOpenChange(false)
     updateDietPlanItem(planId, item.id, {
       description: description.trim(),
       quantity: quantity.trim(),
@@ -47,16 +54,18 @@ export function DietItemEditModal({ open, onOpenChange, planId, item }: Props) {
       carbsG: parseFloat(carbs) || 0,
       proteinG: parseFloat(protein) || 0,
       fatG: parseFloat(fat) || 0,
+      fibersG: parseFloat(fibers) || 0,
+      sodiumMg: parseFloat(sodium) || 0,
+      allergens: allergens.trim() || null,
     })
     toast.success('Item atualizado! ✏️')
-    onOpenChange(false)
   }
 
   if (!item) return null
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-md rounded-3xl">
+      <DialogContent className="max-w-md rounded-3xl max-h-[85vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="text-xl font-extrabold">Editar Item</DialogTitle>
         </DialogHeader>
@@ -81,7 +90,7 @@ export function DietItemEditModal({ open, onOpenChange, planId, item }: Props) {
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
-              <Label className="text-xs font-extrabold">Calorias (kcal)</Label>
+              <Label className="text-xs font-extrabold">Calorias</Label>
               <Input
                 type="number"
                 value={calories}
@@ -116,13 +125,39 @@ export function DietItemEditModal({ open, onOpenChange, planId, item }: Props) {
                 className="rounded-xl font-bold"
               />
             </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs font-extrabold">Fibras (g)</Label>
+              <Input
+                type="number"
+                value={fibers}
+                onChange={(e) => setFibers(e.target.value)}
+                className="rounded-xl font-bold"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs font-extrabold">Sódio (mg)</Label>
+              <Input
+                type="number"
+                value={sodium}
+                onChange={(e) => setSodium(e.target.value)}
+                className="rounded-xl font-bold"
+              />
+            </div>
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-xs font-extrabold">Alérgenos</Label>
+            <Input
+              value={allergens}
+              onChange={(e) => setAllergens(e.target.value)}
+              placeholder="Ex: leite, glúten"
+              className="rounded-xl font-bold"
+            />
           </div>
           <Button
             onClick={handleSubmit}
             className="w-full py-5 rounded-3xl bg-[#1CB0F6] hover:bg-[#1A9BE0] text-white font-extrabold border-b-4 border-[#1890D0] active:translate-y-1 active:border-b-0 transition-all duration-150"
           >
-            <Check className="w-5 h-5 mr-2" strokeWidth={3} />
-            Salvar Alterações
+            <Check className="w-5 h-5 mr-2" strokeWidth={3} /> Salvar Alterações
           </Button>
         </div>
       </DialogContent>

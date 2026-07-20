@@ -11,21 +11,22 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { useNutritionStore } from '@/stores/use-nutrition-store'
 import { DEFAULT_FOODS } from '@/components/health/default-foods'
-import { Search, Plus, Check } from 'lucide-react'
+import { calcMacrosForAmount, parseBase } from '@/lib/nutrition-utils'
+import { Search, Plus, Check, ChefHat } from 'lucide-react'
 import { toast } from 'sonner'
 
 type FoodOption = {
+  id: string
   name: string
   baseUnit: string
   calories: number
   carbsG: number
   proteinG: number
   fatG: number
-}
-
-function parseBase(unit: string): number {
-  const m = unit.match(/(\d+(?:\.\d+)?)/)
-  return m ? parseFloat(m[1]) : 1
+  fibersG: number
+  sodiumMg: number
+  allergens: string | null
+  isRecipe: boolean
 }
 
 interface Props {
@@ -35,25 +36,63 @@ interface Props {
 }
 
 export function FoodEntryModal({ open, onOpenChange, planId }: Props) {
-  const { customFoods, addDietPlanItem } = useNutritionStore()
+  const { customFoods, nutritionRecipes, addDietPlanItem } = useNutritionStore()
   const [search, setSearch] = useState('')
   const [selected, setSelected] = useState<FoodOption | null>(null)
   const [quantity, setQuantity] = useState('100')
 
-  const allFoods = useMemo<FoodOption[]>(
-    () => [
-      ...DEFAULT_FOODS,
-      ...customFoods.map((f) => ({
+  const allFoods = useMemo<FoodOption[]>(() => {
+    const foods: FoodOption[] = [
+      ...DEFAULT_FOODS.map((f) => ({
+        id: `default_${f.name}`,
         name: f.name,
         baseUnit: f.baseUnit,
         calories: f.calories,
         carbsG: f.carbsG,
         proteinG: f.proteinG,
         fatG: f.fatG,
+        fibersG: 0,
+        sodiumMg: 0,
+        allergens: null,
+        isRecipe: false,
       })),
-    ],
-    [customFoods],
-  )
+      ...customFoods.map((f) => ({
+        id: f.id,
+        name: f.name,
+        baseUnit: f.baseUnit,
+        calories: f.calories,
+        carbsG: f.carbsG,
+        proteinG: f.proteinG,
+        fatG: f.fatG,
+        fibersG: f.fibersG,
+        sodiumMg: f.sodiumMg,
+        allergens: f.allergens,
+        isRecipe: false,
+      })),
+      ...nutritionRecipes.map((r) => {
+        const t = r.ingredients.reduce(
+          (a, i) => ({
+            calories: a.calories + i.calories,
+            carbsG: a.carbsG + i.carbsG,
+            proteinG: a.proteinG + i.proteinG,
+            fatG: a.fatG + i.fatG,
+            fibersG: a.fibersG + (i.fibersG || 0),
+            sodiumMg: a.sodiumMg + (i.sodiumMg || 0),
+          }),
+          { calories: 0, carbsG: 0, proteinG: 0, fatG: 0, fibersG: 0, sodiumMg: 0 },
+        )
+        return {
+          id: `recipe_${r.id}`,
+          name: r.name,
+          baseUnit: '1 porção',
+          ...t,
+          allergens: null,
+          isRecipe: true,
+        }
+      }),
+    ]
+    return foods
+  }, [customFoods, nutritionRecipes])
 
   const filtered = useMemo(() => {
     if (!search.trim()) return allFoods
@@ -62,15 +101,14 @@ export function FoodEntryModal({ open, onOpenChange, planId }: Props) {
 
   const calc = useMemo(() => {
     if (!selected) return null
-    const qty = parseFloat(quantity) || 0
-    const base = parseBase(selected.baseUnit)
-    const factor = base > 0 ? qty / base : 0
-    return {
-      calories: Math.round(selected.calories * factor),
-      carbsG: +(selected.carbsG * factor).toFixed(1),
-      proteinG: +(selected.proteinG * factor).toFixed(1),
-      fatG: +(selected.fatG * factor).toFixed(1),
-    }
+    return calcMacrosForAmount(selected.baseUnit, quantity, {
+      calories: selected.calories,
+      carbsG: selected.carbsG,
+      proteinG: selected.proteinG,
+      fatG: selected.fatG,
+      fibersG: selected.fibersG,
+      sodiumMg: selected.sodiumMg,
+    })
   }, [selected, quantity])
 
   const handleSelect = useCallback((f: FoodOption) => {
@@ -92,6 +130,9 @@ export function FoodEntryModal({ open, onOpenChange, planId }: Props) {
       carbsG: calc.carbsG,
       proteinG: calc.proteinG,
       fatG: calc.fatG,
+      fibersG: calc.fibersG,
+      sodiumMg: calc.sodiumMg,
+      allergens: selected.allergens,
     })
     toast.success('Alimento adicionado! 🎉')
     setSearch('')
@@ -103,7 +144,9 @@ export function FoodEntryModal({ open, onOpenChange, planId }: Props) {
       <DialogContent className="max-w-md rounded-3xl">
         <DialogHeader>
           <DialogTitle className="text-xl font-extrabold">Adicionar Alimento</DialogTitle>
-          <DialogDescription>Busque e adicione alimentos à refeição</DialogDescription>
+          <DialogDescription>
+            Busque alimentos ou receitas para adicionar à refeição
+          </DialogDescription>
         </DialogHeader>
         <div className="space-y-4">
           {!selected ? (
@@ -113,30 +156,33 @@ export function FoodEntryModal({ open, onOpenChange, planId }: Props) {
                 <Input
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
-                  placeholder="Buscar alimento..."
+                  placeholder="Buscar alimento ou receita..."
                   className="rounded-xl pl-9 font-bold"
                   autoFocus
                 />
               </div>
               <div className="max-h-[300px] overflow-y-auto space-y-1 rounded-2xl">
-                {filtered.map((f, i) => (
+                {filtered.map((f) => (
                   <button
-                    key={i}
+                    key={f.id}
                     onClick={() => handleSelect(f)}
                     className="w-full flex items-center justify-between p-3 rounded-xl hover:bg-muted transition-colors text-left"
                   >
-                    <div>
-                      <p className="text-sm font-extrabold">{f.name}</p>
-                      <p className="text-xs font-bold text-muted-foreground">
-                        {f.baseUnit} · {f.calories} kcal
-                      </p>
+                    <div className="flex items-center gap-2">
+                      {f.isRecipe && <ChefHat className="w-4 h-4 text-[#CE82FF] shrink-0" />}
+                      <div>
+                        <p className="text-sm font-extrabold">{f.name}</p>
+                        <p className="text-xs font-bold text-muted-foreground">
+                          {f.baseUnit} · {f.calories} kcal{f.isRecipe ? ' · Receita' : ''}
+                        </p>
+                      </div>
                     </div>
-                    <Plus className="w-4 h-4 text-[#1CB0F6]" />
+                    <Plus className="w-4 h-4 text-[#1CB0F6] shrink-0" />
                   </button>
                 ))}
                 {filtered.length === 0 && (
                   <p className="text-center text-sm font-bold text-muted-foreground py-8">
-                    Nenhum alimento encontrado
+                    Nenhum resultado encontrado
                   </p>
                 )}
               </div>
@@ -145,7 +191,10 @@ export function FoodEntryModal({ open, onOpenChange, planId }: Props) {
             <>
               <div className="bg-[#1CB0F6]/10 rounded-2xl p-4">
                 <div className="flex items-center justify-between mb-1">
-                  <h3 className="font-extrabold">{selected.name}</h3>
+                  <div className="flex items-center gap-2">
+                    {selected.isRecipe && <ChefHat className="w-4 h-4 text-[#CE82FF]" />}
+                    <h3 className="font-extrabold">{selected.name}</h3>
+                  </div>
                   <button
                     onClick={() => setSelected(null)}
                     className="text-xs font-bold text-[#1CB0F6]"
@@ -158,7 +207,9 @@ export function FoodEntryModal({ open, onOpenChange, planId }: Props) {
                 </p>
               </div>
               <div className="space-y-2">
-                <Label className="text-sm font-extrabold">Quantidade</Label>
+                <Label className="text-sm font-extrabold">
+                  {selected.isRecipe ? 'Porções' : 'Quantidade'}
+                </Label>
                 <Input
                   type="number"
                   inputMode="decimal"
@@ -188,8 +239,7 @@ export function FoodEntryModal({ open, onOpenChange, planId }: Props) {
                 onClick={handleSubmit}
                 className="w-full py-6 rounded-3xl bg-[#58CC02] hover:bg-[#46B302] text-white font-extrabold border-b-4 border-[#46A602] active:translate-y-1 active:border-b-0 transition-all duration-150"
               >
-                <Check className="w-5 h-5 mr-2" strokeWidth={3} />
-                Adicionar
+                <Check className="w-5 h-5 mr-2" strokeWidth={3} /> Adicionar
               </Button>
             </>
           )}
