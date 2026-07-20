@@ -496,15 +496,13 @@ export const NutritionStoreProvider = ({ children }: { children: ReactNode }) =>
       toast.error('Erro ao criar receita.')
       return
     }
-    await supabase
-      .from('recipe_ingredients')
-      .insert(
-        ingredients.map((ing) => ({
-          recipe_id: recipeData.id,
-          food_id: ing.foodId,
-          amount: ing.amount,
-        })),
-      )
+    await supabase.from('recipe_ingredients').insert(
+      ingredients.map((ing) => ({
+        recipe_id: recipeData.id,
+        food_id: ing.foodId,
+        amount: ing.amount,
+      })),
+    )
     setNutritionRecipes((p) => p.map((r) => (r.id === tempId ? { ...r, id: recipeData.id } : r)))
   }
   const deleteRecipe = (id: string) => {

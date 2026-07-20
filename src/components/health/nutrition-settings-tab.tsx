@@ -1,20 +1,25 @@
 import { useState, useMemo, useEffect } from 'react'
 import { Input } from '@/components/ui/input'
+import { Button } from '@/components/ui/button'
 import { useNutritionStore } from '@/stores/use-nutrition-store'
 import { FoodEditModal } from '@/components/health/food-edit-modal'
 import { FoodCreateModal } from '@/components/health/food-create-modal'
+import { FoodDetailDialog } from '@/components/health/food-detail-dialog'
 import { RecipeSection } from '@/components/health/recipe-section'
-import { ScrollArea } from '@/components/ui/scroll-area'
 import { FOOD_TAG_PRESETS } from '@/lib/nutrition-utils'
-import { Search, Plus, Trash2, Pencil } from 'lucide-react'
+import { Search, Plus, Pencil, ChevronLeft, ChevronRight } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
+const ITEMS_PER_PAGE = 10
+
 export function NutritionSettingsTab() {
-  const { customFoods, fetchCustomFoods, deleteCustomFood } = useNutritionStore()
+  const { customFoods, fetchCustomFoods } = useNutritionStore()
   const [search, setSearch] = useState('')
   const [selectedTags, setSelectedTags] = useState<string[]>([])
   const [editingFoodId, setEditingFoodId] = useState<string | null>(null)
+  const [detailFoodId, setDetailFoodId] = useState<string | null>(null)
   const [createModalOpen, setCreateModalOpen] = useState(false)
+  const [page, setPage] = useState(0)
 
   useEffect(() => {
     fetchCustomFoods()
@@ -35,13 +40,24 @@ export function NutritionSettingsTab() {
     return result
   }, [customFoods, search, selectedTags])
 
+  const totalPages = Math.max(1, Math.ceil(filtered.length / ITEMS_PER_PAGE))
+  const currentPage = Math.min(page, totalPages - 1)
+  const paginated = filtered.slice(currentPage * ITEMS_PER_PAGE, (currentPage + 1) * ITEMS_PER_PAGE)
+
   const editingFood = useMemo(
     () => customFoods.find((f) => f.id === editingFoodId) || null,
     [customFoods, editingFoodId],
   )
 
-  const toggleFilterTag = (tag: string) =>
+  const detailFood = useMemo(
+    () => customFoods.find((f) => f.id === detailFoodId) || null,
+    [customFoods, detailFoodId],
+  )
+
+  const toggleFilterTag = (tag: string) => {
     setSelectedTags((prev) => (prev.includes(tag) ? prev.filter((t) => t !== tag) : [...prev, tag]))
+    setPage(0)
+  }
 
   return (
     <div className="space-y-6 pb-24">
@@ -50,7 +66,10 @@ export function NutritionSettingsTab() {
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
           <Input
             value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            onChange={(e) => {
+              setSearch(e.target.value)
+              setPage(0)
+            }}
             placeholder="Buscar alimentos..."
             className="rounded-xl pl-9 font-bold"
           />
@@ -71,72 +90,68 @@ export function NutritionSettingsTab() {
             </button>
           ))}
         </div>
+
         {filtered.length === 0 ? (
           <div className="bg-card border-2 border-dashed border-[#E5E5E5] dark:border-[#3B4A55] rounded-3xl p-8 text-center">
-            <p className="text-sm font-bold text-muted-foreground">Nenhum alimento encontrado</p>
+            <p className="font-bold text-muted-foreground">Nenhum alimento encontrado</p>
           </div>
         ) : (
-          <ScrollArea className="h-[420px] rounded-3xl">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pr-2">
-              {filtered.map((f) => (
-                <div
-                  key={f.id}
-                  className="bg-card border-2 border-[#E5E5E5] dark:border-[#3B4A55] rounded-2xl p-3 relative"
-                >
-                  <div className="absolute top-2 right-2 flex gap-1">
-                    <button
-                      onClick={() => setEditingFoodId(f.id)}
-                      className="p-1 rounded-lg hover:bg-[#1CB0F6]/10 transition-colors"
-                    >
-                      <Pencil className="w-3 h-3 text-[#1CB0F6]" />
-                    </button>
-                    <button
-                      onClick={() => deleteCustomFood(f.id)}
-                      className="p-1 rounded-lg hover:bg-[#FF4B4B]/10 transition-colors"
-                    >
-                      <Trash2 className="w-3 h-3 text-[#FF4B4B]" />
-                    </button>
-                  </div>
-                  <h4 className="font-extrabold text-xs pr-14">{f.name}</h4>
-                  <p className="text-[10px] font-bold text-muted-foreground mb-1">{f.baseUnit}</p>
-                  {(f.tags || []).length > 0 && (
-                    <div className="flex flex-wrap gap-0.5 mb-1.5">
-                      {f.tags.map((tag) => (
-                        <span
-                          key={tag}
-                          className="text-[8px] font-bold px-1.5 py-0.5 rounded-full bg-[#1CB0F6]/10 text-[#1CB0F6]"
-                        >
-                          {tag}
-                        </span>
-                      ))}
-                    </div>
-                  )}
-                  <div className="grid grid-cols-5 gap-0.5">
-                    <div className="text-center bg-[#FF4B4B]/10 rounded-md py-0.5">
-                      <p className="text-[7px] font-bold text-muted-foreground">kcal</p>
-                      <p className="text-[10px] font-extrabold text-[#FF4B4B]">{f.calories}</p>
-                    </div>
-                    <div className="text-center bg-[#FFC800]/10 rounded-md py-0.5">
-                      <p className="text-[7px] font-bold text-muted-foreground">Carb</p>
-                      <p className="text-[10px] font-extrabold text-[#FFC800]">{f.carbsG}g</p>
-                    </div>
-                    <div className="text-center bg-[#FF4B4B]/10 rounded-md py-0.5">
-                      <p className="text-[7px] font-bold text-muted-foreground">Prot</p>
-                      <p className="text-[10px] font-extrabold text-[#FF4B4B]">{f.proteinG}g</p>
-                    </div>
-                    <div className="text-center bg-[#1CB0F6]/10 rounded-md py-0.5">
-                      <p className="text-[7px] font-bold text-muted-foreground">Gord</p>
-                      <p className="text-[10px] font-extrabold text-[#1CB0F6]">{f.fatG}g</p>
-                    </div>
-                    <div className="text-center bg-[#58CC02]/10 rounded-md py-0.5">
-                      <p className="text-[7px] font-bold text-muted-foreground">Fibr</p>
-                      <p className="text-[10px] font-extrabold text-[#58CC02]">{f.fibersG}g</p>
-                    </div>
+          <div className="space-y-2">
+            {paginated.map((f) => (
+              <div
+                key={f.id}
+                onClick={() => setDetailFoodId(f.id)}
+                className="bg-card border-2 border-[#E5E5E5] dark:border-[#3B4A55] rounded-2xl p-4 flex items-center gap-3 cursor-pointer hover:border-[#1CB0F6]/50 transition-colors duration-150"
+              >
+                <div className="flex-1 min-w-0">
+                  <h4 className="font-extrabold truncate">{f.name}</h4>
+                  <p className="font-bold text-muted-foreground">{f.baseUnit}</p>
+                  <div className="flex gap-3 mt-1">
+                    <span className="font-bold text-[#FF4B4B]">{f.calories} kcal</span>
+                    <span className="font-bold text-[#FFC800]">{f.carbsG}g</span>
+                    <span className="font-bold text-[#FF4B4B]">{f.proteinG}g P</span>
+                    <span className="font-bold text-[#1CB0F6]">{f.fatG}g G</span>
                   </div>
                 </div>
-              ))}
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    setEditingFoodId(f.id)
+                  }}
+                  className="p-2 rounded-xl hover:bg-[#1CB0F6]/10 transition-colors shrink-0"
+                >
+                  <Pencil className="w-4 h-4 text-[#1CB0F6]" />
+                </button>
+              </div>
+            ))}
+
+            <div className="flex items-center justify-between pt-3 px-1">
+              <span className="font-bold text-muted-foreground">
+                {currentPage * ITEMS_PER_PAGE + 1}–
+                {Math.min((currentPage + 1) * ITEMS_PER_PAGE, filtered.length)} de {filtered.length}
+              </span>
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={currentPage === 0}
+                  onClick={() => setPage((p) => Math.max(0, p - 1))}
+                  className="rounded-xl font-bold disabled:opacity-40"
+                >
+                  <ChevronLeft className="w-4 h-4" /> Anterior
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={currentPage >= totalPages - 1}
+                  onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))}
+                  className="rounded-xl font-bold disabled:opacity-40"
+                >
+                  Próximo <ChevronRight className="w-4 h-4" />
+                </Button>
+              </div>
             </div>
-          </ScrollArea>
+          </div>
         )}
       </div>
 
@@ -156,6 +171,19 @@ export function NutritionSettingsTab() {
           if (!o) setEditingFoodId(null)
         }}
         food={editingFood}
+      />
+      <FoodDetailDialog
+        open={!!detailFoodId}
+        onOpenChange={(o) => {
+          if (!o) setDetailFoodId(null)
+        }}
+        food={detailFood}
+        onEdit={() => {
+          if (detailFoodId) {
+            setEditingFoodId(detailFoodId)
+            setDetailFoodId(null)
+          }
+        }}
       />
     </div>
   )

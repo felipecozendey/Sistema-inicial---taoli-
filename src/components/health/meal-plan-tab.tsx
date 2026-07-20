@@ -24,6 +24,26 @@ export function MealPlanTab() {
     fetchRecipes()
   }, [fetchDietPlans, fetchRecipes])
 
+  const planAnalytics = useMemo(() => {
+    const map = new Map<
+      string,
+      { cals: number; macros: { carbsG: number; proteinG: number; fatG: number } }
+    >()
+    dietPlans.forEach((plan) => {
+      const cals = plan.items.reduce((s, i) => s + i.calories, 0)
+      const macros = plan.items.reduce(
+        (a, i) => ({
+          carbsG: a.carbsG + i.carbsG,
+          proteinG: a.proteinG + i.proteinG,
+          fatG: a.fatG + i.fatG,
+        }),
+        { carbsG: 0, proteinG: 0, fatG: 0 },
+      )
+      map.set(plan.id, { cals, macros })
+    })
+    return map
+  }, [dietPlans])
+
   return (
     <div className="space-y-6">
       <button
@@ -42,15 +62,9 @@ export function MealPlanTab() {
       ) : (
         <Accordion type="single" collapsible className="space-y-3">
           {dietPlans.map((plan) => {
-            const cals = plan.items.reduce((s, i) => s + i.calories, 0)
-            const macros = plan.items.reduce(
-              (a, i) => ({
-                carbsG: a.carbsG + i.carbsG,
-                proteinG: a.proteinG + i.proteinG,
-                fatG: a.fatG + i.fatG,
-              }),
-              { carbsG: 0, proteinG: 0, fatG: 0 },
-            )
+            const analytics = planAnalytics.get(plan.id)
+            const cals = analytics?.cals ?? 0
+            const macros = analytics?.macros ?? { carbsG: 0, proteinG: 0, fatG: 0 }
             return (
               <AccordionItem
                 key={plan.id}
