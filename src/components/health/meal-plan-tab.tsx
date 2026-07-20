@@ -5,17 +5,19 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from '@/components/ui/accordion'
-import { useNutritionStore } from '@/stores/use-nutrition-store'
+import { useNutritionStore, type DietPlanItem } from '@/stores/use-nutrition-store'
 import { useAppStore } from '@/stores/useAppStore'
 import { FoodEntryModal } from '@/components/health/food-entry-modal'
 import { NewMealPlanModal } from '@/components/health/new-meal-plan-modal'
-import { Plus, Trash2, Clock } from 'lucide-react'
+import { DietItemEditModal } from '@/components/health/diet-item-edit-modal'
+import { Plus, Trash2, Clock, Pencil } from 'lucide-react'
 
 export function MealPlanTab() {
   const { dietPlans, fetchDietPlans, deleteDietPlanItem, deleteDietPlan } = useNutritionStore()
   const bodyMetrics = useAppStore((s) => s.bodyMetrics)
   const [foodModalPlanId, setFoodModalPlanId] = useState<string | null>(null)
   const [mealModalOpen, setMealModalOpen] = useState(false)
+  const [editItem, setEditItem] = useState<{ planId: string; item: DietPlanItem } | null>(null)
 
   useEffect(() => {
     fetchDietPlans()
@@ -144,6 +146,12 @@ export function MealPlanTab() {
                         </span>
                       </div>
                       <button
+                        onClick={() => setEditItem({ planId: plan.id, item })}
+                        className="p-1.5 rounded-lg hover:bg-[#1CB0F6]/10 transition-colors shrink-0"
+                      >
+                        <Pencil className="w-4 h-4 text-[#1CB0F6]" />
+                      </button>
+                      <button
                         onClick={() => deleteDietPlanItem(plan.id, item.id)}
                         className="p-1.5 rounded-lg hover:bg-[#FF4B4B]/10 transition-colors shrink-0"
                       >
@@ -185,6 +193,14 @@ export function MealPlanTab() {
         planId={foodModalPlanId || ''}
       />
       <NewMealPlanModal open={mealModalOpen} onOpenChange={setMealModalOpen} />
+      <DietItemEditModal
+        open={!!editItem}
+        onOpenChange={(o) => {
+          if (!o) setEditItem(null)
+        }}
+        planId={editItem?.planId || ''}
+        item={editItem?.item || null}
+      />
     </div>
   )
 }

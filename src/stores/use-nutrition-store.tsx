@@ -1,6 +1,7 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react'
 import { supabase } from '@/lib/supabase/client'
 import { toast } from 'sonner'
+import { calcMacrosForAmount } from '@/lib/nutrition-utils'
 
 export type DietPlanItem = {
   id: string
@@ -26,6 +27,26 @@ export type CustomFood = {
   carbsG: number
   proteinG: number
   fatG: number
+  tags: string[]
+}
+export type RecipeIngredient = {
+  id: string
+  foodId: string
+  foodName: string
+  foodBaseUnit: string
+  amount: string
+  calories: number
+  carbsG: number
+  proteinG: number
+  fatG: number
+}
+export type NutritionRecipe = {
+  id: string
+  name: string
+  description: string
+  instructions: string
+  tags: string[]
+  ingredients: RecipeIngredient[]
 }
 
 const genId = () => Math.random().toString(36).substring(2, 9)
@@ -94,6 +115,7 @@ const initialCustomFoods: CustomFood[] = [
     carbsG: 3,
     proteinG: 24,
     fatG: 1.5,
+    tags: ['Alta Proteína'],
   },
   {
     id: 'cf2',
@@ -103,20 +125,33 @@ const initialCustomFoods: CustomFood[] = [
     carbsG: 20,
     proteinG: 1.6,
     fatG: 0.1,
+    tags: ['Vegano', 'Vegetariano'],
   },
 ]
 
 interface NutritionState {
   dietPlans: DietPlan[]
   customFoods: CustomFood[]
+  nutritionRecipes: NutritionRecipe[]
   fetchDietPlans: () => Promise<void>
   addDietPlan: (name: string, time: string) => void
   deleteDietPlan: (id: string) => void
   addDietPlanItem: (planId: string, item: Omit<DietPlanItem, 'id'>) => void
+  updateDietPlanItem: (planId: string, itemId: string, updates: Partial<DietPlanItem>) => void
   deleteDietPlanItem: (planId: string, itemId: string) => void
   fetchCustomFoods: () => Promise<void>
   addCustomFood: (food: Omit<CustomFood, 'id'>) => Promise<void>
+  updateCustomFood: (id: string, updates: Partial<Omit<CustomFood, 'id'>>) => Promise<void>
   deleteCustomFood: (id: string) => void
+  fetchRecipes: () => Promise<void>
+  addRecipe: (
+    name: string,
+    description: string,
+    instructions: string,
+    tags: string[],
+    ingredients: { foodId: string; amount: string }[],
+  ) => Promise<void>
+  deleteRecipe: (id: string) => void
 }
 
 const Ctx = createContext<NutritionState | undefined>(undefined)
@@ -130,6 +165,10 @@ export const NutritionStoreProvider = ({ children }: { children: ReactNode }) =>
     const s = localStorage.getItem('vt_nutrition_custom_foods')
     return s ? JSON.parse(s) : initialCustomFoods
   })
+  const [nutritionRecipes, setNutritionRecipes] = useState<NutritionRecipe[]>(() => {
+    const s = localStorage.getItem('vt_nutrition_recipes')
+    return s ? JSON.parse(s) : []
+  })
 
   useEffect(() => {
     localStorage.setItem('vt_nutrition_diet_plans', JSON.stringify(dietPlans))
@@ -137,6 +176,9 @@ export const NutritionStoreProvider = ({ children }: { children: ReactNode }) =>
   useEffect(() => {
     localStorage.setItem('vt_nutrition_custom_foods', JSON.stringify(customFoods))
   }, [customFoods])
+  useEffect(() => {
+    localStorage.setItem('vt_nutrition_recipes', JSON.stringify(nutritionRecipes))
+  }, [nutritionRecipes])
 
   const fetchDietPlans = async () => {
     const {
@@ -217,6 +259,37 @@ export const NutritionStoreProvider = ({ children }: { children: ReactNode }) =>
         })
     })
   }
+  const updateDietPlanItem = (planId: string, itemId: string, updates: Partial<DietPlanItem>) => {
+    setDietPlans((p) =>
+      p.map((plan) =>
+        plan.id !== planId
+          ? plan
+          : {
+              ...plan,
+              items: plan.items.map((item) =>
+                item.id === itemId ? { ...item, ...updates } : item,
+              ),
+            },
+      ),
+    )
+    const dbUpdates: Record<string, any> = {}
+    if (updates.description !== undefined) dbUpdates.description = updates.description
+    if (updates.quantity !== undefined) dbUpdates.quantity = updates.quantity
+    if (updates.calories !== undefined) dbUpdates.calories = updates.calories
+    if (updates.carbsG !== undefined) dbUpdates.carbs_g = updates.carbsG
+    if (updates.proteinG !== undefined) dbUpdates.protein_g = updates.proteinG
+    if (updates.fatG !== undefined) dbUpdates.fat_g = updates.fatG
+    ;(supabase as any)
+      .from('diet_plan_items')
+      .update(dbUpdates)
+      .eq('id', itemId)
+      .then(({ error }: { error: any }) => {
+        if (error) {
+          toast.error('Erro ao atualizar item.')
+          fetchDietPlans()
+        }
+      })
+  }
   const deleteDietPlanItem = (planId: string, itemId: string) => {
     setDietPlans((p) =>
       p.map((d) => (d.id === planId ? { ...d, items: d.items.filter((i) => i.id !== itemId) } : d)),
@@ -243,6 +316,7 @@ export const NutritionStoreProvider = ({ children }: { children: ReactNode }) =>
           carbsG: Number(d.carbs_g) || 0,
           proteinG: Number(d.protein_g) || 0,
           fatG: Number(d.fat_g) || 0,
+          tags: d.tags || [],
         })),
       )
   }
@@ -262,15 +336,128 @@ export const NutritionStoreProvider = ({ children }: { children: ReactNode }) =>
         carbs_g: food.carbsG,
         protein_g: food.proteinG,
         fat_g: food.fatG,
+        tags: food.tags,
         user_id: u.id,
       })
       .select()
       .single()
     if (data) setCustomFoods((p) => p.map((f) => (f.id === tempId ? { ...f, id: data.id } : f)))
   }
+  const updateCustomFood = async (id: string, updates: Partial<Omit<CustomFood, 'id'>>) => {
+    setCustomFoods((p) => p.map((f) => (f.id === id ? { ...f, ...updates } : f)))
+    const dbUpdates: Record<string, any> = {}
+    if (updates.name !== undefined) dbUpdates.name = updates.name
+    if (updates.baseUnit !== undefined) dbUpdates.base_unit = updates.baseUnit
+    if (updates.calories !== undefined) dbUpdates.calories = updates.calories
+    if (updates.carbsG !== undefined) dbUpdates.carbs_g = updates.carbsG
+    if (updates.proteinG !== undefined) dbUpdates.protein_g = updates.proteinG
+    if (updates.fatG !== undefined) dbUpdates.fat_g = updates.fatG
+    if (updates.tags !== undefined) dbUpdates.tags = updates.tags
+    const { error } = await (supabase as any).from('custom_foods').update(dbUpdates).eq('id', id)
+    if (error) {
+      toast.error('Erro ao atualizar alimento.')
+      fetchCustomFoods()
+    }
+  }
   const deleteCustomFood = (id: string) => {
     setCustomFoods((p) => p.filter((f) => f.id !== id))
     ;(supabase as any).from('custom_foods').delete().eq('id', id).then()
+  }
+  const fetchRecipes = async () => {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser()
+    if (!user) return
+    const { data } = await (supabase as any)
+      .from('nutrition_recipes')
+      .select('*, recipe_ingredients(*, custom_foods(*))')
+      .eq('user_id', user.id)
+      .order('created_at', { ascending: false })
+    if (data)
+      setNutritionRecipes(
+        data.map((r: any) => ({
+          id: r.id,
+          name: r.name,
+          description: r.description || '',
+          instructions: r.instructions || '',
+          tags: r.tags || [],
+          ingredients: (r.recipe_ingredients || []).map((ri: any) => {
+            const food = ri.custom_foods
+            const macros = calcMacrosForAmount(food?.base_unit || '100g', ri.amount || '', {
+              calories: Number(food?.calories) || 0,
+              carbsG: Number(food?.carbs_g) || 0,
+              proteinG: Number(food?.protein_g) || 0,
+              fatG: Number(food?.fat_g) || 0,
+            })
+            return {
+              id: ri.id,
+              foodId: ri.food_id,
+              foodName: food?.name || '',
+              foodBaseUnit: food?.base_unit || '100g',
+              amount: ri.amount || '',
+              ...macros,
+            }
+          }),
+        })),
+      )
+  }
+  const addRecipe = async (
+    name: string,
+    description: string,
+    instructions: string,
+    tags: string[],
+    ingredients: { foodId: string; amount: string }[],
+  ) => {
+    const {
+      data: { user: u },
+    } = await supabase.auth.getUser()
+    if (!u) return
+    const { data: recipeData, error } = await (supabase as any)
+      .from('nutrition_recipes')
+      .insert({
+        name,
+        description,
+        instructions,
+        tags,
+        user_id: u.id,
+      })
+      .select()
+      .single()
+    if (error || !recipeData) {
+      toast.error('Erro ao criar receita.')
+      return
+    }
+    const ingredientsToInsert = ingredients.map((ing) => ({
+      recipe_id: recipeData.id,
+      food_id: ing.foodId,
+      amount: ing.amount,
+    }))
+    await (supabase as any).from('recipe_ingredients').insert(ingredientsToInsert)
+    const recipeIngredients: RecipeIngredient[] = ingredients.map((ing, i) => {
+      const food = customFoods.find((f) => f.id === ing.foodId)
+      const macros = calcMacrosForAmount(food?.baseUnit || '100g', ing.amount || '', {
+        calories: food?.calories || 0,
+        carbsG: food?.carbsG || 0,
+        proteinG: food?.proteinG || 0,
+        fatG: food?.fatG || 0,
+      })
+      return {
+        id: `temp_${i}`,
+        foodId: ing.foodId,
+        foodName: food?.name || '',
+        foodBaseUnit: food?.baseUnit || '100g',
+        amount: ing.amount,
+        ...macros,
+      }
+    })
+    setNutritionRecipes((p) => [
+      { id: recipeData.id, name, description, instructions, tags, ingredients: recipeIngredients },
+      ...p,
+    ])
+  }
+  const deleteRecipe = (id: string) => {
+    setNutritionRecipes((p) => p.filter((r) => r.id !== id))
+    ;(supabase as any).from('nutrition_recipes').delete().eq('id', id).then()
   }
 
   return (
@@ -278,14 +465,20 @@ export const NutritionStoreProvider = ({ children }: { children: ReactNode }) =>
       value={{
         dietPlans,
         customFoods,
+        nutritionRecipes,
         fetchDietPlans,
         addDietPlan,
         deleteDietPlan,
         addDietPlanItem,
+        updateDietPlanItem,
         deleteDietPlanItem,
         fetchCustomFoods,
         addCustomFood,
+        updateCustomFood,
         deleteCustomFood,
+        fetchRecipes,
+        addRecipe,
+        deleteRecipe,
       }}
     >
       {children}
