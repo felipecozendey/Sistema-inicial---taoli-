@@ -6,10 +6,6 @@ import { MicroGoalsChecklist } from '@/components/health/micro-goals-checklist'
 import { NewMealModal } from '@/components/health/new-meal-modal'
 import { Plus } from 'lucide-react'
 
-const PROTEIN_GOAL = 150
-const CARBS_GOAL = 250
-const FAT_GOAL = 65
-
 export function NutritionOverview() {
   const mealLogs = useAppStore((s) => s.mealLogs)
   const bodyMetrics = useAppStore((s) => s.bodyMetrics)
@@ -40,6 +36,13 @@ export function NutritionOverview() {
   )
   const latest = sortedMetrics[sortedMetrics.length - 1]
   const ventaGoal = latest?.ventaTarget || latest?.get || 2000
+  const macroGoals = useMemo(() => {
+    const w = latest?.weight || 70
+    const protein = Math.round(w * 2)
+    const fat = Math.round((ventaGoal * 0.25) / 9)
+    const carbs = Math.max(0, Math.round((ventaGoal - protein * 4 - fat * 9) / 4))
+    return { protein, carbs, fat }
+  }, [ventaGoal, latest?.weight])
 
   const planTotals = useMemo(
     () =>
@@ -86,19 +89,19 @@ export function NutritionOverview() {
         emoji: '🥩',
         label: 'Proteínas',
         value: totals.protein,
-        goal: PROTEIN_GOAL,
+        goal: macroGoals.protein,
         color: '#FF4B4B',
       },
       {
         emoji: '🍞',
         label: 'Carboidratos',
         value: totals.carbs,
-        goal: CARBS_GOAL,
+        goal: macroGoals.carbs,
         color: '#FFC800',
       },
-      { emoji: '🥑', label: 'Gorduras', value: totals.fat, goal: FAT_GOAL, color: '#1CB0F6' },
+      { emoji: '🥑', label: 'Gorduras', value: totals.fat, goal: macroGoals.fat, color: '#1CB0F6' },
     ],
-    [totals],
+    [totals, macroGoals],
   )
 
   return (

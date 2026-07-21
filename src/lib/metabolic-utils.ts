@@ -1,5 +1,5 @@
 export type Gender = 'male' | 'female'
-export type ActivityLevel = 'none' | 'sedentary' | 'light' | 'moderate' | 'intense'
+export type ActivityLevel = 'none' | 'sedentary' | 'light' | 'moderate' | 'intense' | 'athlete'
 export type Methodology = 'mifflin' | 'harris' | 'katch'
 export type InjuryFactorType = 'healthy' | 'surgery' | 'trauma' | 'sepsis'
 
@@ -17,6 +17,7 @@ export const ACTIVITY_FACTORS: Record<ActivityLevel, number> = {
   light: 1.375,
   moderate: 1.55,
   intense: 1.725,
+  athlete: 1.9,
 }
 
 export const ACTIVITY_LABELS: Record<ActivityLevel, string> = {
@@ -25,12 +26,20 @@ export const ACTIVITY_LABELS: Record<ActivityLevel, string> = {
   light: 'Levemente Ativo',
   moderate: 'Moderadamente Ativo',
   intense: 'Muito Ativo',
+  athlete: 'Atleta',
 }
 
 export const METHODOLOGY_ACTIVITY_FACTORS: Record<Methodology, Record<ActivityLevel, number>> = {
-  mifflin: { none: 1.0, sedentary: 1.2, light: 1.375, moderate: 1.55, intense: 1.725 },
-  harris: { none: 1.0, sedentary: 1.2, light: 1.3, moderate: 1.5, intense: 1.7 },
-  katch: { none: 1.0, sedentary: 1.2, light: 1.375, moderate: 1.55, intense: 1.725 },
+  mifflin: {
+    none: 1.0,
+    sedentary: 1.2,
+    light: 1.375,
+    moderate: 1.55,
+    intense: 1.725,
+    athlete: 1.9,
+  },
+  harris: { none: 1.0, sedentary: 1.2, light: 1.3, moderate: 1.5, intense: 1.7, athlete: 1.9 },
+  katch: { none: 1.0, sedentary: 1.2, light: 1.375, moderate: 1.55, intense: 1.725, athlete: 1.9 },
 }
 
 export const METHODOLOGY_ACTIVITY_LABELS: Record<Methodology, Record<ActivityLevel, string>> = {
@@ -40,6 +49,7 @@ export const METHODOLOGY_ACTIVITY_LABELS: Record<Methodology, Record<ActivityLev
     light: 'Levemente Ativo (1.375)',
     moderate: 'Moderadamente Ativo (1.55)',
     intense: 'Muito Ativo (1.725)',
+    athlete: 'Atleta (1.9)',
   },
   harris: {
     none: 'Não utilizar / Apenas TMB (1.0)',
@@ -47,6 +57,7 @@ export const METHODOLOGY_ACTIVITY_LABELS: Record<Methodology, Record<ActivityLev
     light: 'Levemente Ativo (1.3)',
     moderate: 'Moderadamente Ativo (1.5)',
     intense: 'Muito Ativo (1.7)',
+    athlete: 'Atleta (1.9)',
   },
   katch: {
     none: 'Não utilizar / Apenas TMB (1.0)',
@@ -54,6 +65,7 @@ export const METHODOLOGY_ACTIVITY_LABELS: Record<Methodology, Record<ActivityLev
     light: 'Levemente Ativo (1.375)',
     moderate: 'Moderadamente Ativo (1.55)',
     intense: 'Muito Ativo (1.725)',
+    athlete: 'Atleta (1.9)',
   },
 }
 

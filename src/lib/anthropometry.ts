@@ -65,6 +65,15 @@ export function calculateFatMass(weight: number, fatPercent: number): number {
   return Math.round(weight * (fatPercent / 100) * 10) / 10
 }
 
+export function calculateBodyDensity3(gender: Gender, age: number, sum: number): number {
+  if (sum === 0) return 0
+  const sum2 = sum * sum
+  if (gender === 'male') {
+    return 1.10938 - 0.0008267 * sum + 0.0000016 * sum2 - 0.0002574 * age
+  }
+  return 1.0994921 - 0.0009929 * sum + 0.0000023 * sum2 - 0.0001392 * age
+}
+
 export function calculateLeanMass(weight: number, fatMass: number): number {
   if (!weight) return 0
   return Math.round((weight - fatMass) * 10) / 10

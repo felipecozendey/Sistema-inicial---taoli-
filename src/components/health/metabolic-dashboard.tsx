@@ -1,14 +1,14 @@
+import { useState, useMemo, useEffect } from 'react'
 import { useAppStore } from '@/stores/useAppStore'
+import { MetActivityTable } from '@/components/health/met-activity-table'
 import {
-  calculateCaloricGoals,
   calculateDailyMetExpenditure,
-  calculateMetExpenditure,
   getActivityFactor,
   MetActivity,
   Methodology,
   ActivityLevel,
 } from '@/lib/metabolic-utils'
-import { Flame, TrendingDown, Scale, TrendingUp, Activity, Clock } from 'lucide-react'
+import { Flame, Save } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { PieChart, Pie, Cell } from 'recharts'
 import {
@@ -17,6 +17,10 @@ import {
   ChartTooltipContent,
   ChartConfig,
 } from '@/components/ui/chart'
+import { Slider } from '@/components/ui/slider'
+import { Button } from '@/components/ui/button'
+import { supabase } from '@/lib/supabase/client'
+import { toast } from 'sonner'
 
 const chartConfig = {
   bmr: { label: 'Metabolismo Basal', color: '#1CB0F6' },
@@ -25,8 +29,39 @@ const chartConfig = {
 
 export function MetabolicDashboard() {
   const bodyMetrics = useAppStore((s) => s.bodyMetrics)
-  const sorted = [...bodyMetrics].sort((a, b) => a.date.localeCompare(b.date))
+  const fetchBodyMetrics = useAppStore((s) => s.fetchBodyMetrics)
+
+  const sorted = useMemo(
+    () => [...bodyMetrics].sort((a, b) => String(a.date).localeCompare(String(b.date))),
+    [bodyMetrics],
+  )
   const latest = sorted[sorted.length - 1]
+
+  const [metActivities, setMetActivities] = useState<MetActivity[]>([])
+  const [caloricAdj, setCaloricAdj] = useState(-500)
+
+  useEffect(() => {
+    if (latest?.metActivities) setMetActivities(latest.metActivities as MetActivity[])
+    if (latest?.ventaTarget && latest?.get) setCaloricAdj(latest.ventaTarget - latest.get)
+  }, [latest?.id])
+
+  const metExp = useMemo(
+    () => calculateDailyMetExpenditure(metActivities, latest?.weight || 0),
+    [metActivities, latest?.weight],
+  )
+
+  const venta = useMemo(
+    () => Math.max(0, Math.round((latest?.get || 0) + caloricAdj)),
+    [latest?.get, caloricAdj],
+  )
+
+  const macros = useMemo(() => {
+    const w = latest?.weight || 70
+    const proteinG = Math.round(w * 2)
+    const fatG = Math.round((venta * 0.25) / 9)
+    const carbsG = Math.max(0, Math.round((venta - proteinG * 4 - fatG * 9) / 4))
+    return { proteinG, fatG, carbsG }
+  }, [venta, latest?.weight])
 
   if (!latest || !latest.tmb || !latest.get) {
     return (
@@ -41,60 +76,45 @@ export function MetabolicDashboard() {
     )
   }
 
-  const goals = calculateCaloricGoals(latest.get)
-  const currentGoal = latest.primaryGoal || ''
-  const metActivities: MetActivity[] = latest.metActivities || []
-  const metExpenditure = calculateDailyMetExpenditure(metActivities, latest.weight || 0)
-  const venta = latest.ventaTarget || latest.get
   const methodologyLabel = latest.methodologyUsed
     ? { mifflin: 'Mifflin-St Jeor', harris: 'Harris-Benedict', katch: 'Katch-McArdle' }[
-        latest.methodologyUsed
+        latest.methodologyUsed as Methodology
       ] || 'Mifflin-St Jeor'
     : 'Mifflin-St Jeor'
 
   const pieData = [
     { name: 'Metabolismo Basal', value: latest.tmb, fill: '#1CB0F6' },
-    { name: 'Exercício (MET)', value: Math.round(metExpenditure), fill: '#FF9600' },
+    { name: 'Exercício (MET)', value: Math.round(metExp), fill: '#FF9600' },
   ].filter((d) => d.value > 0)
 
-  const bars = [
-    {
-      label: 'Perda de Peso',
-      value: goals.deficit,
-      icon: TrendingDown,
-      color: '#FF4B4B',
-      match: currentGoal === 'Emagrecimento',
-    },
-    {
-      label: 'Manutenção',
-      value: goals.maintenance,
-      icon: Scale,
-      color: '#1CB0F6',
-      match: currentGoal === 'Manutenção',
-    },
-    {
-      label: 'Ganho de Massa',
-      value: goals.surplus,
-      icon: TrendingUp,
-      color: '#58CC02',
-      match: currentGoal === 'Hipertrofia',
-    },
-  ]
+  const handleSave = async () => {
+    if (!latest?.id) return
+    const { error } = await (supabase as any)
+      .from('body_metrics')
+      .update({ met_activities: metActivities, venta_target: venta })
+      .eq('id', latest.id)
+    if (error) {
+      toast.error('Erro ao salvar dados metabólicos.')
+    } else {
+      toast.success('Dados metabólicos salvos!')
+      fetchBodyMetrics()
+    }
+  }
 
   return (
-    <div className="bg-card border-2 border-b-4 border-[#E5E5E5] dark:border-[#3B4A55] rounded-3xl p-6 shadow-sm">
-      <h3 className="text-lg font-extrabold flex items-center gap-2 mb-1">
+    <div className="bg-card border-2 border-b-4 border-[#E5E5E5] dark:border-[#3B4A55] rounded-3xl p-6 shadow-sm space-y-4">
+      <h3 className="text-lg font-extrabold flex items-center gap-2">
         <Flame className="w-5 h-5 text-[#FF9600]" /> Metabolismo e Gasto Energético
       </h3>
-      <p className="text-[10px] font-bold text-muted-foreground mb-4">
-        Método: {methodologyLabel} · Fator de Atividade:{' '}
+      <p className="text-[10px] font-bold text-muted-foreground">
+        Método: {methodologyLabel} · NAF:{' '}
         {getActivityFactor(
           (latest.methodologyUsed as Methodology) || 'mifflin',
-          (latest.activityLevel as ActivityLevel) || 'none',
+          (latest.activityLevel as ActivityLevel) || 'sedentary',
         )}
       </p>
 
-      <div className="grid grid-cols-3 gap-3 mb-4">
+      <div className="grid grid-cols-3 gap-3">
         <div className="bg-[#1CB0F6]/10 rounded-2xl p-3 text-center">
           <p className="text-[10px] font-bold text-muted-foreground">TMB</p>
           <p className="text-xl font-extrabold text-[#1CB0F6]">{latest.tmb}</p>
@@ -112,7 +132,7 @@ export function MetabolicDashboard() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div>
           <ChartContainer config={chartConfig} className="mx-auto aspect-square max-h-[180px]">
             <PieChart>
@@ -141,76 +161,76 @@ export function MetabolicDashboard() {
           </div>
         </div>
 
-        <div className="space-y-2">
-          {bars.map((bar) => {
-            const Icon = bar.icon
-            return (
-              <div
-                key={bar.label}
+        <div className="space-y-3">
+          <div>
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-xs font-extrabold">Meta Déficit/Superávit</span>
+              <span
                 className={cn(
-                  'flex items-center justify-between p-3 rounded-2xl border-2 border-b-4 transition-all',
-                  bar.match ? 'bg-muted/30' : 'border-transparent bg-muted/20',
+                  'text-sm font-extrabold',
+                  caloricAdj < 0
+                    ? 'text-[#FF4B4B]'
+                    : caloricAdj > 0
+                      ? 'text-[#58CC02]'
+                      : 'text-[#1CB0F6]',
                 )}
-                style={
-                  bar.match ? { borderColor: bar.color, borderBottomColor: bar.color } : undefined
-                }
               >
-                <div className="flex items-center gap-2">
-                  <Icon className="w-4 h-4" style={{ color: bar.color }} />
-                  <span className="text-xs font-extrabold">{bar.label}</span>
-                </div>
-                <span className="text-base font-extrabold" style={{ color: bar.color }}>
-                  {bar.value} kcal
+                {caloricAdj > 0 ? '+' : ''}
+                {caloricAdj} kcal
+              </span>
+            </div>
+            <Slider
+              value={[caloricAdj]}
+              min={-1000}
+              max={500}
+              step={50}
+              onValueChange={([v]) => setCaloricAdj(v)}
+            />
+            <div className="flex justify-between text-[9px] font-bold text-muted-foreground mt-1">
+              <span>-1000</span>
+              <span>0</span>
+              <span>+500</span>
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <p className="text-xs font-extrabold">Macros ({venta} kcal)</p>
+            {[
+              { label: 'Proteína', g: macros.proteinG, color: '#FF4B4B', emoji: '🥩' },
+              { label: 'Carbo', g: macros.carbsG, color: '#FFC800', emoji: '🍞' },
+              { label: 'Gordura', g: macros.fatG, color: '#1CB0F6', emoji: '🥑' },
+            ].map((m) => (
+              <div
+                key={m.label}
+                className="flex items-center justify-between bg-muted/30 rounded-xl p-2"
+              >
+                <span className="text-xs font-bold flex items-center gap-1">
+                  {m.emoji} {m.label}
+                </span>
+                <span className="text-sm font-extrabold" style={{ color: m.color }}>
+                  {m.g}g
                 </span>
               </div>
-            )
-          })}
+            ))}
+          </div>
         </div>
       </div>
 
-      {metActivities.length > 0 && (
-        <div className="border-t-2 border-muted pt-4">
-          <h4 className="text-sm font-extrabold flex items-center gap-2 mb-3">
-            <Activity className="w-4 h-4 text-[#FF9600]" />
-            Linha do Tempo de Atividades
-          </h4>
-          <div className="space-y-2">
-            {metActivities.map((act, i) => {
-              const dailyKcal =
-                (calculateMetExpenditure(act.met, latest.weight || 0, act.duration) *
-                  act.weeklyFrequency) /
-                7
-              return (
-                <div
-                  key={act.id || i}
-                  className="flex items-center gap-3 bg-muted/30 rounded-2xl p-3"
-                >
-                  <div className="w-10 h-10 rounded-xl bg-[#FF9600]/10 flex items-center justify-center shrink-0">
-                    <Flame className="w-5 h-5 text-[#FF9600]" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-extrabold truncate">{act.name || 'Atividade'}</p>
-                    <div className="flex items-center gap-3 text-[10px] font-bold text-muted-foreground">
-                      <span>{act.met} MET</span>
-                      <span className="flex items-center gap-0.5">
-                        <Clock className="w-3 h-3" />
-                        {act.duration}min
-                      </span>
-                      <span>{act.weeklyFrequency}x/sem</span>
-                    </div>
-                  </div>
-                  <div className="text-right shrink-0">
-                    <p className="text-base font-extrabold text-[#FF9600]">
-                      {Math.round(dailyKcal)}
-                    </p>
-                    <p className="text-[9px] font-bold text-muted-foreground">kcal/dia</p>
-                  </div>
-                </div>
-              )
-            })}
-          </div>
-        </div>
-      )}
+      <div className="border-t-2 border-muted pt-4">
+        <h4 className="text-sm font-extrabold mb-3">🏃 Atividades (MET)</h4>
+        <MetActivityTable
+          activities={metActivities}
+          onChange={setMetActivities}
+          weight={latest.weight || 0}
+        />
+      </div>
+
+      <Button
+        onClick={handleSave}
+        className="w-full bg-[#58CC02] hover:bg-[#58CC02]/90 text-white border-b-4 border-[#58A300] rounded-2xl font-bold"
+      >
+        <Save className="w-4 h-4" /> Salvar Dados Metabólicos
+      </Button>
     </div>
   )
 }

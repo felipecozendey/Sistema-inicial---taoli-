@@ -8,6 +8,12 @@ import { BodyGoalsDashboard } from '@/components/health/body-goals-dashboard'
 import { MetabolicDashboard } from '@/components/health/metabolic-dashboard'
 import { AssessmentHistory } from '@/components/health/assessment-history'
 import { MedicalExamsSection } from '@/components/health/medical-exams-section'
+import {
+  Accordion,
+  AccordionItem,
+  AccordionTrigger,
+  AccordionContent,
+} from '@/components/ui/accordion'
 import { useAppStore } from '@/stores/useAppStore'
 import type { ReactNode } from 'react'
 
@@ -73,8 +79,20 @@ export function BodyXrayTab() {
         <EvolutionGallery />
       </div>
 
+      <Accordion type="single" collapsible defaultValue="metabolic">
+        <AccordionItem
+          value="metabolic"
+          className="border-2 border-b-4 border-[#E5E5E5] dark:border-[#3B4A55] rounded-3xl px-4"
+        >
+          <AccordionTrigger className="text-xl font-extrabold">
+            🧬 Inteligência Metabólica & Gasto Energético
+          </AccordionTrigger>
+          <AccordionContent>
+            <MetabolicDashboard />
+          </AccordionContent>
+        </AccordionItem>
+      </Accordion>
       <BodyGoalsDashboard />
-      <MetabolicDashboard />
       <AssessmentHistory />
       <MedicalExamsSection />
 
