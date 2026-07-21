@@ -138,6 +138,49 @@ export type BodyMetric = {
   anxietyLevel?: number
   mentalTriggers?: string
   glucose?: number
+  sittingHeight?: number
+  kneeHeight?: number
+  armRelaxedLeft?: number
+  armRelaxedRight?: number
+  armContractedLeft?: number
+  armContractedRight?: number
+  forearmLeft?: number
+  forearmRight?: number
+  wristCircLeft?: number
+  wristCircRight?: number
+  neckCirc?: number
+  shoulderCirc?: number
+  chestCirc?: number
+  waistCirc?: number
+  abdomenCirc?: number
+  hipCirc?: number
+  calfLeft?: number
+  calfRight?: number
+  thighLeft?: number
+  thighRight?: number
+  proximalThighLeft?: number
+  proximalThighRight?: number
+  wristDiameter?: number
+  femurDiameter?: number
+  humerusDiameter?: number
+  compositionMethod?: string
+  calcProtocol?: string
+  skinfoldBiceps?: number
+  skinfoldTriceps?: number
+  skinfoldSubscapular?: number
+  skinfoldChest?: number
+  skinfoldMidaxillary?: number
+  skinfoldSuprailiac?: number
+  skinfoldSupraspinal?: number
+  skinfoldAbdominal?: number
+  skinfoldThigh?: number
+  skinfoldCalf?: number
+  photoFront?: string
+  photoBack?: string
+  photoRight?: string
+  photoLeft?: string
+  attachments?: string[]
+  observations?: string
 }
 export type MentalHealthLog = {
   id: string
@@ -1495,6 +1538,49 @@ export const AppStoreProvider = ({ children }: { children: ReactNode }) => {
           anxietyLevel: d.anxiety_level || undefined,
           mentalTriggers: d.mental_triggers || undefined,
           glucose: d.glucose ? Number(d.glucose) : undefined,
+          sittingHeight: d.sitting_height ? Number(d.sitting_height) : undefined,
+          kneeHeight: d.knee_height ? Number(d.knee_height) : undefined,
+          armRelaxedLeft: d.arm_relaxed_left ? Number(d.arm_relaxed_left) : undefined,
+          armRelaxedRight: d.arm_relaxed_right ? Number(d.arm_relaxed_right) : undefined,
+          armContractedLeft: d.arm_contracted_left ? Number(d.arm_contracted_left) : undefined,
+          armContractedRight: d.arm_contracted_right ? Number(d.arm_contracted_right) : undefined,
+          forearmLeft: d.forearm_left ? Number(d.forearm_left) : undefined,
+          forearmRight: d.forearm_right ? Number(d.forearm_right) : undefined,
+          wristCircLeft: d.wrist_circ_left ? Number(d.wrist_circ_left) : undefined,
+          wristCircRight: d.wrist_circ_right ? Number(d.wrist_circ_right) : undefined,
+          neckCirc: d.neck_circ ? Number(d.neck_circ) : undefined,
+          shoulderCirc: d.shoulder_circ ? Number(d.shoulder_circ) : undefined,
+          chestCirc: d.chest_circ ? Number(d.chest_circ) : undefined,
+          waistCirc: d.waist_circ ? Number(d.waist_circ) : undefined,
+          abdomenCirc: d.abdomen_circ ? Number(d.abdomen_circ) : undefined,
+          hipCirc: d.hip_circ ? Number(d.hip_circ) : undefined,
+          calfLeft: d.calf_left ? Number(d.calf_left) : undefined,
+          calfRight: d.calf_right ? Number(d.calf_right) : undefined,
+          thighLeft: d.thigh_left ? Number(d.thigh_left) : undefined,
+          thighRight: d.thigh_right ? Number(d.thigh_right) : undefined,
+          proximalThighLeft: d.proximal_thigh_left ? Number(d.proximal_thigh_left) : undefined,
+          proximalThighRight: d.proximal_thigh_right ? Number(d.proximal_thigh_right) : undefined,
+          wristDiameter: d.wrist_diameter ? Number(d.wrist_diameter) : undefined,
+          femurDiameter: d.femur_diameter ? Number(d.femur_diameter) : undefined,
+          humerusDiameter: d.humerus_diameter ? Number(d.humerus_diameter) : undefined,
+          compositionMethod: d.composition_method || undefined,
+          calcProtocol: d.calc_protocol || undefined,
+          skinfoldBiceps: d.skinfold_biceps ? Number(d.skinfold_biceps) : undefined,
+          skinfoldTriceps: d.skinfold_triceps ? Number(d.skinfold_triceps) : undefined,
+          skinfoldSubscapular: d.skinfold_subscapular ? Number(d.skinfold_subscapular) : undefined,
+          skinfoldChest: d.skinfold_chest ? Number(d.skinfold_chest) : undefined,
+          skinfoldMidaxillary: d.skinfold_midaxillary ? Number(d.skinfold_midaxillary) : undefined,
+          skinfoldSuprailiac: d.skinfold_suprailiac ? Number(d.skinfold_suprailiac) : undefined,
+          skinfoldSupraspinal: d.skinfold_supraspinal ? Number(d.skinfold_supraspinal) : undefined,
+          skinfoldAbdominal: d.skinfold_abdominal ? Number(d.skinfold_abdominal) : undefined,
+          skinfoldThigh: d.skinfold_thigh ? Number(d.skinfold_thigh) : undefined,
+          skinfoldCalf: d.skinfold_calf ? Number(d.skinfold_calf) : undefined,
+          photoFront: d.photo_front || undefined,
+          photoBack: d.photo_back || undefined,
+          photoRight: d.photo_right || undefined,
+          photoLeft: d.photo_left || undefined,
+          attachments: d.attachments || [],
+          observations: d.observations || undefined,
         })),
       )
   }
@@ -1532,6 +1618,49 @@ export const AppStoreProvider = ({ children }: { children: ReactNode }) => {
           target_weight: metric.targetWeight || null,
           days_for_goal: metric.daysForGoal || null,
           glucose: metric.glucose || null,
+          sitting_height: metric.sittingHeight || null,
+          knee_height: metric.kneeHeight || null,
+          arm_relaxed_left: metric.armRelaxedLeft || null,
+          arm_relaxed_right: metric.armRelaxedRight || null,
+          arm_contracted_left: metric.armContractedLeft || null,
+          arm_contracted_right: metric.armContractedRight || null,
+          forearm_left: metric.forearmLeft || null,
+          forearm_right: metric.forearmRight || null,
+          wrist_circ_left: metric.wristCircLeft || null,
+          wrist_circ_right: metric.wristCircRight || null,
+          neck_circ: metric.neckCirc || null,
+          shoulder_circ: metric.shoulderCirc || null,
+          chest_circ: metric.chestCirc || null,
+          waist_circ: metric.waistCirc || null,
+          abdomen_circ: metric.abdomenCirc || null,
+          hip_circ: metric.hipCirc || null,
+          calf_left: metric.calfLeft || null,
+          calf_right: metric.calfRight || null,
+          thigh_left: metric.thighLeft || null,
+          thigh_right: metric.thighRight || null,
+          proximal_thigh_left: metric.proximalThighLeft || null,
+          proximal_thigh_right: metric.proximalThighRight || null,
+          wrist_diameter: metric.wristDiameter || null,
+          femur_diameter: metric.femurDiameter || null,
+          humerus_diameter: metric.humerusDiameter || null,
+          composition_method: metric.compositionMethod || null,
+          calc_protocol: metric.calcProtocol || null,
+          skinfold_biceps: metric.skinfoldBiceps || null,
+          skinfold_triceps: metric.skinfoldTriceps || null,
+          skinfold_subscapular: metric.skinfoldSubscapular || null,
+          skinfold_chest: metric.skinfoldChest || null,
+          skinfold_midaxillary: metric.skinfoldMidaxillary || null,
+          skinfold_suprailiac: metric.skinfoldSuprailiac || null,
+          skinfold_supraspinal: metric.skinfoldSupraspinal || null,
+          skinfold_abdominal: metric.skinfoldAbdominal || null,
+          skinfold_thigh: metric.skinfoldThigh || null,
+          skinfold_calf: metric.skinfoldCalf || null,
+          photo_front: metric.photoFront || null,
+          photo_back: metric.photoBack || null,
+          photo_right: metric.photoRight || null,
+          photo_left: metric.photoLeft || null,
+          attachments: metric.attachments || [],
+          observations: metric.observations || null,
           user_id: u.id,
         })
         .then(({ error }: { error: any }) => {
