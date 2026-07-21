@@ -10,7 +10,7 @@ import {
   Calendar,
 } from 'lucide-react'
 import { useAppStore } from '@/stores/useAppStore'
-import { format } from 'date-fns'
+import { format, isValid } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 
 interface HistoryEntry {
@@ -99,7 +99,11 @@ export function HealthHistory() {
       })
     })
 
-    return all.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+    return all.sort((a, b) => {
+      const timeA = new Date(a.date).getTime()
+      const timeB = new Date(b.date).getTime()
+      return (isNaN(timeB) ? 0 : timeB) - (isNaN(timeA) ? 0 : timeA)
+    })
   }, [bodyMetrics, mealLogs])
 
   if (!entries.length) {
@@ -129,7 +133,9 @@ export function HealthHistory() {
             <div className="flex-1 bg-card border-2 border-b-4 border-[#E5E5E5] dark:border-[#3B4A55] rounded-2xl p-3">
               <div className="flex items-center justify-between gap-2">
                 <span className="text-xs font-bold text-muted-foreground">
-                  {format(new Date(entry.date), "dd 'de' MMMM 'às' HH:mm", { locale: ptBR })}
+                  {isValid(new Date(entry.date))
+                    ? format(new Date(entry.date), "dd 'de' MMMM 'às' HH:mm", { locale: ptBR })
+                    : 'Data indisponível'}
                 </span>
                 <span
                   className="text-xs font-extrabold px-2 py-0.5 rounded-full"
