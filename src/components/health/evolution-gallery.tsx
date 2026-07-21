@@ -6,8 +6,8 @@ export function EvolutionGallery() {
 
   const photos = useMemo(() => {
     return bodyMetrics
-      .filter((m) => m.photoUrls.length > 0)
-      .flatMap((m) => m.photoUrls.map((url) => ({ url, date: m.date })))
+      .filter((m) => (m.photoUrls?.length ?? 0) > 0)
+      .flatMap((m) => (m.photoUrls || []).map((url) => ({ url, date: m.date })))
   }, [bodyMetrics])
 
   if (photos.length === 0) return null
