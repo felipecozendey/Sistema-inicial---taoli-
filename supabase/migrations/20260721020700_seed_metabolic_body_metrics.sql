@@ -1,10 +1,10 @@
 DO $$
 DECLARE
-  user_id uuid;
+  v_user_id uuid;
 BEGIN
-  SELECT id INTO user_id FROM auth.users WHERE email = 'felipecozendey@gmail.com';
-  IF user_id IS NOT NULL AND NOT EXISTS (
-    SELECT 1 FROM body_metrics WHERE user_id = user_id AND tmb IS NOT NULL
+  SELECT id INTO v_user_id FROM auth.users WHERE email = 'felipecozendey@gmail.com';
+  IF v_user_id IS NOT NULL AND NOT EXISTS (
+    SELECT 1 FROM body_metrics bm WHERE bm.user_id = v_user_id AND bm.tmb IS NOT NULL
   ) THEN
     INSERT INTO body_metrics (
       user_id, date, weight, height, body_fat_percentage, muscle_mass,
@@ -13,7 +13,7 @@ BEGIN
       injury_factor, met_activities, heart_rate_rest, blood_pressure,
       sleep_quality, stress_level, target_weight
     ) VALUES (
-      user_id,
+      v_user_id,
       NOW(),
       81,
       175,
