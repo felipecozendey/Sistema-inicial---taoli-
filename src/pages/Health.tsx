@@ -11,6 +11,7 @@ import { FastingTab } from '@/components/health/fasting-tab'
 import { MindTab } from '@/components/health/mind-tab'
 import { MealPlanTab } from '@/components/health/meal-plan-tab'
 import { NutritionSettingsTab } from '@/components/health/nutrition-settings-tab'
+import { ClinicalVitalsCard } from '@/components/health/clinical-vitals-card'
 
 export default function HealthPage() {
   return (
@@ -57,6 +58,7 @@ export default function HealthPage() {
                 <BowelWidget />
                 <UrineWidget />
               </div>
+              <ClinicalVitalsCard />
             </TabsContent>
             <TabsContent value="historico" className="mt-6">
               <HealthHistory />

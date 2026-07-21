@@ -1,158 +1,108 @@
-import { useEffect, useState, useMemo } from 'react'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { useAppStore } from '@/stores/useAppStore'
-import { BodyGoalsDashboard } from '@/components/health/body-goals-dashboard'
+import { useState, useMemo } from 'react'
+import { Plus, Scale, Percent, Dumbbell, Ruler } from 'lucide-react'
+import { Button } from '@/components/ui/button'
 import { AnthropometryModal } from '@/components/health/anthropometry-modal'
 import { EvolutionChart } from '@/components/health/evolution-chart'
 import { EvolutionGallery } from '@/components/health/evolution-gallery'
-import { MedicalExamsSection } from '@/components/health/medical-exams-section'
+import { BodyGoalsDashboard } from '@/components/health/body-goals-dashboard'
 import { MetabolicDashboard } from '@/components/health/metabolic-dashboard'
 import { AssessmentHistory } from '@/components/health/assessment-history'
-import { GameButton } from '@/components/ui/game-button'
-import { Plus, Scale, Flame, Dumbbell } from 'lucide-react'
-import { cn } from '@/lib/utils'
-import { VitalsChart } from '@/components/health/vitals-chart'
-
-function getBmiStatus(bmi: number) {
-  if (bmi <= 0)
-    return {
-      label: 'N/A',
-      bg: 'bg-gray-100 dark:bg-gray-800',
-      textColor: 'text-gray-600 dark:text-gray-400',
-    }
-  if (bmi < 18.5)
-    return {
-      label: 'Abaixo',
-      bg: 'bg-blue-100 dark:bg-blue-900/30',
-      textColor: 'text-blue-600 dark:text-blue-400',
-    }
-  if (bmi < 25)
-    return {
-      label: 'Normal',
-      bg: 'bg-green-100 dark:bg-green-900/30',
-      textColor: 'text-green-600 dark:text-green-400',
-    }
-  if (bmi < 30)
-    return {
-      label: 'Sobrepeso',
-      bg: 'bg-yellow-100 dark:bg-yellow-900/30',
-      textColor: 'text-yellow-600 dark:text-yellow-400',
-    }
-  return {
-    label: 'Obesidade',
-    bg: 'bg-red-100 dark:bg-red-900/30',
-    textColor: 'text-red-600 dark:text-red-400',
-  }
-}
+import { MedicalExamsSection } from '@/components/health/medical-exams-section'
+import { useAppStore } from '@/stores/useAppStore'
+import type { ReactNode } from 'react'
 
 export function BodyXrayTab() {
-  const bodyMetrics = useAppStore((s) => s.bodyMetrics)
-  const patientGoals = useAppStore((s) => s.patientGoals)
-  const fetchBodyMetrics = useAppStore((s) => s.fetchBodyMetrics)
-  const fetchPatientGoals = useAppStore((s) => s.fetchPatientGoals)
-  const fetchMedicalExams = useAppStore((s) => s.fetchMedicalExams)
-  const [modalOpen, setModalOpen] = useState(false)
-
-  useEffect(() => {
-    fetchBodyMetrics()
-    fetchPatientGoals()
-    fetchMedicalExams()
-  }, [fetchBodyMetrics, fetchPatientGoals, fetchMedicalExams])
+  const { bodyMetrics } = useAppStore()
+  const [anthropometryOpen, setAnthropometryOpen] = useState(false)
 
   const latest = useMemo(() => {
-    const sorted = [...bodyMetrics].sort((a, b) => a.date.localeCompare(b.date))
-    return sorted[sorted.length - 1]
+    if (!bodyMetrics?.length) return null
+    return [...bodyMetrics]
+      .filter((b: any) => b.weight || b.body_fat_percentage || b.muscle_mass)
+      .sort((a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime())[0]
   }, [bodyMetrics])
 
   const bmi = useMemo(() => {
-    if (!latest) return 0
-    const h = (latest.height || patientGoals.height || 0) / 100
-    return h > 0 ? latest.weight / (h * h) : 0
-  }, [latest, patientGoals.height])
-
-  const bmiStatus = useMemo(() => getBmiStatus(bmi), [bmi])
+    if (!latest?.weight || !latest?.height) return null
+    const h = latest.height / 100
+    return latest.weight / (h * h)
+  }, [latest])
 
   return (
-    <div className="space-y-6 animate-fade-in-up">
-      <div className="flex items-center justify-between">
-        <h3 className="text-lg font-extrabold">Raio-X Corporal</h3>
-        <GameButton onClick={() => setModalOpen(true)} variant="primary" size="sm">
-          <Plus className="w-4 h-4 mr-1" strokeWidth={3} />
-          Nova Avaliação
-        </GameButton>
+    <div className="space-y-6">
+      <div className="bg-card border-2 border-b-4 border-[#E5E5E5] dark:border-[#3B4A55] rounded-3xl p-5 space-y-4">
+        <div className="flex items-center justify-between">
+          <h3 className="text-xl font-extrabold">📈 Evolução e Composição Corporal</h3>
+          <Button
+            onClick={() => setAnthropometryOpen(true)}
+            className="bg-[#1CB0F6] hover:bg-[#1CB0F6]/90 text-white border-b-4 border-[#1899D6] rounded-2xl font-bold"
+            size="sm"
+          >
+            <Plus className="w-4 h-4" /> Registrar Medidas
+          </Button>
+        </div>
+
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          <MetricTile
+            icon={<Scale className="w-4 h-4" />}
+            label="Peso"
+            value={latest?.weight ? `${latest.weight} kg` : '--'}
+            color="#58CC02"
+          />
+          <MetricTile
+            icon={<Percent className="w-4 h-4" />}
+            label="% Gordura"
+            value={latest?.body_fat_percentage ? `${latest.body_fat_percentage}%` : '--'}
+            color="#FF9600"
+          />
+          <MetricTile
+            icon={<Dumbbell className="w-4 h-4" />}
+            label="M. Muscular"
+            value={latest?.muscle_mass ? `${latest.muscle_mass} kg` : '--'}
+            color="#1CB0F6"
+          />
+          <MetricTile
+            icon={<Ruler className="w-4 h-4" />}
+            label="IMC"
+            value={bmi ? bmi.toFixed(1) : '--'}
+            color="#CE82FF"
+          />
+        </div>
+
+        <EvolutionChart />
+        <EvolutionGallery />
       </div>
 
-      <Tabs defaultValue="dossie">
-        <TabsList className="w-full rounded-2xl">
-          <TabsTrigger value="dossie" className="rounded-xl font-bold">
-            Dossiê Atual
-          </TabsTrigger>
-          <TabsTrigger value="historico" className="rounded-xl font-bold">
-            Histórico de Avaliações
-          </TabsTrigger>
-        </TabsList>
+      <BodyGoalsDashboard />
+      <MetabolicDashboard />
+      <AssessmentHistory />
+      <MedicalExamsSection />
 
-        <TabsContent value="dossie" className="space-y-6 mt-6">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            <div className="bg-card border-2 border-b-4 border-[#E5E5E5] dark:border-[#3B4A55] rounded-3xl p-6 shadow-sm">
-              <div className="flex items-center justify-between mb-4">
-                <h4 className="text-base font-extrabold flex items-center gap-2">
-                  <Scale className="w-5 h-5 text-[#1CB0F6]" />
-                  Composição Corporal
-                </h4>
-                <span
-                  className={cn(
-                    'px-3 py-1 rounded-full text-xs font-extrabold',
-                    bmiStatus.bg,
-                    bmiStatus.textColor,
-                  )}
-                >
-                  IMC {bmi > 0 ? bmi.toFixed(1) : '—'} · {bmiStatus.label}
-                </span>
-              </div>
-              <div className="grid grid-cols-3 gap-3">
-                <div className="text-center">
-                  <div className="w-12 h-12 mx-auto rounded-2xl bg-[#1CB0F6]/10 flex items-center justify-center mb-2">
-                    <Scale className="w-6 h-6 text-[#1CB0F6]" />
-                  </div>
-                  <p className="text-2xl font-extrabold">{latest?.weight?.toFixed(1) || '—'}</p>
-                  <p className="text-xs font-bold text-muted-foreground">Peso (kg)</p>
-                </div>
-                <div className="text-center">
-                  <div className="w-12 h-12 mx-auto rounded-2xl bg-[#FF9600]/10 flex items-center justify-center mb-2">
-                    <Flame className="w-6 h-6 text-[#FF9600]" />
-                  </div>
-                  <p className="text-2xl font-extrabold">
-                    {latest?.bodyFatPercentage?.toFixed(1) || '—'}
-                  </p>
-                  <p className="text-xs font-bold text-muted-foreground">Gordura (%)</p>
-                </div>
-                <div className="text-center">
-                  <div className="w-12 h-12 mx-auto rounded-2xl bg-[#58CC02]/10 flex items-center justify-center mb-2">
-                    <Dumbbell className="w-6 h-6 text-[#58CC02]" />
-                  </div>
-                  <p className="text-2xl font-extrabold">{latest?.muscleMass?.toFixed(1) || '—'}</p>
-                  <p className="text-xs font-bold text-muted-foreground">Músculo (kg)</p>
-                </div>
-              </div>
-            </div>
+      <AnthropometryModal open={anthropometryOpen} onOpenChange={setAnthropometryOpen} />
+    </div>
+  )
+}
 
-            <VitalsChart />
-          </div>
-
-          <MetabolicDashboard />
-          <BodyGoalsDashboard />
-          <EvolutionChart />
-          <EvolutionGallery />
-          <MedicalExamsSection />
-        </TabsContent>
-
-        <TabsContent value="historico" className="mt-6">
-          <AssessmentHistory />
-        </TabsContent>
-      </Tabs>
-
-      <AnthropometryModal open={modalOpen} onOpenChange={setModalOpen} />
+function MetricTile({
+  icon,
+  label,
+  value,
+  color,
+}: {
+  icon: ReactNode
+  label: string
+  value: string
+  color: string
+}) {
+  return (
+    <div className="flex flex-col items-center gap-1 bg-background/50 border-2 border-[#E5E5E5] dark:border-[#3B4A55] rounded-2xl p-3">
+      <div className="flex items-center gap-1" style={{ color }}>
+        {icon}
+        <span className="text-xs font-bold">{label}</span>
+      </div>
+      <span className="text-base font-extrabold" style={{ color }}>
+        {value}
+      </span>
     </div>
   )
 }
