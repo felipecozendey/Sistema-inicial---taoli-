@@ -358,3 +358,89 @@ export function calculateBolsoRange(
     label: '25-30 kcal/kg',
   }
 }
+
+export type FormulaGroup = 'A' | 'B' | 'C'
+
+export function getFormulaGroup(formula: string): FormulaGroup {
+  if (formula === 'fao_who') return 'B'
+  if (formula === 'eer_2005' || formula === 'eer_2023') return 'C'
+  return 'A'
+}
+
+export type GroupActivity = {
+  value: string
+  label: string
+  factor: number
+}
+
+export const GROUP_A_ACTIVITIES: GroupActivity[] = [
+  { value: '1.2', label: 'Sedentário (1.2)', factor: 1.2 },
+  { value: '1.375', label: 'Leve (1.375)', factor: 1.375 },
+  { value: '1.55', label: 'Moderado (1.55)', factor: 1.55 },
+  { value: '1.725', label: 'Muito Ativo (1.725)', factor: 1.725 },
+  { value: '1.9', label: 'Extremamente Ativo (1.9)', factor: 1.9 },
+]
+
+export const GROUP_B_ACTIVITIES: GroupActivity[] = [
+  { value: '1.4', label: 'Leve/Sedentário (1.4)', factor: 1.4 },
+  { value: '1.7', label: 'Moderado (1.7)', factor: 1.7 },
+  { value: '2.0', label: 'Intenso (2.0)', factor: 2.0 },
+]
+
+export const GROUP_C_ACTIVITIES: GroupActivity[] = [
+  { value: '1.0', label: 'Sedentário (1.0)', factor: 1.0 },
+  { value: '1.11', label: 'Pouco Ativo (1.11)', factor: 1.11 },
+  { value: '1.25', label: 'Ativo (1.25)', factor: 1.25 },
+  { value: '1.48', label: 'Muito Ativo (1.48)', factor: 1.48 },
+]
+
+export function getGroupActivities(group: FormulaGroup): GroupActivity[] {
+  switch (group) {
+    case 'B':
+      return GROUP_B_ACTIVITIES
+    case 'C':
+      return GROUP_C_ACTIVITIES
+    default:
+      return GROUP_A_ACTIVITIES
+  }
+}
+
+export type ClinicalCondition = {
+  id: string
+  label: string
+  type: 'fixed' | 'range'
+  value?: number
+  min?: number
+  max?: number
+}
+
+export const CLINICAL_CONDITIONS: ClinicalCondition[] = [
+  { id: 'healthy', label: 'Manutenção/Saudável', type: 'fixed', value: 1.0 },
+  { id: 'surgery', label: 'Cirurgia Eletiva', type: 'range', min: 1.0, max: 1.1 },
+  { id: 'malnutrition', label: 'Desnutrição Grave', type: 'fixed', value: 1.5 },
+  { id: 'trauma', label: 'Trauma Múltiplo', type: 'fixed', value: 1.35 },
+  { id: 'cancer', label: 'Câncer', type: 'range', min: 1.1, max: 1.45 },
+  { id: 'sepsis', label: 'Sepse Grave', type: 'fixed', value: 1.6 },
+  { id: 'burns_low', label: 'Queimadura < 20%', type: 'range', min: 1.0, max: 1.5 },
+  { id: 'burns_mid', label: 'Queimadura 20-40%', type: 'range', min: 1.5, max: 1.85 },
+  { id: 'burns_high', label: 'Queimadura > 40%', type: 'range', min: 1.85, max: 2.0 },
+]
+
+export function getClinicalCondition(id: string): ClinicalCondition | undefined {
+  return CLINICAL_CONDITIONS.find((c) => c.id === id)
+}
+
+export function inferClinicalCondition(injuryFactor: number): string {
+  const fixed = CLINICAL_CONDITIONS.find((c) => c.type === 'fixed' && c.value === injuryFactor)
+  if (fixed) return fixed.id
+  const range = CLINICAL_CONDITIONS.find(
+    (c) =>
+      c.type === 'range' &&
+      c.min !== undefined &&
+      c.max !== undefined &&
+      injuryFactor >= c.min &&
+      injuryFactor <= c.max,
+  )
+  if (range) return range.id
+  return 'healthy'
+}

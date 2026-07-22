@@ -17,7 +17,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
-import { Flame, Zap } from 'lucide-react'
+import { Flame, Zap, Target, Save } from 'lucide-react'
 import { useAppStore } from '@/stores/useAppStore'
 import { supabase } from '@/lib/supabase/client'
 import { toast } from 'sonner'
@@ -34,17 +34,18 @@ import {
   type MetActivityItem,
 } from '@/lib/metabolic-math'
 import {
-  getActivityOptions,
-  getActivityFactor,
-  type Methodology,
-  type ActivityLevel,
+  getFormulaGroup,
+  getGroupActivities,
+  CLINICAL_CONDITIONS,
+  getClinicalCondition,
+  inferClinicalCondition,
   type Gender,
 } from '@/lib/metabolic-utils'
 import { MetabolicActivityList } from '@/components/health/metabolic-activity-list'
 
 const genId = () => Math.random().toString(36).substring(2, 11)
 
-function formulaToMethodology(formula: CalcFormula): Methodology {
+function formulaToMethodology(formula: CalcFormula): string {
   if (formula.startsWith('harris')) return 'harris'
   if (formula === 'katch_mcardle' || formula === 'cunningham' || formula === 'tinsley_lean')
     return 'katch'
@@ -72,9 +73,19 @@ export function MetabolicCalculatorModal({ open, onOpenChange }: Props) {
   const [gender, setGender] = useState<Gender>('male')
   const [profile, setProfile] = useState<PatientProfile>('patient')
   const [formula, setFormula] = useState<CalcFormula>('mifflin')
-  const [activityLevel, setActivityLevel] = useState<ActivityLevel>('sedentary')
+  const [activityLevel, setActivityLevel] = useState<string>('')
+  const [clinicalCondition, setClinicalCondition] = useState<string>('healthy')
   const [injuryFactor, setInjuryFactor] = useState('1.0')
+  const [weightVariation, setWeightVariation] = useState('')
+  const [daysForGoal, setDaysForGoal] = useState('')
   const [activities, setActivities] = useState<MetActivityItem[]>([])
+
+  const formulaGroup = getFormulaGroup(formula)
+  const groupActivities = getGroupActivities(formulaGroup)
+  const isEer = formula === 'eer_2005' || formula === 'eer_2023'
+  const currentCondition = getClinicalCondition(clinicalCondition)
+  const isFixedCondition = currentCondition?.type === 'fixed'
+  const wNum = parseFloat(weight) || 0
 
   useEffect(() => {
     if (!open) return
@@ -85,8 +96,14 @@ export function MetabolicCalculatorModal({ open, onOpenChange }: Props) {
     setGender((latest?.gender as Gender) || 'male')
     setProfile((latest?.patientProfile as PatientProfile) || 'patient')
     setFormula((latest?.calcFormula as CalcFormula) || 'mifflin')
-    setActivityLevel((latest?.activityLevel as ActivityLevel) || 'sedentary')
-    setInjuryFactor(latest?.injuryFactor ? String(latest.injuryFactor) : '1.0')
+    const storedAct = latest?.activityLevel
+    const isNumeric = storedAct && !isNaN(parseFloat(storedAct))
+    setActivityLevel(isNumeric ? storedAct : '')
+    const injVal = latest?.injuryFactor ? Number(latest.injuryFactor) : 1.0
+    setInjuryFactor(String(injVal))
+    setClinicalCondition(inferClinicalCondition(injVal))
+    setWeightVariation(latest?.targetWeight ? String(latest.targetWeight) : '')
+    setDaysForGoal(latest?.daysForGoal ? String(latest.daysForGoal) : '')
     setActivities(
       (latest?.metActivities || []).map((a: any) => ({
         id: a.id || genId(),
@@ -99,16 +116,40 @@ export function MetabolicCalculatorModal({ open, onOpenChange }: Props) {
     )
   }, [open])
 
-  const methodology = formulaToMethodology(formula)
-  const actOptions = getActivityOptions(methodology).filter((o) => o.value !== 'none')
-  const actFactor = getActivityFactor(methodology, activityLevel)
-  const isEer = formula === 'eer_2005' || formula === 'eer_2023'
-  const wNum = parseFloat(weight) || 0
+  useEffect(() => {
+    const condition = getClinicalCondition(clinicalCondition)
+    if (!condition) return
+    if (condition.type === 'fixed' && condition.value !== undefined) {
+      setInjuryFactor(String(condition.value))
+    } else if (condition.type === 'range' && condition.min !== undefined) {
+      setInjuryFactor((prev) => {
+        const current = parseFloat(prev)
+        if (
+          isNaN(current) ||
+          current < condition.min! ||
+          (condition.max !== undefined && current > condition.max)
+        ) {
+          return String(condition.min)
+        }
+        return prev
+      })
+    }
+  }, [clinicalCondition])
+
+  const handleFormulaChange = (v: string) => {
+    setFormula(v as CalcFormula)
+    setActivityLevel('')
+  }
+
+  const actFactor = useMemo(() => {
+    const selected = groupActivities.find((a) => a.value === activityLevel)
+    return selected?.factor ?? 0
+  }, [groupActivities, activityLevel])
 
   const result = useMemo(() => {
     const h = parseFloat(height)
     const a = parseInt(age)
-    if (!wNum || !h || !a) return null
+    if (!wNum || !h || !a || !actFactor) return null
     const lm = leanMass ? parseFloat(leanMass) : undefined
     const inj = parseFloat(injuryFactor) || 1.0
     try {
@@ -119,12 +160,17 @@ export function MetabolicCalculatorModal({ open, onOpenChange }: Props) {
         gender,
         leanMass: lm,
         formula,
-        paCoefficient: isEer ? 1.0 : undefined,
+        paCoefficient: isEer ? actFactor : undefined,
       }
       const tmb = calculateBMR(bmrInput)
       const actTotal = calculateActivitiesTotal(activities, wNum)
-      const get = calculateVENTA(tmb, actFactor, inj, actTotal)
-      return { tmb, get, actTotal }
+      const nafMultiplier = isEer ? 1.0 : actFactor
+      const get = calculateVENTA(tmb, nafMultiplier, inj, actTotal)
+      const wv = parseFloat(weightVariation) || 0
+      const dfg = parseInt(daysForGoal) || 0
+      const dailyAdjustment = dfg > 0 ? Math.round((wv * 7700) / dfg) : 0
+      const ventaFinal = get + dailyAdjustment
+      return { tmb, get, actTotal, dailyAdjustment, ventaFinal }
     } catch {
       return null
     }
@@ -140,12 +186,13 @@ export function MetabolicCalculatorModal({ open, onOpenChange }: Props) {
     activities,
     wNum,
     actFactor,
+    weightVariation,
+    daysForGoal,
   ])
 
   const handleSubmit = async () => {
     if (!result) return
     onOpenChange(false)
-
     const {
       data: { user },
     } = await supabase.auth.getUser()
@@ -172,9 +219,11 @@ export function MetabolicCalculatorModal({ open, onOpenChange }: Props) {
       met_activities: metJson,
       tmb: result.tmb,
       get: result.get,
-      venta_target: result.get,
-      methodology_used: methodology,
+      venta_target: result.ventaFinal,
+      methodology_used: formulaToMethodology(formula),
       activity_level: activityLevel,
+      target_weight: weightVariation ? parseFloat(weightVariation) : null,
+      days_for_goal: parseInt(daysForGoal) || null,
     }
 
     let error
@@ -192,7 +241,7 @@ export function MetabolicCalculatorModal({ open, onOpenChange }: Props) {
     if (error) {
       toast.error('Erro ao salvar dados metabólicos.')
     } else {
-      toast.success('VENTA calculada e salva com sucesso!')
+      toast.success('Avaliação metabólica salva com sucesso!')
       fetchBodyMetrics()
     }
   }
@@ -285,11 +334,11 @@ export function MetabolicCalculatorModal({ open, onOpenChange }: Props) {
         </div>
 
         <div className="space-y-3">
-          <Label className="font-bold text-sm">Fórmula e Atividade</Label>
+          <Label className="font-bold text-sm">Fórmula e Nível de Atividade (NAF)</Label>
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1">
               <Label className="text-xs font-bold text-muted-foreground">Fórmula</Label>
-              <Select value={formula} onValueChange={(v) => setFormula(v as CalcFormula)}>
+              <Select value={formula} onValueChange={handleFormulaChange}>
                 <SelectTrigger className="rounded-2xl border-2">
                   <SelectValue />
                 </SelectTrigger>
@@ -304,15 +353,12 @@ export function MetabolicCalculatorModal({ open, onOpenChange }: Props) {
             </div>
             <div className="space-y-1">
               <Label className="text-xs font-bold text-muted-foreground">Atividade (NAF)</Label>
-              <Select
-                value={activityLevel}
-                onValueChange={(v) => setActivityLevel(v as ActivityLevel)}
-              >
+              <Select value={activityLevel} onValueChange={setActivityLevel}>
                 <SelectTrigger className="rounded-2xl border-2">
-                  <SelectValue />
+                  <SelectValue placeholder="Selecione..." />
                 </SelectTrigger>
                 <SelectContent>
-                  {actOptions.map((o) => (
+                  {groupActivities.map((o) => (
                     <SelectItem key={o.value} value={o.value}>
                       {o.label}
                     </SelectItem>
@@ -321,15 +367,43 @@ export function MetabolicCalculatorModal({ open, onOpenChange }: Props) {
               </Select>
             </div>
           </div>
-          <div className="space-y-1">
-            <Label className="text-xs font-bold text-muted-foreground">Fator de Lesão</Label>
-            <Input
-              type="number"
-              step="0.1"
-              value={injuryFactor}
-              onChange={(e) => setInjuryFactor(e.target.value)}
-              className="rounded-2xl border-2"
-            />
+        </div>
+
+        <div className="space-y-3">
+          <Label className="font-bold text-sm">Fator de Lesão/Stress Clínico</Label>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1">
+              <Label className="text-xs font-bold text-muted-foreground">Condição Clínica</Label>
+              <Select value={clinicalCondition} onValueChange={setClinicalCondition}>
+                <SelectTrigger className="rounded-2xl border-2">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {CLINICAL_CONDITIONS.map((c) => (
+                    <SelectItem key={c.id} value={c.id}>
+                      {c.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs font-bold text-muted-foreground">
+                {isFixedCondition
+                  ? 'Fator (Fixo)'
+                  : `Fator (${currentCondition?.min} - ${currentCondition?.max})`}
+              </Label>
+              <Input
+                type="number"
+                step="0.01"
+                value={injuryFactor}
+                onChange={(e) => setInjuryFactor(e.target.value)}
+                disabled={isFixedCondition}
+                min={currentCondition?.min}
+                max={currentCondition?.max}
+                className="rounded-2xl border-2 disabled:opacity-60 disabled:cursor-not-allowed"
+              />
+            </div>
           </div>
         </div>
 
@@ -340,22 +414,75 @@ export function MetabolicCalculatorModal({ open, onOpenChange }: Props) {
           <MetabolicActivityList activities={activities} onChange={setActivities} weight={wNum} />
         </div>
 
+        <div className="space-y-3 bg-muted/30 rounded-2xl p-3">
+          <Label className="font-bold text-sm flex items-center gap-1">
+            <Target className="w-4 h-4 text-[#58CC02]" /> Meta e Planejamento de Peso
+          </Label>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1">
+              <Label className="text-xs font-bold text-muted-foreground">
+                Variação de Peso (kg)
+              </Label>
+              <Input
+                type="number"
+                value={weightVariation}
+                onChange={(e) => setWeightVariation(e.target.value)}
+                placeholder="-5 (perda) ou +3 (ganho)"
+                className="rounded-2xl border-2"
+              />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs font-bold text-muted-foreground">Prazo (dias)</Label>
+              <Input
+                type="number"
+                value={daysForGoal}
+                onChange={(e) => setDaysForGoal(e.target.value)}
+                placeholder="90"
+                className="rounded-2xl border-2"
+              />
+            </div>
+          </div>
+          {result && result.dailyAdjustment !== 0 && (
+            <div className="flex items-center justify-between bg-[#FF9600]/10 rounded-xl px-3 py-2">
+              <span className="text-xs font-bold text-muted-foreground">Ajuste Diário</span>
+              <span
+                className={
+                  'text-sm font-extrabold ' +
+                  (result.dailyAdjustment < 0 ? 'text-[#FF4B4B]' : 'text-[#58CC02]')
+                }
+              >
+                {result.dailyAdjustment > 0 ? '+' : ''}
+                {result.dailyAdjustment} kcal/dia
+              </span>
+            </div>
+          )}
+        </div>
+
         {result && (
-          <div className="grid grid-cols-3 gap-3">
-            <div className="bg-[#1CB0F6]/10 rounded-2xl p-3 text-center">
-              <p className="text-[10px] font-bold text-muted-foreground">TMB</p>
-              <p className="text-xl font-extrabold text-[#1CB0F6]">{result.tmb}</p>
-              <p className="text-[9px] font-bold text-muted-foreground">kcal/dia</p>
+          <div className="space-y-2">
+            <div className="grid grid-cols-3 gap-3">
+              <div className="bg-[#1CB0F6]/10 rounded-2xl p-3 text-center">
+                <p className="text-[10px] font-bold text-muted-foreground">TMB</p>
+                <p className="text-xl font-extrabold text-[#1CB0F6]">{result.tmb}</p>
+                <p className="text-[9px] font-bold text-muted-foreground">kcal/dia</p>
+              </div>
+              <div className="bg-[#FF9600]/10 rounded-2xl p-3 text-center">
+                <p className="text-[10px] font-bold text-muted-foreground">GET</p>
+                <p className="text-xl font-extrabold text-[#FF9600]">{result.get}</p>
+                <p className="text-[9px] font-bold text-muted-foreground">kcal/dia</p>
+              </div>
+              <div className="bg-[#58CC02]/10 rounded-2xl p-3 text-center">
+                <p className="text-[10px] font-bold text-muted-foreground">VENTA</p>
+                <p className="text-xl font-extrabold text-[#58CC02]">{result.ventaFinal}</p>
+                <p className="text-[9px] font-bold text-muted-foreground">kcal/dia</p>
+              </div>
             </div>
-            <div className="bg-[#FF9600]/10 rounded-2xl p-3 text-center">
-              <p className="text-[10px] font-bold text-muted-foreground">Atividades</p>
-              <p className="text-xl font-extrabold text-[#FF9600]">{result.actTotal}</p>
-              <p className="text-[9px] font-bold text-muted-foreground">kcal/dia</p>
-            </div>
-            <div className="bg-[#58CC02]/10 rounded-2xl p-3 text-center">
-              <p className="text-[10px] font-bold text-muted-foreground">VENTA</p>
-              <p className="text-xl font-extrabold text-[#58CC02]">{result.get}</p>
-              <p className="text-[9px] font-bold text-muted-foreground">kcal/dia</p>
+            <div className="bg-[#58CC02]/10 rounded-2xl p-4 text-center border-2 border-[#58CC02]/30">
+              <p className="text-xs font-bold text-muted-foreground mb-1">
+                VENTA Final (Alvo Calórico)
+              </p>
+              <p className="text-4xl font-extrabold text-[#58CC02]">{result.ventaFinal}</p>
+              <p className="text-[10px] font-bold text-muted-foreground mt-1">kcal/dia</p>
             </div>
           </div>
         )}
@@ -366,7 +493,7 @@ export function MetabolicCalculatorModal({ open, onOpenChange }: Props) {
             disabled={!result}
             className="w-full bg-[#58CC02] hover:bg-[#58CC02]/90 text-white border-b-4 border-[#58A300] rounded-2xl font-extrabold disabled:opacity-50"
           >
-            Calcular VENTA
+            <Save className="w-4 h-4" /> Salvar Avaliação
           </Button>
         </DialogFooter>
       </DialogContent>

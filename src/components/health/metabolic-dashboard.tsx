@@ -1,13 +1,7 @@
 import { useState, useMemo, useEffect } from 'react'
 import { useAppStore } from '@/stores/useAppStore'
 import { MetActivityTable } from '@/components/health/met-activity-table'
-import {
-  calculateDailyMetExpenditure,
-  getActivityFactor,
-  MetActivity,
-  Methodology,
-  ActivityLevel,
-} from '@/lib/metabolic-utils'
+import { calculateDailyMetExpenditure, MetActivity } from '@/lib/metabolic-utils'
 import {
   CALC_FORMULA_LABELS,
   PATIENT_PROFILE_LABELS,
@@ -160,11 +154,7 @@ export function MetabolicDashboard({ selectedDate }: Props) {
         </div>
         <div className="flex items-center gap-1.5 bg-muted/30 rounded-full px-3 py-1">
           <span className="text-xs font-bold text-muted-foreground">
-            NAF:{' '}
-            {getActivityFactor(
-              (metric.methodologyUsed as Methodology) || 'mifflin',
-              (metric.activityLevel as ActivityLevel) || 'sedentary',
-            )}
+            NAF: {metric.activityLevel || '—'}
           </span>
         </div>
       </div>
