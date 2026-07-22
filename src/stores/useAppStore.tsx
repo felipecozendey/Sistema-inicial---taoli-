@@ -225,6 +225,19 @@ export type MedicalExam = {
   title: string
   fileUrl: string
 }
+export type MetabolicLog = {
+  id: string
+  date: string
+  formula: string
+  tmb: number
+  naf: string
+  injuryFactor: number
+  ventaTarget: number
+  extraActivities: any[]
+  weightGoal: number | null
+  goalDays: number | null
+  createdAt: string
+}
 export type NutritionMicroGoal = {
   id: string
   title: string
@@ -335,6 +348,7 @@ interface AppState {
   bodyMetrics: BodyMetric[]
   patientGoals: PatientGoal
   medicalExams: MedicalExam[]
+  metabolicLogs: MetabolicLog[]
   nutritionMicroGoals: NutritionMicroGoal[]
   focusRadar: FocusRadarSettings
   fastingLogs: FastingLog[]
@@ -473,6 +487,20 @@ interface AppState {
   fetchMedicalExams: () => Promise<void>
   addMedicalExam: (title: string, fileUrl: string) => void
   deleteMedicalExam: (id: string) => void
+  fetchMetabolicLogs: () => Promise<void>
+  saveMetabolicLog: (data: {
+    formula: string
+    tmb: number
+    naf: string
+    injuryFactor: number
+    ventaTarget: number
+    extraActivities: any[]
+    weightGoal: number | null
+    goalDays: number | null
+    date?: string
+  }) => Promise<void>
+  deleteAnthropometryLog: (id: string) => void
+  deleteMetabolicLog: (id: string) => void
   fetchNutritionMicroGoals: () => Promise<void>
   addNutritionMicroGoal: (title: string) => Promise<void>
   updateNutritionMicroGoal: (
@@ -950,6 +978,10 @@ export const AppStoreProvider = ({ children }: { children: ReactNode }) => {
     const s = localStorage.getItem('vt_medical_exams')
     return s ? JSON.parse(s) : initialMedicalExams
   })
+  const [metabolicLogs, setMetabolicLogs] = useState<MetabolicLog[]>(() => {
+    const s = localStorage.getItem('vt_metabolic_logs')
+    return s ? JSON.parse(s) : []
+  })
   const [nutritionMicroGoals, setNutritionMicroGoals] = useState<NutritionMicroGoal[]>(() => {
     const s = localStorage.getItem('vt_nutrition_micro_goals')
     return s ? JSON.parse(s) : initialMicroGoals
@@ -1055,6 +1087,9 @@ export const AppStoreProvider = ({ children }: { children: ReactNode }) => {
   useEffect(() => {
     localStorage.setItem('vt_medical_exams', JSON.stringify(medicalExams))
   }, [medicalExams])
+  useEffect(() => {
+    localStorage.setItem('vt_metabolic_logs', JSON.stringify(metabolicLogs))
+  }, [metabolicLogs])
   useEffect(() => {
     localStorage.setItem('vt_nutrition_micro_goals', JSON.stringify(nutritionMicroGoals))
   }, [nutritionMicroGoals])
@@ -1999,6 +2034,137 @@ export const AppStoreProvider = ({ children }: { children: ReactNode }) => {
     setMedicalExams((p) => p.filter((e) => e.id !== id))
     ;(supabase as any).from('medical_exams').delete().eq('id', id).then()
   }
+  const fetchMetabolicLogs = async () => {
+    const {
+      data: { user: authUser },
+    } = await supabase.auth.getUser()
+    if (!authUser) return
+    const { data } = await (supabase as any)
+      .from('metabolic_logs')
+      .select('*')
+      .eq('user_id', authUser.id)
+      .order('date', { ascending: true })
+    if (data)
+      setMetabolicLogs(
+        data.map((d: any) => ({
+          id: d.id,
+          date: (d.date || '').split('T')[0],
+          formula: d.formula || '',
+          tmb: d.tmb || 0,
+          naf: d.naf || '',
+          injuryFactor: d.injury_factor || 1.0,
+          ventaTarget: d.venta_target || 0,
+          extraActivities: d.extra_activities || [],
+          weightGoal: d.weight_goal ?? null,
+          goalDays: d.goal_days ?? null,
+          createdAt: d.created_at,
+        })),
+      )
+  }
+  const saveMetabolicLog = async (data: {
+    formula: string
+    tmb: number
+    naf: string
+    injuryFactor: number
+    ventaTarget: number
+    extraActivities: any[]
+    weightGoal: number | null
+    goalDays: number | null
+    date?: string
+  }) => {
+    const logDate = data.date || todayStr()
+    const existing = metabolicLogs.find((l) => l.date === logDate)
+    const tempId = existing?.id || genId()
+    const log: MetabolicLog = {
+      id: tempId,
+      date: logDate,
+      formula: data.formula,
+      tmb: data.tmb,
+      naf: data.naf,
+      injuryFactor: data.injuryFactor,
+      ventaTarget: data.ventaTarget,
+      extraActivities: data.extraActivities,
+      weightGoal: data.weightGoal,
+      goalDays: data.goalDays,
+      createdAt: existing?.createdAt || nowIso(),
+    }
+    setMetabolicLogs((prev) => {
+      const filtered = prev.filter((l) => l.date !== logDate)
+      return [...filtered, log].sort((a, b) => a.date.localeCompare(b.date))
+    })
+    const {
+      data: { user: u },
+    } = await supabase.auth.getUser()
+    if (!u) return
+    const payload = {
+      date: logDate,
+      formula: data.formula,
+      tmb: data.tmb,
+      naf: data.naf,
+      injury_factor: data.injuryFactor,
+      venta_target: data.ventaTarget,
+      extra_activities: data.extraActivities,
+      weight_goal: data.weightGoal,
+      goal_days: data.goalDays,
+      user_id: u.id,
+    }
+    if (existing) {
+      const { error } = await (supabase as any)
+        .from('metabolic_logs')
+        .update(payload)
+        .eq('id', tempId)
+      if (error) {
+        fetchMetabolicLogs()
+        toast.error('Erro ao atualizar log metabólico.')
+      }
+    } else {
+      const { data: inserted, error } = await (supabase as any)
+        .from('metabolic_logs')
+        .insert(payload)
+        .select()
+        .single()
+      if (error) {
+        setMetabolicLogs((prev) => prev.filter((l) => l.id !== tempId))
+        toast.error('Erro ao salvar log metabólico.')
+      } else if (inserted) {
+        setMetabolicLogs((prev) =>
+          prev.map((l) => (l.id === tempId ? { ...l, id: inserted.id } : l)),
+        )
+      }
+    }
+  }
+  const deleteAnthropometryLog = (id: string) => {
+    const item = bodyMetrics.find((m) => m.id === id)
+    setBodyMetrics((prev) => prev.filter((m) => m.id !== id))
+    ;(supabase as any)
+      .from('body_metrics')
+      .delete()
+      .eq('id', id)
+      .then(({ error }: { error: any }) => {
+        if (error && item) {
+          setBodyMetrics((prev) => [...prev, item])
+          toast.error('Erro ao excluir avaliação.')
+        } else {
+          toast.success('Avaliação excluída com sucesso!')
+        }
+      })
+  }
+  const deleteMetabolicLog = (id: string) => {
+    const item = metabolicLogs.find((m) => m.id === id)
+    setMetabolicLogs((prev) => prev.filter((m) => m.id !== id))
+    ;(supabase as any)
+      .from('metabolic_logs')
+      .delete()
+      .eq('id', id)
+      .then(({ error }: { error: any }) => {
+        if (error && item) {
+          setMetabolicLogs((prev) => [...prev, item])
+          toast.error('Erro ao excluir avaliação metabólica.')
+        } else {
+          toast.success('Avaliação metabólica excluída!')
+        }
+      })
+  }
   const fetchNutritionMicroGoals = async () => {
     const {
       data: { user: authUser },
@@ -2499,6 +2665,11 @@ export const AppStoreProvider = ({ children }: { children: ReactNode }) => {
     fetchMedicalExams,
     addMedicalExam,
     deleteMedicalExam,
+    metabolicLogs,
+    fetchMetabolicLogs,
+    saveMetabolicLog,
+    deleteAnthropometryLog,
+    deleteMetabolicLog,
     fetchNutritionMicroGoals,
     addNutritionMicroGoal,
     updateNutritionMicroGoal,

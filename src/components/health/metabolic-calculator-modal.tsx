@@ -18,7 +18,7 @@ import {
 } from '@/components/ui/select'
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
 import { Flame, Zap, Target, Save } from 'lucide-react'
-import { useAppStore } from '@/stores/useAppStore'
+import { useAppStore, type MetabolicLog } from '@/stores/useAppStore'
 import { supabase } from '@/lib/supabase/client'
 import { toast } from 'sonner'
 import {
@@ -55,11 +55,13 @@ function formulaToMethodology(formula: CalcFormula): string {
 interface Props {
   open: boolean
   onOpenChange: (open: boolean) => void
+  editLog?: MetabolicLog | null
 }
 
-export function MetabolicCalculatorModal({ open, onOpenChange }: Props) {
+export function MetabolicCalculatorModal({ open, onOpenChange, editLog }: Props) {
   const bodyMetrics = useAppStore((s) => s.bodyMetrics)
   const fetchBodyMetrics = useAppStore((s) => s.fetchBodyMetrics)
+  const saveMetabolicLog = useAppStore((s) => s.saveMetabolicLog)
 
   const latest = useMemo(
     () => [...bodyMetrics].sort((a, b) => String(b.date).localeCompare(String(a.date)))[0],
@@ -115,6 +117,25 @@ export function MetabolicCalculatorModal({ open, onOpenChange }: Props) {
       })),
     )
   }, [open])
+
+  useEffect(() => {
+    if (!open || !editLog) return
+    setFormula(editLog.formula as CalcFormula)
+    setActivityLevel(editLog.naf)
+    setInjuryFactor(String(editLog.injuryFactor))
+    setWeightVariation(editLog.weightGoal ? String(editLog.weightGoal) : '')
+    setDaysForGoal(editLog.goalDays ? String(editLog.goalDays) : '')
+    setActivities(
+      (editLog.extraActivities || []).map((a: any) => ({
+        id: a.id || genId(),
+        item_name: a.item_name || a.name || '',
+        met_value: a.met_value || a.met || 0,
+        duration_min: a.duration_min || a.duration || 0,
+        frequency: a.frequency || a.weeklyFrequency || 0,
+        energy_kcal: a.energy_kcal || 0,
+      })),
+    )
+  }, [open, editLog])
 
   useEffect(() => {
     const condition = getClinicalCondition(clinicalCondition)
@@ -244,6 +265,18 @@ export function MetabolicCalculatorModal({ open, onOpenChange }: Props) {
       toast.success('Avaliação metabólica salva com sucesso!')
       fetchBodyMetrics()
     }
+
+    saveMetabolicLog({
+      formula,
+      tmb: result.tmb,
+      naf: activityLevel,
+      injuryFactor: parseFloat(injuryFactor) || 1.0,
+      ventaTarget: result.ventaFinal,
+      extraActivities: metJson,
+      weightGoal: weightVariation ? parseFloat(weightVariation) : null,
+      goalDays: parseInt(daysForGoal) || null,
+      date: editLog?.date,
+    })
   }
 
   return (
