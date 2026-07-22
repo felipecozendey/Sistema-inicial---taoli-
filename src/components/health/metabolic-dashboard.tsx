@@ -8,7 +8,8 @@ import {
   Methodology,
   ActivityLevel,
 } from '@/lib/metabolic-utils'
-import { Flame, Save } from 'lucide-react'
+import { Flame, Save, Calculator } from 'lucide-react'
+import { MetabolicCalculatorModal } from '@/components/health/metabolic-calculator-modal'
 import { cn } from '@/lib/utils'
 import { PieChart, Pie, Cell } from 'recharts'
 import {
@@ -39,6 +40,7 @@ export function MetabolicDashboard() {
 
   const [metActivities, setMetActivities] = useState<MetActivity[]>([])
   const [caloricAdj, setCaloricAdj] = useState(-500)
+  const [calcOpen, setCalcOpen] = useState(false)
 
   useEffect(() => {
     if (latest?.metActivities) setMetActivities(latest.metActivities as MetActivity[])
@@ -72,6 +74,13 @@ export function MetabolicDashboard() {
         <p className="text-sm font-bold text-muted-foreground text-center py-4">
           Registre uma avaliação com dados metabólicos para ver seu gasto energético.
         </p>
+        <Button
+          onClick={() => setCalcOpen(true)}
+          className="w-full bg-[#58CC02] hover:bg-[#58CC02]/90 text-white border-b-4 border-[#58A300] rounded-2xl font-bold"
+        >
+          <Calculator className="w-4 h-4" /> Abrir Calculadora
+        </Button>
+        <MetabolicCalculatorModal open={calcOpen} onOpenChange={setCalcOpen} />
       </div>
     )
   }
@@ -103,9 +112,18 @@ export function MetabolicDashboard() {
 
   return (
     <div className="bg-card border-2 border-b-4 border-[#E5E5E5] dark:border-[#3B4A55] rounded-3xl p-6 shadow-sm space-y-4">
-      <h3 className="text-lg font-extrabold flex items-center gap-2">
-        <Flame className="w-5 h-5 text-[#FF9600]" /> Metabolismo e Gasto Energético
-      </h3>
+      <div className="flex items-center justify-between">
+        <h3 className="text-lg font-extrabold flex items-center gap-2">
+          <Flame className="w-5 h-5 text-[#FF9600]" /> Metabolismo e Gasto Energético
+        </h3>
+        <Button
+          onClick={() => setCalcOpen(true)}
+          variant="outline"
+          className="rounded-2xl border-2 font-bold text-xs"
+        >
+          <Calculator className="w-4 h-4" /> Calculadora
+        </Button>
+      </div>
       <p className="text-[10px] font-bold text-muted-foreground">
         Método: {methodologyLabel} · NAF:{' '}
         {getActivityFactor(
@@ -231,6 +249,7 @@ export function MetabolicDashboard() {
       >
         <Save className="w-4 h-4" /> Salvar Dados Metabólicos
       </Button>
+      <MetabolicCalculatorModal open={calcOpen} onOpenChange={setCalcOpen} />
     </div>
   )
 }
