@@ -8,7 +8,13 @@ import {
   Methodology,
   ActivityLevel,
 } from '@/lib/metabolic-utils'
-import { Flame, Save, Calculator } from 'lucide-react'
+import {
+  CALC_FORMULA_LABELS,
+  PATIENT_PROFILE_LABELS,
+  type CalcFormula,
+  type PatientProfile,
+} from '@/lib/metabolic-math'
+import { Flame, Save, Plus, AlertTriangle, User, Calculator } from 'lucide-react'
 import { MetabolicCalculatorModal } from '@/components/health/metabolic-calculator-modal'
 import { cn } from '@/lib/utils'
 import { PieChart, Pie, Cell } from 'recharts'
@@ -20,88 +26,107 @@ import {
 } from '@/components/ui/chart'
 import { Slider } from '@/components/ui/slider'
 import { Button } from '@/components/ui/button'
+import { Badge } from '@/components/ui/badge'
+import { Alert, AlertDescription } from '@/components/ui/alert'
 import { supabase } from '@/lib/supabase/client'
 import { toast } from 'sonner'
+
+const LEAN_MASS_FORMULAS: string[] = ['katch_mcardle', 'cunningham', 'tinsley_lean']
 
 const chartConfig = {
   bmr: { label: 'Metabolismo Basal', color: '#1CB0F6' },
   met: { label: 'Exercício (MET)', color: '#FF9600' },
 } satisfies ChartConfig
 
-export function MetabolicDashboard() {
+interface Props {
+  selectedDate: Date
+}
+
+export function MetabolicDashboard({ selectedDate }: Props) {
   const bodyMetrics = useAppStore((s) => s.bodyMetrics)
   const fetchBodyMetrics = useAppStore((s) => s.fetchBodyMetrics)
 
-  const sorted = useMemo(
-    () => [...bodyMetrics].sort((a, b) => String(a.date).localeCompare(String(b.date))),
-    [bodyMetrics],
-  )
-  const latest = sorted[sorted.length - 1]
+  const selectedDateStr = selectedDate.toISOString().split('T')[0]
+
+  const metric = useMemo(() => {
+    if (!bodyMetrics?.length) return null
+    const sorted = [...bodyMetrics].sort((a, b) => String(b.date).localeCompare(String(a.date)))
+    return sorted.find((m) => m.date <= selectedDateStr) || null
+  }, [bodyMetrics, selectedDateStr])
 
   const [metActivities, setMetActivities] = useState<MetActivity[]>([])
   const [caloricAdj, setCaloricAdj] = useState(-500)
   const [calcOpen, setCalcOpen] = useState(false)
 
   useEffect(() => {
-    if (latest?.metActivities) setMetActivities(latest.metActivities as MetActivity[])
-    if (latest?.ventaTarget && latest?.get) setCaloricAdj(latest.ventaTarget - latest.get)
-  }, [latest?.id])
+    if (metric?.metActivities) setMetActivities(metric.metActivities as MetActivity[])
+    if (metric?.ventaTarget && metric?.get) setCaloricAdj(metric.ventaTarget - metric.get)
+  }, [metric?.id])
 
   const metExp = useMemo(
-    () => calculateDailyMetExpenditure(metActivities, latest?.weight || 0),
-    [metActivities, latest?.weight],
+    () => calculateDailyMetExpenditure(metActivities, metric?.weight || 0),
+    [metActivities, metric?.weight],
   )
 
   const venta = useMemo(
-    () => Math.max(0, Math.round((latest?.get || 0) + caloricAdj)),
-    [latest?.get, caloricAdj],
+    () => Math.max(0, Math.round((metric?.get || 0) + caloricAdj)),
+    [metric?.get, caloricAdj],
   )
 
   const macros = useMemo(() => {
-    const w = latest?.weight || 70
+    const w = metric?.weight || 70
     const proteinG = Math.round(w * 2)
     const fatG = Math.round((venta * 0.25) / 9)
     const carbsG = Math.max(0, Math.round((venta - proteinG * 4 - fatG * 9) / 4))
     return { proteinG, fatG, carbsG }
-  }, [venta, latest?.weight])
+  }, [venta, metric?.weight])
 
-  if (!latest || !latest.tmb || !latest.get) {
+  const needsLeanMass = metric?.calcFormula
+    ? LEAN_MASS_FORMULAS.includes(metric.calcFormula)
+    : false
+  const hasLeanMass = !!(metric?.leanMass && metric.leanMass > 0)
+
+  const formulaLabel = metric?.calcFormula
+    ? CALC_FORMULA_LABELS[metric.calcFormula as CalcFormula] || metric.calcFormula
+    : 'Mifflin-St Jeor (1990)'
+
+  const profileLabel = metric?.patientProfile
+    ? PATIENT_PROFILE_LABELS[metric.patientProfile as PatientProfile] || metric.patientProfile
+    : 'Paciente'
+
+  if (!metric || !metric.tmb || !metric.get) {
     return (
-      <div className="bg-card border-2 border-b-4 border-[#E5E5E5] dark:border-[#3B4A55] rounded-3xl p-6 shadow-sm">
-        <h3 className="text-lg font-extrabold flex items-center gap-2 mb-2">
+      <div className="bg-card border-2 border-b-4 border-[#E5E5E5] dark:border-[#3B4A55] rounded-3xl p-6 shadow-sm space-y-4">
+        <h3 className="text-lg font-extrabold flex items-center gap-2">
           <Flame className="w-5 h-5 text-[#FF9600]" /> Metabolismo e Gasto Energético
         </h3>
         <p className="text-sm font-bold text-muted-foreground text-center py-4">
-          Registre uma avaliação com dados metabólicos para ver seu gasto energético.
+          {bodyMetrics?.length
+            ? 'Nenhum dado metabólico para a data selecionada.'
+            : 'Registre uma avaliação com dados metabólicos para ver seu gasto energético.'}
         </p>
         <Button
           onClick={() => setCalcOpen(true)}
           className="w-full bg-[#58CC02] hover:bg-[#58CC02]/90 text-white border-b-4 border-[#58A300] rounded-2xl font-bold"
         >
-          <Calculator className="w-4 h-4" /> Abrir Calculadora
+          <Plus className="w-4 h-4" /> Novo Gasto Energético
         </Button>
         <MetabolicCalculatorModal open={calcOpen} onOpenChange={setCalcOpen} />
       </div>
     )
   }
 
-  const methodologyLabel = latest.methodologyUsed
-    ? { mifflin: 'Mifflin-St Jeor', harris: 'Harris-Benedict', katch: 'Katch-McArdle' }[
-        latest.methodologyUsed as Methodology
-      ] || 'Mifflin-St Jeor'
-    : 'Mifflin-St Jeor'
-
   const pieData = [
-    { name: 'Metabolismo Basal', value: latest.tmb, fill: '#1CB0F6' },
+    { name: 'Metabolismo Basal', value: metric.tmb, fill: '#1CB0F6' },
     { name: 'Exercício (MET)', value: Math.round(metExp), fill: '#FF9600' },
   ].filter((d) => d.value > 0)
 
   const handleSave = async () => {
-    if (!latest?.id) return
+    if (!metric?.id) return
     const { error } = await (supabase as any)
       .from('body_metrics')
       .update({ met_activities: metActivities, venta_target: venta })
-      .eq('id', latest.id)
+      .eq('id', metric.id)
     if (error) {
       toast.error('Erro ao salvar dados metabólicos.')
     } else {
@@ -118,35 +143,59 @@ export function MetabolicDashboard() {
         </h3>
         <Button
           onClick={() => setCalcOpen(true)}
-          variant="outline"
-          className="rounded-2xl border-2 font-bold text-xs"
+          className="bg-[#58CC02] hover:bg-[#58CC02]/90 text-white border-b-4 border-[#58A300] rounded-2xl font-bold text-xs"
         >
-          <Calculator className="w-4 h-4" /> Calculadora
+          <Plus className="w-4 h-4" /> Novo Gasto Energético
         </Button>
       </div>
-      <p className="text-[10px] font-bold text-muted-foreground">
-        Método: {methodologyLabel} · NAF:{' '}
-        {getActivityFactor(
-          (latest.methodologyUsed as Methodology) || 'mifflin',
-          (latest.activityLevel as ActivityLevel) || 'sedentary',
-        )}
-      </p>
+
+      <div className="flex flex-wrap items-center gap-2">
+        <div className="flex items-center gap-1.5 bg-[#1CB0F6]/10 rounded-full px-3 py-1">
+          <User className="w-3.5 h-3.5 text-[#1CB0F6]" />
+          <span className="text-xs font-bold text-[#1CB0F6]">{profileLabel}</span>
+        </div>
+        <div className="flex items-center gap-1.5 bg-muted/30 rounded-full px-3 py-1">
+          <Calculator className="w-3.5 h-3.5 text-muted-foreground" />
+          <span className="text-xs font-bold text-muted-foreground">{formulaLabel}</span>
+        </div>
+        <div className="flex items-center gap-1.5 bg-muted/30 rounded-full px-3 py-1">
+          <span className="text-xs font-bold text-muted-foreground">
+            NAF:{' '}
+            {getActivityFactor(
+              (metric.methodologyUsed as Methodology) || 'mifflin',
+              (metric.activityLevel as ActivityLevel) || 'sedentary',
+            )}
+          </span>
+        </div>
+      </div>
+
+      {needsLeanMass && !hasLeanMass && (
+        <Alert className="border-2 border-yellow-300 dark:border-yellow-700 rounded-2xl bg-yellow-50 dark:bg-yellow-900/20">
+          <AlertTriangle className="w-4 h-4 text-yellow-600" />
+          <AlertDescription className="text-xs font-bold text-yellow-700 dark:text-yellow-400">
+            A fórmula {formulaLabel} requer Massa Magra, que não foi informada nesta avaliação. Abra
+            a calculadora para inserir esse dado.
+          </AlertDescription>
+        </Alert>
+      )}
 
       <div className="grid grid-cols-3 gap-3">
         <div className="bg-[#1CB0F6]/10 rounded-2xl p-3 text-center">
           <p className="text-[10px] font-bold text-muted-foreground">TMB</p>
-          <p className="text-xl font-extrabold text-[#1CB0F6]">{latest.tmb}</p>
+          <p className="text-xl font-extrabold text-[#1CB0F6]">{metric.tmb}</p>
           <p className="text-[9px] font-bold text-muted-foreground">kcal</p>
         </div>
         <div className="bg-[#FF9600]/10 rounded-2xl p-3 text-center">
           <p className="text-[10px] font-bold text-muted-foreground">GET</p>
-          <p className="text-xl font-extrabold text-[#FF9600]">{latest.get}</p>
+          <p className="text-xl font-extrabold text-[#FF9600]">{metric.get}</p>
           <p className="text-[9px] font-bold text-muted-foreground">kcal</p>
         </div>
-        <div className="bg-[#58CC02]/10 rounded-2xl p-3 text-center">
+        <div className="bg-[#58CC02]/10 rounded-2xl p-3 text-center flex flex-col items-center justify-center gap-1">
           <p className="text-[10px] font-bold text-muted-foreground">VENTA</p>
-          <p className="text-xl font-extrabold text-[#58CC02]">{venta}</p>
-          <p className="text-[9px] font-bold text-muted-foreground">kcal</p>
+          <Badge className="text-base font-extrabold bg-[#58CC02] text-white hover:bg-[#58CC02] px-3 py-1">
+            {venta}
+          </Badge>
+          <p className="text-[9px] font-bold text-muted-foreground">kcal/dia</p>
         </div>
       </div>
 
@@ -239,7 +288,7 @@ export function MetabolicDashboard() {
         <MetActivityTable
           activities={metActivities}
           onChange={setMetActivities}
-          weight={latest.weight || 0}
+          weight={metric.weight || 0}
         />
       </div>
 

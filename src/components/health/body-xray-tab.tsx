@@ -19,6 +19,7 @@ import {
 
 export function BodyXrayTab() {
   const [anthropometryOpen, setAnthropometryOpen] = useState(false)
+  const [selectedDate, setSelectedDate] = useState<Date>(new Date())
 
   return (
     <div className="space-y-6">
@@ -40,7 +41,7 @@ export function BodyXrayTab() {
             <TabsTrigger value="history">Evolução Histórica</TabsTrigger>
           </TabsList>
           <TabsContent value="daily" className="mt-4">
-            <DailyEvaluationPanel />
+            <DailyEvaluationPanel selectedDate={selectedDate} onDateChange={setSelectedDate} />
           </TabsContent>
           <TabsContent value="history" className="mt-4 space-y-4">
             <EvolutionChart />
@@ -58,7 +59,7 @@ export function BodyXrayTab() {
             🧬 Inteligência Metabólica & Gasto Energético
           </AccordionTrigger>
           <AccordionContent>
-            <MetabolicDashboard />
+            <MetabolicDashboard selectedDate={selectedDate} />
           </AccordionContent>
         </AccordionItem>
       </Accordion>

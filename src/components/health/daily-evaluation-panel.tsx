@@ -1,5 +1,6 @@
 import { useMemo } from 'react'
 import { useAppStore } from '@/stores/useAppStore'
+import { DatePicker } from '@/components/ui/date-picker'
 import { calculateIMC, calculateRCQ, calculate4CompartmentModel } from '@/lib/anthropometry-utils'
 import { FourCompartmentChart } from '@/components/health/four-compartment-chart'
 import { Alert, AlertDescription } from '@/components/ui/alert'
@@ -66,15 +67,23 @@ function getRcqRisk(index: number, gender?: string): { label: string; color: str
   return { label: 'Alto', color: 'text-red-600' }
 }
 
-export function DailyEvaluationPanel() {
+interface Props {
+  selectedDate: Date
+  onDateChange: (date: Date) => void
+}
+
+export function DailyEvaluationPanel({ selectedDate, onDateChange }: Props) {
   const bodyMetrics = useAppStore((s) => s.bodyMetrics)
+
+  const selectedDateStr = selectedDate.toISOString().split('T')[0]
 
   const latest = useMemo(() => {
     if (!bodyMetrics?.length) return null
-    return [...bodyMetrics]
+    const sorted = [...bodyMetrics]
       .filter((b) => b.weight || b.bodyFatPercentage || b.muscleMass)
-      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())[0]
-  }, [bodyMetrics])
+      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+    return sorted.find((m) => m.date <= selectedDateStr) || null
+  }, [bodyMetrics, selectedDateStr])
 
   const imc = useMemo(() => {
     if (!latest?.weight || !latest?.height) return null
@@ -130,6 +139,9 @@ export function DailyEvaluationPanel() {
 
   return (
     <div className="space-y-4">
+      <div className="flex items-center gap-2">
+        <DatePicker date={selectedDate} onDateChange={onDateChange} />
+      </div>
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <SummaryTile
           icon={<Scale className="w-4 h-4" />}
