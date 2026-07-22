@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import {
   Dialog,
   DialogContent,
@@ -26,14 +26,14 @@ import {
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { Calendar } from '@/components/ui/calendar'
-import { useAppStore } from '@/stores/useAppStore'
+import { useAppStore, type BodyMetric } from '@/stores/useAppStore'
 import {
   calculateBodyFat,
+  getRequiredSkinfolds,
   type CalcProtocol,
   type Gender,
   type Skinfolds,
 } from '@/lib/anthropometry-utils'
-import { ACTIVITY_LABELS, type ActivityLevel } from '@/lib/metabolic-utils'
 import {
   MeasurementInput,
   PhotoSlot,
@@ -42,10 +42,6 @@ import {
 import { format } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { Calendar as CalendarIcon } from 'lucide-react'
-
-const activityOptions = Object.entries(ACTIVITY_LABELS)
-  .filter(([key]) => key !== 'none')
-  .map(([value, label]) => ({ value: value as ActivityLevel, label }))
 
 const protocolOptions: { value: CalcProtocol; label: string }[] = [
   { value: 'none', label: 'Nenhum' },
@@ -108,13 +104,67 @@ const initialForm: FormState = {
   observations: '',
 }
 
+function metricToForm(m: BodyMetric): FormState {
+  const s = (v: any) => (v !== undefined && v !== null && v !== 0 ? String(v) : '')
+  return {
+    ...initialForm,
+    weight: s(m.weight),
+    height: s(m.height),
+    sittingHeight: s(m.sittingHeight),
+    kneeHeight: s(m.kneeHeight),
+    gender: m.gender || 'male',
+    age: s(m.age),
+    activityLevel: m.activityLevel || 'sedentary',
+    armRelaxedLeft: s(m.armRelaxedLeft),
+    armRelaxedRight: s(m.armRelaxedRight),
+    armContractedLeft: s(m.armContractedLeft),
+    armContractedRight: s(m.armContractedRight),
+    forearmLeft: s(m.forearmLeft),
+    forearmRight: s(m.forearmRight),
+    wristCircLeft: s(m.wristCircLeft),
+    wristCircRight: s(m.wristCircRight),
+    neckCirc: s(m.neckCirc),
+    shoulderCirc: s(m.shoulderCirc),
+    chestCirc: s(m.chestCirc),
+    waistCirc: s(m.waistCirc),
+    abdomenCirc: s(m.abdomenCirc),
+    hipCirc: s(m.hipCirc),
+    calfLeft: s(m.calfLeft),
+    calfRight: s(m.calfRight),
+    thighLeft: s(m.thighLeft),
+    thighRight: s(m.thighRight),
+    proximalThighLeft: s(m.proximalThighLeft),
+    proximalThighRight: s(m.proximalThighRight),
+    wristDiameter: s(m.wristDiameter),
+    femurDiameter: s(m.femurDiameter),
+    humerusDiameter: s(m.humerusDiameter),
+    compositionMethod: m.compositionMethod || 'skinfolds',
+    calcProtocol: m.calcProtocol || 'none',
+    bodyFatPercentage: s(m.bodyFatPercentage),
+    leanMass: s(m.leanMass),
+    muscleMass: s(m.muscleMass),
+    skinfoldBiceps: s(m.skinfoldBiceps),
+    skinfoldTriceps: s(m.skinfoldTriceps),
+    skinfoldSubscapular: s(m.skinfoldSubscapular),
+    skinfoldChest: s(m.skinfoldChest),
+    skinfoldMidaxillary: s(m.skinfoldMidaxillary),
+    skinfoldSuprailiac: s(m.skinfoldSuprailiac),
+    skinfoldSupraspinal: s(m.skinfoldSupraspinal),
+    skinfoldAbdominal: s(m.skinfoldAbdominal),
+    skinfoldThigh: s(m.skinfoldThigh),
+    skinfoldCalf: s(m.skinfoldCalf),
+    observations: m.observations || '',
+  }
+}
+
 interface Props {
   open: boolean
   onOpenChange: (open: boolean) => void
+  editMetric?: BodyMetric | null
 }
 
-export function AnthropometryModal({ open, onOpenChange }: Props) {
-  const { addBodyMetric } = useAppStore()
+export function AnthropometryModal({ open, onOpenChange, editMetric }: Props) {
+  const { addBodyMetric, updateAnthropometryLog } = useAppStore()
   const [date, setDate] = useState<Date>(new Date())
   const [form, setForm] = useState<FormState>(initialForm)
   const [photoFront, setPhotoFront] = useState('')
@@ -125,18 +175,40 @@ export function AnthropometryModal({ open, onOpenChange }: Props) {
 
   useEffect(() => {
     if (!open) return
-    setDate(new Date())
-    setForm(initialForm)
-    setPhotoFront('')
-    setPhotoBack('')
-    setPhotoRight('')
-    setPhotoLeft('')
-    setAttachments([])
-  }, [open])
+    if (editMetric) {
+      setDate(new Date(editMetric.date + 'T12:00:00'))
+      setForm(metricToForm(editMetric))
+      setPhotoFront(editMetric.photoFront || '')
+      setPhotoBack(editMetric.photoBack || '')
+      setPhotoRight(editMetric.photoRight || '')
+      setPhotoLeft(editMetric.photoLeft || '')
+      setAttachments(editMetric.attachments || [])
+    } else {
+      setDate(new Date())
+      setForm(initialForm)
+      setPhotoFront('')
+      setPhotoBack('')
+      setPhotoRight('')
+      setPhotoLeft('')
+      setAttachments([])
+    }
+  }, [open, editMetric])
 
   const update = (field: string, value: string) => setForm((prev) => ({ ...prev, [field]: value }))
-
   const num = (v: string): number | undefined => (v ? parseFloat(v) : undefined)
+
+  const requiredSkinfolds = useMemo(
+    () => getRequiredSkinfolds(form.calcProtocol as CalcProtocol, form.gender as Gender),
+    [form.calcProtocol, form.gender],
+  )
+
+  const allRequiredFilled = useMemo(() => {
+    if (!requiredSkinfolds.length) return false
+    return requiredSkinfolds.every((key) => {
+      const val = parseFloat(form[key] || '0')
+      return val > 0
+    })
+  }, [requiredSkinfolds, form])
 
   useEffect(() => {
     if (form.compositionMethod !== 'skinfolds' || form.calcProtocol === 'none') return
@@ -159,7 +231,14 @@ export function AnthropometryModal({ open, onOpenChange }: Props) {
       parseInt(form.age),
       form.gender as Gender,
     )
-    if (fat > 0) update('bodyFatPercentage', fat.toFixed(1))
+    if (fat > 0) {
+      update('bodyFatPercentage', fat.toFixed(1))
+      const weightNum = parseFloat(form.weight)
+      if (weightNum > 0) {
+        const leanMass = Math.round((weightNum - weightNum * (fat / 100)) * 10) / 10
+        update('leanMass', leanMass.toFixed(1))
+      }
+    }
   }, [
     form.calcProtocol,
     form.compositionMethod,
@@ -175,6 +254,7 @@ export function AnthropometryModal({ open, onOpenChange }: Props) {
     form.skinfoldAbdominal,
     form.skinfoldThigh,
     form.skinfoldCalf,
+    form.weight,
   ])
 
   const hasData = !!(
@@ -196,7 +276,6 @@ export function AnthropometryModal({ open, onOpenChange }: Props) {
 
   const handleSave = () => {
     onOpenChange(false)
-
     const weightNum = num(form.weight) || 0
     const fatPct = num(form.bodyFatPercentage) || 0
     const calculatedFatMass =
@@ -206,13 +285,12 @@ export function AnthropometryModal({ open, onOpenChange }: Props) {
       (weightNum && calculatedFatMass
         ? Math.round((weightNum - calculatedFatMass) * 10) / 10
         : undefined)
-
     const measurements: Record<string, number> = {}
     if (form.waistCirc) measurements.waist = parseFloat(form.waistCirc)
     if (form.hipCirc) measurements.hip = parseFloat(form.hipCirc)
     if (form.chestCirc) measurements.chest = parseFloat(form.chestCirc)
 
-    addBodyMetric?.({
+    const metric = {
       date: date.toISOString(),
       weight: weightNum,
       height: num(form.height),
@@ -268,14 +346,24 @@ export function AnthropometryModal({ open, onOpenChange }: Props) {
       photoLeft: photoLeft || undefined,
       attachments,
       observations: form.observations || undefined,
-    })
+    }
+
+    if (editMetric) {
+      updateAnthropometryLog(editMetric.id, metric)
+    } else {
+      addBodyMetric?.(metric)
+    }
   }
+
+  const sf = (key: string) => requiredSkinfolds.includes(key)
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="rounded-3xl max-h-[90vh] overflow-y-auto max-w-2xl">
         <DialogHeader>
-          <DialogTitle className="text-xl font-extrabold">Avaliação Antropométrica</DialogTitle>
+          <DialogTitle className="text-xl font-extrabold">
+            {editMetric ? '✏️ Editar Avaliação' : 'Avaliação Antropométrica'}
+          </DialogTitle>
         </DialogHeader>
 
         <div className="space-y-2">
@@ -324,21 +412,6 @@ export function AnthropometryModal({ open, onOpenChange }: Props) {
               placeholder="ex: 30"
               className="rounded-2xl border-2"
             />
-          </div>
-          <div className="space-y-2 col-span-2">
-            <Label className="font-bold text-sm">Fator de Atividade (NAF)</Label>
-            <Select value={form.activityLevel} onValueChange={(v) => update('activityLevel', v)}>
-              <SelectTrigger className="rounded-2xl border-2">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {activityOptions.map((opt) => (
-                  <SelectItem key={opt.value} value={opt.value}>
-                    {opt.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
           </div>
         </div>
 
@@ -579,61 +652,77 @@ export function AnthropometryModal({ open, onOpenChange }: Props) {
                       </SelectContent>
                     </Select>
                   </div>
+                  {requiredSkinfolds.length > 0 && (
+                    <p className="text-[10px] font-bold text-green-600 dark:text-green-400">
+                      ⭐ Campos obrigatórios destacados para o protocolo selecionado.
+                    </p>
+                  )}
                   <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                     <MeasurementInput
                       label="Bíceps (mm)"
                       value={form.skinfoldBiceps}
                       onChange={(v) => update('skinfoldBiceps', v)}
+                      required={sf('skinfoldBiceps')}
                     />
                     <MeasurementInput
                       label="Tríceps (mm)"
                       value={form.skinfoldTriceps}
                       onChange={(v) => update('skinfoldTriceps', v)}
+                      required={sf('skinfoldTriceps')}
                     />
                     <MeasurementInput
                       label="Subescap. (mm)"
                       value={form.skinfoldSubscapular}
                       onChange={(v) => update('skinfoldSubscapular', v)}
+                      required={sf('skinfoldSubscapular')}
                     />
                     <MeasurementInput
                       label="Peitoral (mm)"
                       value={form.skinfoldChest}
                       onChange={(v) => update('skinfoldChest', v)}
+                      required={sf('skinfoldChest')}
                     />
                     <MeasurementInput
                       label="Axilar Méd. (mm)"
                       value={form.skinfoldMidaxillary}
                       onChange={(v) => update('skinfoldMidaxillary', v)}
+                      required={sf('skinfoldMidaxillary')}
                     />
                     <MeasurementInput
                       label="Suprailíaca (mm)"
                       value={form.skinfoldSuprailiac}
                       onChange={(v) => update('skinfoldSuprailiac', v)}
+                      required={sf('skinfoldSuprailiac')}
                     />
                     <MeasurementInput
                       label="Supraesp. (mm)"
                       value={form.skinfoldSupraspinal}
                       onChange={(v) => update('skinfoldSupraspinal', v)}
+                      required={sf('skinfoldSupraspinal')}
                     />
                     <MeasurementInput
                       label="Abdominal (mm)"
                       value={form.skinfoldAbdominal}
                       onChange={(v) => update('skinfoldAbdominal', v)}
+                      required={sf('skinfoldAbdominal')}
                     />
                     <MeasurementInput
                       label="Coxa (mm)"
                       value={form.skinfoldThigh}
                       onChange={(v) => update('skinfoldThigh', v)}
+                      required={sf('skinfoldThigh')}
                     />
                     <MeasurementInput
                       label="Panturrilha (mm)"
                       value={form.skinfoldCalf}
                       onChange={(v) => update('skinfoldCalf', v)}
+                      required={sf('skinfoldCalf')}
                     />
                   </div>
                   {form.bodyFatPercentage && parseFloat(form.bodyFatPercentage) > 0 && (
                     <p className="text-xs font-bold text-[#58CC02]">
                       % Gordura calculada: {form.bodyFatPercentage}%
+                      {allRequiredFilled && form.leanMass && ` | Massa Magra: ${form.leanMass} kg`}
                     </p>
                   )}
                   <MeasurementInput
@@ -727,7 +816,7 @@ export function AnthropometryModal({ open, onOpenChange }: Props) {
             disabled={!hasData}
             className="w-full bg-[#58CC02] hover:bg-[#58CC02]/90 text-white border-b-4 border-[#58A300] rounded-2xl font-bold disabled:opacity-50"
           >
-            Salvar Avaliação
+            {editMetric ? 'Atualizar Avaliação' : 'Salvar Avaliação'}
           </Button>
         </DialogFooter>
       </DialogContent>

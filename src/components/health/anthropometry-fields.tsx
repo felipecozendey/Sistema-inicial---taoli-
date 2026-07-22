@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button'
 import { Camera, X, FileUp } from 'lucide-react'
 import { uploadImage } from '@/lib/image-upload'
 import { toast } from 'sonner'
+import { cn } from '@/lib/utils'
 
 export function MeasurementInput({
   label,
@@ -12,23 +13,31 @@ export function MeasurementInput({
   onChange,
   placeholder,
   step = '0.1',
+  required = false,
 }: {
   label: string
   value: string
   onChange: (v: string) => void
   placeholder?: string
   step?: string
+  required?: boolean
 }) {
   return (
     <div className="space-y-1">
-      <Label className="text-xs font-bold text-muted-foreground">{label}</Label>
+      <Label className="text-xs font-bold text-muted-foreground flex items-center gap-1">
+        {label}
+        {required && <span className="text-[10px] text-green-500 font-bold">⭐</span>}
+      </Label>
       <Input
         type="number"
         step={step}
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder || label}
-        className="rounded-xl border-2 text-sm"
+        className={cn(
+          'rounded-xl border-2 text-sm',
+          required && 'ring-2 ring-green-400/50 border-green-400/50',
+        )}
       />
     </div>
   )

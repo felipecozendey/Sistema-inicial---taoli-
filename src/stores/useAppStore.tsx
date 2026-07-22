@@ -9,6 +9,7 @@ import React, {
 } from 'react'
 import { supabase } from '@/lib/supabase/client'
 import { toast } from 'sonner'
+import { buildBodyMetricPayload } from '@/lib/body-metric-payload'
 
 export type Priority = 'low' | 'medium' | 'high'
 export type EnergyLevel = 1 | 2 | 3
@@ -443,6 +444,7 @@ interface AppState {
   updatePersonalRecords: (updates: Partial<PersonalRecord>) => void
   fetchBodyMetrics: () => Promise<void>
   addBodyMetric: (metric: Omit<BodyMetric, 'id'>) => void
+  updateAnthropometryLog: (id: string, metric: Omit<BodyMetric, 'id'>) => void
   addQuickVitals: (data: {
     heartRateRest?: number
     bloodPressure?: string
@@ -1682,6 +1684,22 @@ export const AppStoreProvider = ({ children }: { children: ReactNode }) => {
         })
     })
   }
+  const updateAnthropometryLog = (id: string, metric: Omit<BodyMetric, 'id'>) => {
+    setBodyMetrics((p) => p.map((m) => (m.id === id ? { ...metric, id } : m)))
+    ;(supabase as any)
+      .from('body_metrics')
+      .update(buildBodyMetricPayload(metric))
+      .eq('id', id)
+      .then(({ error }: { error: any }) => {
+        if (error) {
+          toast.error('Erro ao atualizar avaliação.')
+          fetchBodyMetrics()
+        } else {
+          toast.success('Avaliação atualizada com sucesso!')
+          fetchBodyMetrics()
+        }
+      })
+  }
   const addQuickVitals = (data: {
     heartRateRest?: number
     bloodPressure?: string
@@ -2464,6 +2482,7 @@ export const AppStoreProvider = ({ children }: { children: ReactNode }) => {
     updatePersonalRecords,
     fetchBodyMetrics,
     addBodyMetric,
+    updateAnthropometryLog,
     addQuickVitals,
     mentalHealthLogs,
     addMentalHealthLog,

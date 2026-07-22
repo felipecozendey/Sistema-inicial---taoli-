@@ -75,6 +75,17 @@ export function MetabolicDashboard({ selectedDate }: Props) {
     return { proteinG, fatG, carbsG }
   }, [venta, metric?.weight])
 
+  const weightGoalInfo = useMemo(() => {
+    if (!metric?.targetWeight || !metric?.daysForGoal) return null
+    const dailyAdjustment = Math.round((metric.targetWeight * 7700) / metric.daysForGoal)
+    return {
+      isLoss: metric.targetWeight < 0,
+      amount: Math.abs(metric.targetWeight),
+      days: metric.daysForGoal,
+      dailyAdjustment,
+    }
+  }, [metric?.targetWeight, metric?.daysForGoal])
+
   const needsLeanMass = metric?.calcFormula
     ? LEAN_MASS_FORMULAS.includes(metric.calcFormula)
     : false
@@ -157,7 +168,40 @@ export function MetabolicDashboard({ selectedDate }: Props) {
             NAF: {metric.activityLevel || '—'}
           </span>
         </div>
+        {metric.injuryFactor && metric.injuryFactor > 1.0 && (
+          <div className="flex items-center gap-1.5 bg-[#FF9600]/10 rounded-full px-3 py-1">
+            <AlertTriangle className="w-3.5 h-3.5 text-[#FF9600]" />
+            <span className="text-xs font-bold text-[#FF9600]">Lesão: ×{metric.injuryFactor}</span>
+          </div>
+        )}
       </div>
+
+      {weightGoalInfo && (
+        <div className="bg-muted/30 rounded-2xl p-3 flex items-center justify-between">
+          <div>
+            <p className="text-xs font-extrabold">
+              🎯 Meta: {weightGoalInfo.isLoss ? 'Perder' : 'Ganhar'} {weightGoalInfo.amount} kg em{' '}
+              {weightGoalInfo.days} dias
+            </p>
+            <p className="text-[10px] font-bold text-muted-foreground">
+              {weightGoalInfo.isLoss ? 'Déficit' : 'Superávit'} de{' '}
+              {weightGoalInfo.dailyAdjustment > 0 ? '+' : ''}
+              {weightGoalInfo.dailyAdjustment} kcal/dia
+            </p>
+          </div>
+          <span
+            className={cn(
+              'text-sm font-extrabold px-3 py-1 rounded-full',
+              weightGoalInfo.isLoss
+                ? 'bg-[#FF4B4B]/10 text-[#FF4B4B]'
+                : 'bg-[#58CC02]/10 text-[#58CC02]',
+            )}
+          >
+            {weightGoalInfo.dailyAdjustment > 0 ? '+' : ''}
+            {weightGoalInfo.dailyAdjustment}
+          </span>
+        </div>
+      )}
 
       {needsLeanMass && !hasLeanMass && (
         <Alert className="border-2 border-yellow-300 dark:border-yellow-700 rounded-2xl bg-yellow-50 dark:bg-yellow-900/20">
@@ -180,9 +224,27 @@ export function MetabolicDashboard({ selectedDate }: Props) {
           <p className="text-xl font-extrabold text-[#FF9600]">{metric.get}</p>
           <p className="text-[9px] font-bold text-muted-foreground">kcal</p>
         </div>
-        <div className="bg-[#58CC02]/10 rounded-2xl p-3 text-center flex flex-col items-center justify-center gap-1">
+        <div
+          className={cn(
+            'rounded-2xl p-3 text-center flex flex-col items-center justify-center gap-1',
+            caloricAdj < 0
+              ? 'bg-[#FF4B4B]/10'
+              : caloricAdj > 0
+                ? 'bg-[#58CC02]/10'
+                : 'bg-[#1CB0F6]/10',
+          )}
+        >
           <p className="text-[10px] font-bold text-muted-foreground">VENTA</p>
-          <Badge className="text-base font-extrabold bg-[#58CC02] text-white hover:bg-[#58CC02] px-3 py-1">
+          <Badge
+            className={cn(
+              'text-base font-extrabold text-white px-3 py-1',
+              caloricAdj < 0
+                ? 'bg-[#FF4B4B] hover:bg-[#FF4B4B]'
+                : caloricAdj > 0
+                  ? 'bg-[#58CC02] hover:bg-[#58CC02]'
+                  : 'bg-[#1CB0F6] hover:bg-[#1CB0F6]',
+            )}
+          >
             {venta}
           </Badge>
           <p className="text-[9px] font-bold text-muted-foreground">kcal/dia</p>

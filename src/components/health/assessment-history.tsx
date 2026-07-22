@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useAppStore, BodyMetric } from '@/stores/useAppStore'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
-import { Scale, Flame, Dumbbell, Heart, Moon, Brain, ChevronRight } from 'lucide-react'
+import { Scale, Flame, Dumbbell, Heart, Moon, Brain, ChevronRight, Pencil } from 'lucide-react'
 
 const MEASUREMENT_LABELS: Record<string, string> = {
   waist: 'Cintura',
@@ -19,7 +19,7 @@ const ACTIVITY_LABELS: Record<string, string> = {
   intense: 'Muito Ativo',
 }
 
-export function AssessmentHistory() {
+export function AssessmentHistory({ onEdit }: { onEdit?: (metric: BodyMetric) => void }) {
   const { bodyMetrics } = useAppStore()
   const [selected, setSelected] = useState<BodyMetric | null>(null)
   const [currentPage, setCurrentPage] = useState(0)
@@ -74,7 +74,20 @@ export function AssessmentHistory() {
               )}
             </div>
           </div>
-          <ChevronRight className="w-5 h-5 text-muted-foreground shrink-0" />
+          <div className="flex items-center gap-1 shrink-0">
+            {onEdit && (
+              <span
+                onClick={(e) => {
+                  e.stopPropagation()
+                  onEdit(m)
+                }}
+                className="p-2 rounded-lg hover:bg-muted transition-colors cursor-pointer"
+              >
+                <Pencil className="w-4 h-4 text-muted-foreground" />
+              </span>
+            )}
+            <ChevronRight className="w-5 h-5 text-muted-foreground" />
+          </div>
         </button>
       ))}
 

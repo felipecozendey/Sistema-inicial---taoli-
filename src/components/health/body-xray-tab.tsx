@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { Plus } from 'lucide-react'
+import type { BodyMetric } from '@/stores/useAppStore'
 import { Button } from '@/components/ui/button'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { AnthropometryModal } from '@/components/health/anthropometry-modal'
@@ -19,7 +20,23 @@ import {
 
 export function BodyXrayTab() {
   const [anthropometryOpen, setAnthropometryOpen] = useState(false)
+  const [editMetric, setEditMetric] = useState<BodyMetric | null>(null)
   const [selectedDate, setSelectedDate] = useState<Date>(new Date())
+
+  const handleOpenNew = () => {
+    setEditMetric(null)
+    setAnthropometryOpen(true)
+  }
+
+  const handleOpenEdit = (m: BodyMetric) => {
+    setEditMetric(m)
+    setAnthropometryOpen(true)
+  }
+
+  const handleClose = (open: boolean) => {
+    setAnthropometryOpen(open)
+    if (!open) setEditMetric(null)
+  }
 
   return (
     <div className="space-y-6">
@@ -27,7 +44,7 @@ export function BodyXrayTab() {
         <div className="flex items-center justify-between">
           <h3 className="text-xl font-extrabold">📈 Evolução e Composição Corporal</h3>
           <Button
-            onClick={() => setAnthropometryOpen(true)}
+            onClick={handleOpenNew}
             className="bg-[#1CB0F6] hover:bg-[#1CB0F6]/90 text-white border-b-4 border-[#1899D6] rounded-2xl font-bold"
             size="sm"
           >
@@ -64,10 +81,14 @@ export function BodyXrayTab() {
         </AccordionItem>
       </Accordion>
       <BodyGoalsDashboard />
-      <AssessmentHistory />
+      <AssessmentHistory onEdit={handleOpenEdit} />
       <MedicalExamsSection />
 
-      <AnthropometryModal open={anthropometryOpen} onOpenChange={setAnthropometryOpen} />
+      <AnthropometryModal
+        open={anthropometryOpen}
+        onOpenChange={handleClose}
+        editMetric={editMetric}
+      />
     </div>
   )
 }

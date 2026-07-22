@@ -241,6 +241,51 @@ export function calculateVonDobelnBoneMass(
   return Math.round(boneMass * 100) / 100
 }
 
+export function getRequiredSkinfolds(protocol: CalcProtocol, gender: Gender): string[] {
+  switch (protocol) {
+    case 'pollock_7':
+      return [
+        'skinfoldChest',
+        'skinfoldMidaxillary',
+        'skinfoldTriceps',
+        'skinfoldSubscapular',
+        'skinfoldAbdominal',
+        'skinfoldSuprailiac',
+        'skinfoldThigh',
+      ]
+    case 'pollock_3':
+      return gender === 'male'
+        ? ['skinfoldChest', 'skinfoldAbdominal', 'skinfoldThigh']
+        : ['skinfoldTriceps', 'skinfoldSuprailiac', 'skinfoldThigh']
+    case 'durnin':
+      return ['skinfoldBiceps', 'skinfoldTriceps', 'skinfoldSubscapular', 'skinfoldSuprailiac']
+    case 'petroski':
+      return gender === 'male'
+        ? [
+            'skinfoldTriceps',
+            'skinfoldSubscapular',
+            'skinfoldSuprailiac',
+            'skinfoldAbdominal',
+            'skinfoldThigh',
+          ]
+        : [
+            'skinfoldTriceps',
+            'skinfoldSubscapular',
+            'skinfoldSuprailiac',
+            'skinfoldAbdominal',
+            'skinfoldCalf',
+          ]
+    case 'guedes':
+      return gender === 'male'
+        ? ['skinfoldTriceps', 'skinfoldSuprailiac', 'skinfoldAbdominal']
+        : ['skinfoldTriceps', 'skinfoldSuprailiac', 'skinfoldThigh']
+    case 'faulkner':
+      return ['skinfoldTriceps', 'skinfoldSubscapular', 'skinfoldSuprailiac', 'skinfoldAbdominal']
+    default:
+      return []
+  }
+}
+
 export function calculate4CompartmentModel(
   weight: number,
   heightCm: number,
