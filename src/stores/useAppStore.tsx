@@ -128,7 +128,14 @@ export type BodyMetric = {
     met: number
     duration: number
     weeklyFrequency: number
+    energy_kcal?: number
+    item_name?: string
+    met_value?: number
+    duration_min?: number
+    frequency?: number
   }>
+  patientProfile?: string
+  calcFormula?: string
   methodologyUsed?: string
   injuryFactor?: number
   ventaTarget?: number
@@ -1529,6 +1536,8 @@ export const AppStoreProvider = ({ children }: { children: ReactNode }) => {
           leanMass: d.lean_mass || undefined,
           fatMass: d.fat_mass || undefined,
           metActivities: d.met_activities || [],
+          patientProfile: d.patient_profile || undefined,
+          calcFormula: d.calc_formula || undefined,
           methodologyUsed: d.methodology_used || undefined,
           injuryFactor: d.injury_factor || undefined,
           ventaTarget: d.venta_target || undefined,
@@ -1612,6 +1621,8 @@ export const AppStoreProvider = ({ children }: { children: ReactNode }) => {
           lean_mass: metric.leanMass || null,
           fat_mass: metric.fatMass || null,
           met_activities: metric.metActivities || [],
+          patient_profile: metric.patientProfile || null,
+          calc_formula: metric.calcFormula || null,
           methodology_used: metric.methodologyUsed || null,
           injury_factor: metric.injuryFactor || 1.0,
           venta_target: metric.ventaTarget || null,
