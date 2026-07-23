@@ -2038,28 +2038,39 @@ export const AppStoreProvider = ({ children }: { children: ReactNode }) => {
     const {
       data: { user: authUser },
     } = await supabase.auth.getUser()
-    if (!authUser) return
-    const { data } = await (supabase as any)
+    if (!authUser) {
+      console.warn('[fetchMetabolicLogs] No authenticated user found')
+      return
+    }
+    const { data, error } = await (supabase as any)
       .from('metabolic_logs')
       .select('*')
       .eq('user_id', authUser.id)
       .order('date', { ascending: true })
-    if (data)
-      setMetabolicLogs(
-        data.map((d: any) => ({
-          id: d.id,
-          date: (d.date || '').split('T')[0],
-          formula: d.formula || '',
-          tmb: d.tmb || 0,
-          naf: d.naf || '',
-          injuryFactor: d.injury_factor || 1.0,
-          ventaTarget: d.venta_target || 0,
-          extraActivities: d.extra_activities || [],
-          weightGoal: d.weight_goal ?? null,
-          goalDays: d.goal_days ?? null,
-          createdAt: d.created_at,
-        })),
-      )
+    if (error) {
+      console.error('[fetchMetabolicLogs] Supabase query error:', error)
+      return
+    }
+    if (!data) {
+      console.warn('[fetchMetabolicLogs] No data returned from query')
+      return
+    }
+    console.log('[fetchMetabolicLogs] Fetched logs:', data.length, 'rows')
+    setMetabolicLogs(
+      data.map((d: any) => ({
+        id: d.id,
+        date: (d.date || '').split('T')[0],
+        formula: d.formula || '',
+        tmb: d.tmb || 0,
+        naf: d.naf || '',
+        injuryFactor: d.injury_factor || 1.0,
+        ventaTarget: d.venta_target || 0,
+        extraActivities: d.extra_activities || [],
+        weightGoal: d.weight_goal ?? null,
+        goalDays: d.goal_days ?? null,
+        createdAt: d.created_at,
+      })),
+    )
   }
   const saveMetabolicLog = async (data: {
     formula: string

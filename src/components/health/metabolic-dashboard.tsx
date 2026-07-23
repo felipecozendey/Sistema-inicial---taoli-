@@ -20,6 +20,11 @@ interface Props {
   selectedDate: Date
 }
 
+function safeDateStr(date: Date): string {
+  if (!date || isNaN(date.getTime())) return new Date().toISOString().split('T')[0]
+  return date.toISOString().split('T')[0]
+}
+
 export function MetabolicDashboard({ selectedDate }: Props) {
   const metabolicLogs = useAppStore((s) => s.metabolicLogs)
   const fetchMetabolicLogs = useAppStore((s) => s.fetchMetabolicLogs)
@@ -34,12 +39,17 @@ export function MetabolicDashboard({ selectedDate }: Props) {
     setDashboardDate(selectedDate)
   }, [selectedDate])
 
-  const selectedDateStr = dashboardDate.toISOString().split('T')[0]
+  const selectedDateStr = safeDateStr(dashboardDate)
 
   const log = useMemo(() => {
-    if (!metabolicLogs?.length) return null
+    if (!metabolicLogs?.length) {
+      console.log('[MetabolicDashboard] No metabolic logs available')
+      return null
+    }
     const sorted = [...metabolicLogs].sort((a, b) => b.date.localeCompare(a.date))
-    return sorted.find((l) => l.date <= selectedDateStr) || sorted[0]
+    const found = sorted.find((l) => l.date <= selectedDateStr) || sorted[0]
+    console.log('[MetabolicDashboard] Selected log:', found?.id, 'for date:', selectedDateStr)
+    return found
   }, [metabolicLogs, selectedDateStr])
 
   const profileLabel = useMemo(() => {
@@ -54,6 +64,14 @@ export function MetabolicDashboard({ selectedDate }: Props) {
     : '—'
 
   const activities = log?.extraActivities || []
+
+  const formattedDate = useMemo(() => {
+    try {
+      return safeFormatDateLong(dashboardDate.toISOString())
+    } catch {
+      return 'Data Inválida'
+    }
+  }, [dashboardDate])
 
   return (
     <div className="bg-card border-2 border-b-4 border-[#E5E5E5] dark:border-[#3B4A55] rounded-3xl p-6 shadow-sm space-y-4">
@@ -75,7 +93,7 @@ export function MetabolicDashboard({ selectedDate }: Props) {
                 className="w-full justify-start border-2 rounded-2xl font-bold"
               >
                 <CalendarIcon className="w-4 h-4 mr-2" />
-                {safeFormatDateLong(dashboardDate.toISOString())}
+                {formattedDate}
               </Button>
             </PopoverTrigger>
             <PopoverContent className="w-auto p-0" align="start">
@@ -102,7 +120,9 @@ export function MetabolicDashboard({ selectedDate }: Props) {
                 <div className="space-y-2">
                   <div className="bg-[#1CB0F6]/10 rounded-2xl p-3 flex items-center justify-between">
                     <span className="text-xs font-bold text-muted-foreground">TMB</span>
-                    <span className="text-lg font-extrabold text-[#1CB0F6]">{log.tmb} kcal</span>
+                    <span className="text-lg font-extrabold text-[#1CB0F6]">
+                      {log.tmb ?? 0} kcal
+                    </span>
                   </div>
                   <div className="bg-muted/30 rounded-2xl p-3 flex items-center justify-between">
                     <span className="text-xs font-bold text-muted-foreground flex items-center gap-1">
@@ -120,7 +140,7 @@ export function MetabolicDashboard({ selectedDate }: Props) {
                     <span className="text-xs font-bold text-muted-foreground">NAF</span>
                     <span className="text-sm font-extrabold">{log.naf || '—'}</span>
                   </div>
-                  {log.injuryFactor && log.injuryFactor > 1.0 && (
+                  {log.injuryFactor != null && log.injuryFactor > 1.0 && (
                     <div className="bg-[#FF9600]/10 rounded-2xl p-3 flex items-center justify-between">
                       <span className="text-xs font-bold text-muted-foreground flex items-center gap-1">
                         <AlertTriangle className="w-3.5 h-3.5 text-[#FF9600]" /> Fator Injúria
@@ -134,12 +154,12 @@ export function MetabolicDashboard({ selectedDate }: Props) {
 
                 <div className="bg-[#58CC02]/10 border-2 border-[#58CC02]/30 rounded-3xl p-4 flex flex-col items-center justify-center gap-1">
                   <p className="text-xs font-bold text-muted-foreground">VENTA Final</p>
-                  <p className="text-5xl font-extrabold text-[#58CC02]">{log.ventaTarget}</p>
+                  <p className="text-5xl font-extrabold text-[#58CC02]">{log.ventaTarget ?? 0}</p>
                   <p className="text-xs font-bold text-muted-foreground">kcal/dia</p>
                 </div>
               </div>
 
-              {activities.length > 0 && (
+              {Array.isArray(activities) && activities.length > 0 && (
                 <div className="border-t-2 border-muted pt-4">
                   <h4 className="text-sm font-extrabold mb-2 flex items-center gap-1">
                     <Activity className="w-4 h-4 text-[#FF9600]" /> Atividades Físicas

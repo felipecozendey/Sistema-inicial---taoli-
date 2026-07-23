@@ -13,19 +13,27 @@ const chartConfig = {
   venta: { label: 'VENTA (kcal)', color: '#58CC02' },
 } satisfies ChartConfig
 
+function safeFormatChartDate(dateStr: string): string {
+  try {
+    const d = new Date(dateStr.includes('T') ? dateStr : dateStr + 'T00:00:00')
+    if (isNaN(d.getTime())) return dateStr
+    return d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })
+  } catch {
+    return dateStr
+  }
+}
+
 export function MetabolicEvolutionChart({ logs }: { logs: MetabolicLog[] }) {
   const chartData = useMemo(
     () =>
-      logs
+      (logs || [])
+        .filter((log) => log && log.date)
         .slice()
         .sort((a, b) => a.date.localeCompare(b.date))
         .map((log) => ({
-          date: new Date(log.date + 'T00:00:00').toLocaleDateString('pt-BR', {
-            day: '2-digit',
-            month: '2-digit',
-          }),
-          tmb: log.tmb,
-          venta: log.ventaTarget,
+          date: safeFormatChartDate(log.date),
+          tmb: log.tmb ?? 0,
+          venta: log.ventaTarget ?? 0,
         })),
     [logs],
   )
