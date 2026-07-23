@@ -63,6 +63,25 @@ export function toDateString(date: Date): string {
   return date.toISOString().split('T')[0]
 }
 
+export function safeFormatDate(dateInput: string | Date | undefined | null): string {
+  if (!dateInput) return 'Data Inválida'
+  const safeDate = dateInput instanceof Date ? dateInput : new Date(dateInput)
+  return isNaN(safeDate.getTime())
+    ? 'Data Inválida'
+    : `${String(safeDate.getDate()).padStart(2, '0')}/${String(safeDate.getMonth() + 1).padStart(2, '0')}/${safeDate.getFullYear()}`
+}
+
+export function safeFormatDateLong(dateInput: string | Date | undefined | null): string {
+  if (!dateInput) return 'Data Inválida'
+  const safeDate =
+    dateInput instanceof Date
+      ? dateInput
+      : new Date(dateInput.includes('T') ? dateInput : dateInput + 'T00:00:00')
+  return isNaN(safeDate.getTime())
+    ? 'Data Inválida'
+    : safeDate.toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' })
+}
+
 export function formatDateShort(date: Date): string {
   return `${String(date.getDate()).padStart(2, '0')}/${String(date.getMonth() + 1).padStart(2, '0')}`
 }

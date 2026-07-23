@@ -6,14 +6,17 @@ import {
   Scale,
   Flame,
   Dumbbell,
-  Heart,
-  Moon,
-  Brain,
   ChevronRight,
   Pencil,
   Trash2,
   Calculator,
+  Heart,
+  Moon,
+  Brain,
+  Ruler,
 } from 'lucide-react'
+import { safeFormatDateLong } from '@/lib/date-utils'
+import { CALC_FORMULA_LABELS, type CalcFormula } from '@/lib/metabolic-math'
 
 const MEASUREMENT_LABELS: Record<string, string> = {
   waist: 'Cintura',
@@ -24,27 +27,9 @@ const MEASUREMENT_LABELS: Record<string, string> = {
   leftThigh: 'Coxa E.',
   rightThigh: 'Coxa D.',
 }
-const ACTIVITY_LABELS: Record<string, string> = {
-  sedentary: 'Sedentário',
-  light: 'Levemente Ativo',
-  moderate: 'Moderadamente Ativo',
-  intense: 'Muito Ativo',
-}
 
-const FORMULA_LABELS: Record<string, string> = {
-  mifflin: 'Mifflin-St Jeor',
-  harris_1919: 'Harris-Benedict (1919)',
-  harris_1984: 'Harris-Benedict (1984)',
-  katch_mcardle: 'Katch-McArdle',
-  cunningham: 'Cunningham',
-}
-
-const fmtDate = (d: string) =>
-  new Date(d + 'T00:00:00').toLocaleDateString('pt-BR', {
-    day: '2-digit',
-    month: 'long',
-    year: 'numeric',
-  })
+const getFormulaLabel = (formula: string) =>
+  CALC_FORMULA_LABELS[formula as CalcFormula] || formula || '—'
 
 interface Props {
   onEdit?: (metric: BodyMetric) => void
@@ -54,6 +39,7 @@ interface Props {
 export function AssessmentHistory({ onEdit, onEditMetabolic }: Props) {
   const { bodyMetrics, metabolicLogs, deleteAnthropometryLog, deleteMetabolicLog } = useAppStore()
   const [selected, setSelected] = useState<BodyMetric | null>(null)
+  const [selectedMetabolic, setSelectedMetabolic] = useState<MetabolicLog | null>(null)
   const [currentPage, setCurrentPage] = useState(0)
   const [metabolicPage, setMetabolicPage] = useState(0)
 
@@ -138,7 +124,7 @@ export function AssessmentHistory({ onEdit, onEditMetabolic }: Props) {
                     <Scale className="w-6 h-6 text-[#1CB0F6]" />
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="font-extrabold text-sm">{fmtDate(m.date)}</p>
+                    <p className="font-extrabold text-sm">{safeFormatDateLong(m.date)}</p>
                     <div className="flex gap-4 mt-1">
                       <span className="text-xs font-bold text-muted-foreground">
                         ⚖️ {m.weight?.toFixed(1) || '—'} kg
@@ -193,21 +179,26 @@ export function AssessmentHistory({ onEdit, onEditMetabolic }: Props) {
                 key={log.id}
                 className="w-full flex items-center gap-3 bg-card border-2 border-b-4 border-[#E5E5E5] dark:border-[#3B4A55] rounded-2xl p-4 hover:shadow-md hover:-translate-y-0.5 transition-all"
               >
-                <div className="w-12 h-12 rounded-xl bg-[#FF9600]/10 flex items-center justify-center shrink-0">
-                  <Calculator className="w-6 h-6 text-[#FF9600]" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="font-extrabold text-sm">{fmtDate(log.date)}</p>
-                  <div className="flex items-center gap-2 mt-1">
-                    <span className="text-xs font-bold text-muted-foreground">
-                      {FORMULA_LABELS[log.formula] || log.formula || '—'}
-                    </span>
-                    <span className="text-xs font-bold text-muted-foreground">|</span>
-                    <span className="text-xs font-bold text-muted-foreground">
-                      TMB: {log.tmb} kcal
-                    </span>
+                <button
+                  onClick={() => setSelectedMetabolic(log)}
+                  className="flex items-center gap-3 flex-1 min-w-0 text-left"
+                >
+                  <div className="w-12 h-12 rounded-xl bg-[#FF9600]/10 flex items-center justify-center shrink-0">
+                    <Calculator className="w-6 h-6 text-[#FF9600]" />
                   </div>
-                </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="font-extrabold text-sm">{safeFormatDateLong(log.date)}</p>
+                    <div className="flex items-center gap-2 mt-1">
+                      <span className="text-xs font-bold text-muted-foreground">
+                        {getFormulaLabel(log.formula)}
+                      </span>
+                      <span className="text-xs font-bold text-muted-foreground">|</span>
+                      <span className="text-xs font-bold text-muted-foreground">
+                        TMB: {log.tmb} kcal
+                      </span>
+                    </div>
+                  </div>
+                </button>
                 <div className="shrink-0">
                   <span className="inline-block bg-[#58CC02]/10 text-[#58CC02] font-extrabold text-base px-3 py-1.5 rounded-xl">
                     {log.ventaTarget}
@@ -243,29 +234,34 @@ export function AssessmentHistory({ onEdit, onEditMetabolic }: Props) {
             <>
               <DialogHeader>
                 <DialogTitle className="text-2xl font-extrabold">
-                  {fmtDate(selected.date)}
+                  {safeFormatDateLong(selected.date)}
                 </DialogTitle>
               </DialogHeader>
               <div className="space-y-4 mt-2">
-                <div className="grid grid-cols-3 gap-3">
-                  <div className="text-center bg-[#1CB0F6]/10 rounded-2xl p-3">
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="bg-[#1CB0F6]/10 border-2 border-b-4 border-[#1CB0F6]/30 rounded-2xl p-3 text-center">
                     <Scale className="w-5 h-5 text-[#1CB0F6] mx-auto mb-1" />
                     <p className="text-lg font-extrabold">{selected.weight?.toFixed(1) || '—'}</p>
                     <p className="text-[10px] font-bold text-muted-foreground">Peso (kg)</p>
                   </div>
-                  <div className="text-center bg-[#FF9600]/10 rounded-2xl p-3">
-                    <Flame className="w-5 h-5 text-[#FF9600] mx-auto mb-1" />
-                    <p className="text-lg font-extrabold">
-                      {selected.bodyFatPercentage?.toFixed(1) || '—'}
-                    </p>
-                    <p className="text-[10px] font-bold text-muted-foreground">Gordura (%)</p>
+                  <div className="bg-[#CE82FF]/10 border-2 border-b-4 border-[#CE82FF]/30 rounded-2xl p-3 text-center">
+                    <Ruler className="w-5 h-5 text-[#CE82FF] mx-auto mb-1" />
+                    <p className="text-lg font-extrabold">{selected.height || '—'}</p>
+                    <p className="text-[10px] font-bold text-muted-foreground">Altura (cm)</p>
                   </div>
-                  <div className="text-center bg-[#58CC02]/10 rounded-2xl p-3">
+                  <div className="bg-[#58CC02]/10 border-2 border-b-4 border-[#58CC02]/30 rounded-2xl p-3 text-center">
                     <Dumbbell className="w-5 h-5 text-[#58CC02] mx-auto mb-1" />
                     <p className="text-lg font-extrabold">
-                      {selected.muscleMass?.toFixed(1) || '—'}
+                      {selected.leanMass?.toFixed(1) || selected.muscleMass?.toFixed(1) || '—'}
                     </p>
-                    <p className="text-[10px] font-bold text-muted-foreground">Músculo (kg)</p>
+                    <p className="text-[10px] font-bold text-muted-foreground">Massa Magra (kg)</p>
+                  </div>
+                  <div className="bg-[#FF9600]/10 border-2 border-b-4 border-[#FF9600]/30 rounded-2xl p-3 text-center">
+                    <Flame className="w-5 h-5 text-[#FF9600] mx-auto mb-1" />
+                    <p className="text-lg font-extrabold">
+                      {selected.bodyFatPercentage?.toFixed(1) || '—'}%
+                    </p>
+                    <p className="text-[10px] font-bold text-muted-foreground">Gordura Corporal</p>
                   </div>
                 </div>
                 {selected.tmb && selected.get && (
@@ -289,8 +285,7 @@ export function AssessmentHistory({ onEdit, onEditMetabolic }: Props) {
                     {selected.heartRateRest && (
                       <div className="flex items-center justify-between">
                         <span className="text-sm font-bold flex items-center gap-2">
-                          <Heart className="w-4 h-4 text-[#FF4B4B] animate-pulse" />
-                          Freq. Cardíaca
+                          <Heart className="w-4 h-4 text-[#FF4B4B] animate-pulse" /> Freq. Cardíaca
                         </span>
                         <span className="font-extrabold">{selected.heartRateRest} bpm</span>
                       </div>
@@ -304,8 +299,7 @@ export function AssessmentHistory({ onEdit, onEditMetabolic }: Props) {
                     {selected.sleepQuality && (
                       <div className="flex items-center justify-between">
                         <span className="text-sm font-bold flex items-center gap-2">
-                          <Moon className="w-4 h-4 text-[#8B5CF6]" />
-                          Sono
+                          <Moon className="w-4 h-4 text-[#8B5CF6]" /> Sono
                         </span>
                         <span className="font-extrabold">{'⭐'.repeat(selected.sleepQuality)}</span>
                       </div>
@@ -313,8 +307,7 @@ export function AssessmentHistory({ onEdit, onEditMetabolic }: Props) {
                     {selected.stressLevel && (
                       <div className="flex items-center justify-between">
                         <span className="text-sm font-bold flex items-center gap-2">
-                          <Brain className="w-4 h-4 text-[#FF9600]" />
-                          Estresse
+                          <Brain className="w-4 h-4 text-[#FF9600]" /> Estresse
                         </span>
                         <span className="font-extrabold">{selected.stressLevel}/5</span>
                       </div>
@@ -336,53 +329,65 @@ export function AssessmentHistory({ onEdit, onEditMetabolic }: Props) {
                     </div>
                   </div>
                 )}
-                {selected.gender && selected.age && selected.height && (
-                  <div className="grid grid-cols-2 gap-2 bg-muted/30 rounded-2xl p-3 text-sm">
-                    <div>
-                      <span className="font-bold text-muted-foreground">Sexo:</span>{' '}
-                      <span className="font-extrabold">
-                        {selected.gender === 'male' ? 'Masculino' : 'Feminino'}
-                      </span>
-                    </div>
-                    <div>
-                      <span className="font-bold text-muted-foreground">Idade:</span>{' '}
-                      <span className="font-extrabold">{selected.age} anos</span>
-                    </div>
-                    <div>
-                      <span className="font-bold text-muted-foreground">Altura:</span>{' '}
-                      <span className="font-extrabold">{selected.height} cm</span>
-                    </div>
-                    {selected.activityLevel && (
-                      <div>
-                        <span className="font-bold text-muted-foreground">Atividade:</span>{' '}
-                        <span className="font-extrabold">
-                          {ACTIVITY_LABELS[selected.activityLevel] || selected.activityLevel}
-                        </span>
+              </div>
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!selectedMetabolic} onOpenChange={(v) => !v && setSelectedMetabolic(null)}>
+        <DialogContent className="sm:max-w-[500px] rounded-3xl max-h-[85vh] overflow-y-auto">
+          {selectedMetabolic && (
+            <>
+              <DialogHeader>
+                <DialogTitle className="text-2xl font-extrabold">
+                  {safeFormatDateLong(selectedMetabolic.date)}
+                </DialogTitle>
+              </DialogHeader>
+              <div className="space-y-4 mt-2">
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="bg-[#58CC02]/10 border-2 border-b-4 border-[#58CC02]/30 rounded-2xl p-3 text-center">
+                    <Flame className="w-5 h-5 text-[#58CC02] mx-auto mb-1" />
+                    <p className="text-lg font-extrabold">{selectedMetabolic.ventaTarget}</p>
+                    <p className="text-[10px] font-bold text-muted-foreground">VENTA (kcal/dia)</p>
+                  </div>
+                  <div className="bg-[#1CB0F6]/10 border-2 border-b-4 border-[#1CB0F6]/30 rounded-2xl p-3 text-center">
+                    <Calculator className="w-5 h-5 text-[#1CB0F6] mx-auto mb-1" />
+                    <p className="text-lg font-extrabold">{selectedMetabolic.tmb}</p>
+                    <p className="text-[10px] font-bold text-muted-foreground">TMB (kcal)</p>
+                  </div>
+                  <div className="bg-[#FF9600]/10 border-2 border-b-4 border-[#FF9600]/30 rounded-2xl p-3 text-center">
+                    <p className="text-[10px] font-bold text-muted-foreground">Fórmula</p>
+                    <p className="text-sm font-extrabold text-[#FF9600] mt-1">
+                      {getFormulaLabel(selectedMetabolic.formula)}
+                    </p>
+                  </div>
+                  <div className="bg-[#FF4B4B]/10 border-2 border-b-4 border-[#FF4B4B]/30 rounded-2xl p-3 text-center">
+                    <p className="text-[10px] font-bold text-muted-foreground">Fator de Injúria</p>
+                    <p className="text-lg font-extrabold text-[#FF4B4B] mt-1">
+                      ×{selectedMetabolic.injuryFactor || 1.0}
+                    </p>
+                  </div>
+                </div>
+                {selectedMetabolic.extraActivities &&
+                  selectedMetabolic.extraActivities.length > 0 && (
+                    <div className="bg-muted/30 rounded-2xl p-4">
+                      <p className="text-sm font-extrabold mb-2">🏃 Atividades Físicas</p>
+                      <div className="space-y-1">
+                        {selectedMetabolic.extraActivities.map((a: any, i: number) => (
+                          <div
+                            key={a.id || i}
+                            className="flex items-center justify-between text-sm"
+                          >
+                            <span className="font-bold">{a.item_name || a.name || '—'}</span>
+                            <span className="font-extrabold text-[#FF9600]">
+                              {a.energy_kcal || 0} kcal
+                            </span>
+                          </div>
+                        ))}
                       </div>
-                    )}
-                  </div>
-                )}
-                {selected.primaryGoal && (
-                  <div className="flex items-center gap-2 bg-muted/30 rounded-2xl p-3">
-                    <span className="text-sm font-bold">Objetivo:</span>
-                    <span className="text-sm font-extrabold">{selected.primaryGoal}</span>
-                  </div>
-                )}
-                {selected.photoUrls && selected.photoUrls.length > 0 && (
-                  <div>
-                    <p className="text-sm font-extrabold mb-2">📸 Fotos</p>
-                    <div className="flex flex-wrap gap-2">
-                      {selected.photoUrls.map((url, i) => (
-                        <img
-                          key={i}
-                          src={url}
-                          alt={`Foto ${i + 1}`}
-                          className="w-24 h-24 rounded-xl object-cover"
-                        />
-                      ))}
                     </div>
-                  </div>
-                )}
+                  )}
               </div>
             </>
           )}

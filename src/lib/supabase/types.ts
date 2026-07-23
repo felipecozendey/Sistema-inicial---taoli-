@@ -759,6 +759,51 @@ export type Database = {
         }
         Relationships: []
       }
+      metabolic_logs: {
+        Row: {
+          created_at: string
+          date: string
+          extra_activities: Json | null
+          formula: string | null
+          goal_days: number | null
+          id: string
+          injury_factor: number | null
+          naf: string | null
+          tmb: number | null
+          user_id: string
+          venta_target: number | null
+          weight_goal: number | null
+        }
+        Insert: {
+          created_at?: string
+          date?: string
+          extra_activities?: Json | null
+          formula?: string | null
+          goal_days?: number | null
+          id?: string
+          injury_factor?: number | null
+          naf?: string | null
+          tmb?: number | null
+          user_id: string
+          venta_target?: number | null
+          weight_goal?: number | null
+        }
+        Update: {
+          created_at?: string
+          date?: string
+          extra_activities?: Json | null
+          formula?: string | null
+          goal_days?: number | null
+          id?: string
+          injury_factor?: number | null
+          naf?: string | null
+          tmb?: number | null
+          user_id?: string
+          venta_target?: number | null
+          weight_goal?: number | null
+        }
+        Relationships: []
+      }
       mind_events: {
         Row: {
           created_at: string

@@ -106,7 +106,7 @@ export function BodyXrayTab() {
             </Button>
           </div>
           <AccordionContent className="px-4 pb-4">
-            <MetabolicDashboard selectedDate={selectedDate} onOpenCalc={handleOpenCalc} />
+            <MetabolicDashboard selectedDate={selectedDate} />
           </AccordionContent>
         </AccordionItem>
       </Accordion>
