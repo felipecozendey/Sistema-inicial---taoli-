@@ -70,6 +70,14 @@ interface FinanceStoreState {
   deleteTransaction: (id: string) => Promise<void>
   toggleTransactionStatus: (id: string) => Promise<void>
   setFinanceDateRange: (range: Partial<FinanceDateRange>) => void
+  addPassword: (pwd: {
+    title: string
+    username: string
+    password: string
+    url?: string
+    category: string
+  }) => Promise<void>
+  deletePassword: (id: string) => Promise<void>
   addFinanceCategory: (cat: {
     name: string
     icon: string
@@ -174,6 +182,43 @@ let state: FinanceStoreState = {
     }
   },
 
+  addPassword: async (pwd: {
+    title: string
+    username: string
+    password: string
+    url?: string
+    category: string
+  }) => {
+    const {
+      data: { session },
+    } = await supabase.auth.getSession()
+    if (!session) return
+
+    const { data, error } = await (supabase.from('passwords') as any)
+      .insert({
+        user_id: session.user.id,
+        title: pwd.title,
+        username: pwd.username,
+        password: pwd.password,
+        url: pwd.url || null,
+        category: pwd.category,
+      })
+      .select()
+      .single()
+
+    if (data) {
+      setState({ passwords: [mapPassword(data), ...state.passwords] })
+    } else if (error) {
+      toast.error('Erro ao salvar senha')
+    }
+  },
+
+  deletePassword: async (id: string) => {
+    const prev = state.passwords
+    setState({ passwords: prev.filter((p) => p.id !== id) })
+    await supabase.from('passwords').delete().eq('id', id)
+  },
+
   fetchFinanceCategories: async () => {
     const {
       data: { session },
@@ -240,7 +285,7 @@ let state: FinanceStoreState = {
 
     setState({ transactions: [...state.transactions, ...optimisticTx] })
 
-    const { data, error } = await supabase.from('transactions').insert(records).select()
+    const { data, error } = await (supabase.from('transactions') as any).insert(records).select()
 
     if (error || !data) {
       setState({ transactions: state.transactions.filter((t) => !tempIds.includes(t.id)) })
@@ -276,7 +321,7 @@ let state: FinanceStoreState = {
       dbUpdates.recurrence_period = updates.recurrencePeriod
     if (updates.isFixed !== undefined) dbUpdates.is_fixed = updates.isFixed
 
-    const { error } = await supabase.from('transactions').update(dbUpdates).eq('id', id)
+    const { error } = await (supabase.from('transactions') as any).update(dbUpdates).eq('id', id)
 
     if (error) {
       setState({ transactions: prev })
@@ -347,7 +392,9 @@ let state: FinanceStoreState = {
     if (updates.color !== undefined) dbUpdates.color = updates.color
     if (updates.parentId !== undefined) dbUpdates.parent_id = updates.parentId
 
-    const { error } = await supabase.from('finance_categories').update(dbUpdates).eq('id', id)
+    const { error } = await (supabase.from('finance_categories') as any)
+      .update(dbUpdates)
+      .eq('id', id)
 
     if (error) {
       setState({ financeCategories: prev })

@@ -10,18 +10,19 @@ export interface QueuedAction {
 export async function executeMutation(action: QueuedAction): Promise<boolean> {
   try {
     if (action.operation === 'insert') {
-      const { error } = await supabase.from(action.table).insert(action.payload)
+      const { error } = await (supabase.from(action.table as any) as any).insert(action.payload)
       return !error
     }
     if (action.operation === 'update') {
-      const { error } = await supabase
-        .from(action.table)
+      const { error } = await (supabase.from(action.table as any) as any)
         .update(action.payload.data)
         .eq('id', action.payload.id)
       return !error
     }
     if (action.operation === 'delete') {
-      const { error } = await supabase.from(action.table).delete().eq('id', action.payload.id)
+      const { error } = await (supabase.from(action.table as any) as any)
+        .delete()
+        .eq('id', action.payload.id)
       return !error
     }
     return false

@@ -84,7 +84,7 @@ export function HydrationWidget() {
         </Popover>
       </div>
 
-      <GameProgress value={percent} variant="info" height="lg" />
+      <GameProgress value={percent} variant="blue" height="lg" />
 
       <div className="grid grid-cols-2 gap-3">
         <button

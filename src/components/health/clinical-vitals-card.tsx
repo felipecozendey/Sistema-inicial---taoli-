@@ -28,17 +28,24 @@ export function ClinicalVitalsCard() {
   const latest = useMemo(() => {
     if (!bodyMetrics?.length) return null
     return [...bodyMetrics]
-      .filter((b: any) => b.heart_rate_rest || b.blood_pressure || b.glucose)
-      .sort((a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime())[0]
+      .filter(
+        (b: any) =>
+          b.heart_rate_rest || b.heartRateRest || b.blood_pressure || b.bloodPressure || b.glucose,
+      )
+      .sort((a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime())[0] as any
   }, [bodyMetrics])
 
   const handleSave = () => {
     setOpen(false)
     addBodyMetric?.({
       date: date.toISOString(),
-      heart_rate_rest: heartRate ? parseInt(heartRate) : null,
-      blood_pressure: bloodPressure || null,
-      glucose: glucose ? parseFloat(glucose) : null,
+      heartRateRest: heartRate ? parseInt(heartRate) : undefined,
+      bloodPressure: bloodPressure || undefined,
+      weight: 0,
+      bodyFatPercentage: 0,
+      muscleMass: 0,
+      measurements: {},
+      photoUrls: [],
     })
     setHeartRate('')
     setBloodPressure('')
@@ -68,13 +75,19 @@ export function ClinicalVitalsCard() {
         <VitalTile
           icon={<HeartPulse className="w-4 h-4" />}
           label="BPM"
-          value={latest?.heart_rate_rest ? `${latest.heart_rate_rest}` : '--'}
+          value={
+            latest?.heart_rate_rest
+              ? `${latest.heart_rate_rest}`
+              : latest?.heartRateRest
+                ? `${latest.heartRateRest}`
+                : '--'
+          }
           color="#FF4B4B"
         />
         <VitalTile
           icon={<Activity className="w-4 h-4" />}
           label="PA (mmHg)"
-          value={latest?.blood_pressure || '--'}
+          value={latest?.blood_pressure || latest?.bloodPressure || '--'}
           color="#1CB0F6"
         />
         <VitalTile

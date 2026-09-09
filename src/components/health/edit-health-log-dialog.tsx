@@ -54,19 +54,22 @@ export function EditHealthLogDialog({
 
   useEffect(() => {
     if (!log || !open) return
-    if (log.type === 'hydration') setAmount(String(log.amount))
+    if (log.type === 'hydration') setAmount(String((log as HydrationLog).amount))
     if (log.type === 'mood') {
-      setMoodLevel(String(log.moodLevel))
-      setNote(log.note)
-      setTagId(log.tagId)
+      const ml = log as MoodLog
+      setMoodLevel(String(ml.moodLevel))
+      setNote(ml.note || '')
+      setTagId(ml.tagId || '')
     }
     if (log.type === 'digestion') {
-      setBristolType(String(log.bristolType))
-      setNote(log.note)
+      const dl = log as DigestionLog
+      setBristolType(String(dl.bristolType))
+      setNote(dl.note || '')
     }
     if (log.type === 'urine') {
-      setColorType(String(log.colorType))
-      setNote(log.note)
+      const ul = log as UrineLog
+      setColorType(String(ul.colorType))
+      setNote(ul.note || '')
     }
   }, [log, open])
 
@@ -78,7 +81,7 @@ export function EditHealthLogDialog({
       updateMoodLog(log.id, { moodLevel: Number(moodLevel) as any, note, tagId })
     if (log.type === 'digestion')
       updateDigestionLog(log.id, { bristolType: Number(bristolType) as any, note })
-    if (log.type === 'urine') updateUrineLog(log.id, { colorType: Number(colorType), note })
+    if (log.type === 'urine') updateUrineLog(log.id, { colorType: Number(colorType) as any, note })
     onOpenChange(false)
   }
 
