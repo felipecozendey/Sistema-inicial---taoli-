@@ -88,6 +88,34 @@ export function getMonthLabel(dateStr: string): string {
 }
 
 export function getMonthKey(dateStr: string): string {
-  const d = new Date(dateStr + 'T00:00:00')
+  if (!dateStr) return ''
+  const d = new Date(dateStr.includes('T') ? dateStr : dateStr + 'T00:00:00')
+  if (isNaN(d.getTime())) return ''
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
+}
+
+/**
+ * Adiciona meses mantendo o mesmo dia do mês, com ajuste de fim de mês se necessário
+ * (ex: dia 31 em janeiro -> dia 28/29 em fevereiro, etc.)
+ */
+export function addMonthsClamped(dateStr: string, monthsToAdd: number): string {
+  const base = new Date(dateStr.includes('T') ? dateStr : dateStr + 'T00:00:00')
+  if (isNaN(base.getTime())) {
+    return dateStr
+  }
+  const originalDay = base.getDate()
+  // Move para o dia 1 do mês de destino para evitar overflow de dias
+  const target = new Date(base.getFullYear(), base.getMonth() + monthsToAdd, 1)
+  // Último dia do mês de destino
+  const lastDayOfTargetMonth = new Date(target.getFullYear(), target.getMonth() + 1, 0).getDate()
+  const clampedDay = Math.min(originalDay, lastDayOfTargetMonth)
+  target.setDate(clampedDay)
+  return target.toISOString().split('T')[0]
+}
+
+export function formatSafeDateBR(dateStr: string | null | undefined): string {
+  if (!dateStr) return '-'
+  const d = new Date(dateStr.includes('T') ? dateStr : dateStr + 'T00:00:00')
+  if (isNaN(d.getTime())) return '-'
+  return d.toLocaleDateString('pt-BR')
 }
