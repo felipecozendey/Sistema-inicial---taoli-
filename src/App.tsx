@@ -4,7 +4,6 @@ import { Toaster as Sonner } from '@/components/ui/sonner'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { ThemeProvider } from '@/components/ThemeProvider'
 import { AppStoreProvider } from '@/stores/useAppStore'
-import { NutritionStoreProvider } from '@/stores/use-nutrition-store'
 import { FocusRadarProvider } from '@/components/focus-radar/focus-radar-provider'
 import { useServiceWorker } from '@/hooks/use-service-worker'
 import { AuthProvider, useAuth } from '@/hooks/use-auth'
@@ -39,31 +38,29 @@ function AppInner() {
 
   return (
     <AppStoreProvider>
-      <NutritionStoreProvider>
-        <OnlineSyncListener />
-        <FocusRadarProvider>
-          <BrowserRouter>
-            <TooltipProvider>
-              <Toaster />
-              <Sonner />
-              <Routes>
-                <Route element={<Layout />}>
-                  <Route path="/" element={<Navigate to="/dashboard" replace />} />
-                  <Route path="/dashboard" element={<Dashboard />} />
-                  <Route path="/tasks" element={<Tasks />} />
-                  <Route path="/health" element={<Health />} />
-                  <Route path="/studies" element={<Studies />} />
-                  <Route path="/finance" element={<Finance />} />
-                  <Route path="/analytics" element={<Analytics />} />
-                  <Route path="/profile" element={<Profile />} />
-                  <Route path="/settings" element={<Settings />} />
-                </Route>
-                <Route path="*" element={<NotFound />} />
-              </Routes>
-            </TooltipProvider>
-          </BrowserRouter>
-        </FocusRadarProvider>
-      </NutritionStoreProvider>
+      <OnlineSyncListener />
+      <FocusRadarProvider>
+        <BrowserRouter>
+          <TooltipProvider>
+            <Toaster />
+            <Sonner />
+            <Routes>
+              <Route element={<Layout />}>
+                <Route path="/" element={<Navigate to="/dashboard" replace />} />
+                <Route path="/dashboard" element={<Dashboard />} />
+                <Route path="/tasks" element={<Tasks />} />
+                <Route path="/health" element={<Health />} />
+                <Route path="/studies" element={<Studies />} />
+                <Route path="/finance" element={<Finance />} />
+                <Route path="/analytics" element={<Analytics />} />
+                <Route path="/profile" element={<Profile />} />
+                <Route path="/settings" element={<Settings />} />
+              </Route>
+              <Route path="*" element={<NotFound />} />
+            </Routes>
+          </TooltipProvider>
+        </BrowserRouter>
+      </FocusRadarProvider>
     </AppStoreProvider>
   )
 }
