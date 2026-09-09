@@ -1,7 +1,6 @@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { HydrationWidget } from '@/components/health/hydration-widget'
-import { BowelWidget } from '@/components/health/bowel-widget'
-import { UrineWidget } from '@/components/health/urine-widget'
+import { ExcretionsWidget } from '@/components/health/excretions-widget'
 import { NutritionOverview } from '@/components/health/nutrition-overview'
 import { MealHistory } from '@/components/health/meal-history'
 import { ExercisesTab } from '@/components/health/exercises-tab'
@@ -55,8 +54,7 @@ export default function HealthPage() {
             <TabsContent value="registrar" className="space-y-6 mt-6 print:hidden">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <HydrationWidget />
-                <BowelWidget />
-                <UrineWidget />
+                <ExcretionsWidget />
               </div>
               <ClinicalVitalsCard />
             </TabsContent>

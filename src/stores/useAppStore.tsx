@@ -463,6 +463,9 @@ interface AppState {
     heartRateRest?: number
     bloodPressure?: string
     glucose?: number
+    weight?: number
+    height?: number
+    date?: string
   }) => void
   mentalHealthLogs: MentalHealthLog[]
   addMentalHealthLog: (data: {
@@ -1739,41 +1742,118 @@ export const AppStoreProvider = ({ children }: { children: ReactNode }) => {
     heartRateRest?: number
     bloodPressure?: string
     glucose?: number
+    weight?: number
+    height?: number
+    date?: string
   }) => {
     const tempId = genId()
-    const today = todayStr()
-    setBodyMetrics((p) => [
-      ...p,
-      {
-        id: tempId,
-        date: today,
-        weight: 0,
-        bodyFatPercentage: 0,
-        muscleMass: 0,
-        measurements: {},
-        photoUrls: [],
-        heartRateRest: data.heartRateRest,
-        bloodPressure: data.bloodPressure,
-        glucose: data.glucose,
-      },
-    ])
-    supabase.auth.getUser().then(({ data: { user: u } }) => {
+    const targetDate = data.date || todayStr()
+
+    // Check if there is already a record for the targetDate to merge into, or find most recent weight/height fallback
+    setBodyMetrics((prev) => {
+      const existingTodayIndex = prev.findIndex((m) => m.date === targetDate)
+      const lastKnown = [...prev].sort((a, b) => b.date.localeCompare(a.date))[0]
+      const weightVal =
+        data.weight !== undefined
+          ? data.weight
+          : existingTodayIndex >= 0
+            ? prev[existingTodayIndex].weight
+            : lastKnown?.weight || 0
+      const heightVal =
+        data.height !== undefined
+          ? data.height
+          : existingTodayIndex >= 0
+            ? prev[existingTodayIndex].height
+            : lastKnown?.height || undefined
+
+      if (existingTodayIndex >= 0) {
+        const updated = [...prev]
+        const current = updated[existingTodayIndex]
+        updated[existingTodayIndex] = {
+          ...current,
+          heartRateRest:
+            data.heartRateRest !== undefined ? data.heartRateRest : current.heartRateRest,
+          bloodPressure:
+            data.bloodPressure !== undefined ? data.bloodPressure : current.bloodPressure,
+          glucose: data.glucose !== undefined ? data.glucose : current.glucose,
+          weight: weightVal,
+          height: heightVal,
+        }
+        return updated
+      }
+
+      return [
+        ...prev,
+        {
+          id: tempId,
+          date: targetDate,
+          weight: weightVal,
+          height: heightVal,
+          bodyFatPercentage: lastKnown?.bodyFatPercentage || 0,
+          muscleMass: lastKnown?.muscleMass || 0,
+          measurements: lastKnown?.measurements || {},
+          photoUrls: [],
+          heartRateRest: data.heartRateRest,
+          bloodPressure: data.bloodPressure,
+          glucose: data.glucose,
+        },
+      ]
+    })
+
+    // Also update patientGoals height if provided
+    if (data.height !== undefined && data.height > 0) {
+      setPatientGoals((g) => ({ ...g, height: data.height! }))
+    }
+
+    supabase.auth.getUser().then(async ({ data: { user: u } }) => {
       if (!u) return
-      ;(supabase as any)
-        .from('body_metrics')
-        .insert({
-          date: today,
-          heart_rate_rest: data.heartRateRest || null,
-          blood_pressure: data.bloodPressure || null,
-          glucose: data.glucose || null,
+      try {
+        // Check if there's an existing record for this user and date in Supabase
+        const { data: existingRows } = await (supabase as any)
+          .from('body_metrics')
+          .select('id, weight, height')
+          .eq('user_id', u.id)
+          .eq('date', targetDate)
+          .limit(1)
+
+        const existingRecord = existingRows && existingRows[0]
+
+        const payload: Record<string, any> = {
+          date: targetDate,
           user_id: u.id,
-        })
-        .then(({ error }: { error: any }) => {
-          if (error) {
-            setBodyMetrics((p) => p.filter((m) => m.id !== tempId))
-            toast.error('Erro ao salvar sinais vitais.')
+        }
+        if (data.heartRateRest !== undefined) payload.heart_rate_rest = data.heartRateRest || null
+        if (data.bloodPressure !== undefined) payload.blood_pressure = data.bloodPressure || null
+        if (data.glucose !== undefined) payload.glucose = data.glucose || null
+        if (data.weight !== undefined) payload.weight = data.weight
+        if (data.height !== undefined) payload.height = data.height
+
+        let error: any = null
+        if (existingRecord?.id) {
+          const res = await (supabase as any)
+            .from('body_metrics')
+            .update(payload)
+            .eq('id', existingRecord.id)
+          error = res.error
+        } else {
+          const res = await (supabase as any).from('body_metrics').insert(payload)
+          error = res.error
+        }
+
+        if (error) {
+          fetchBodyMetrics()
+          toast.error('Erro ao sincronizar avaliação rápida.')
+        } else {
+          // If height was given, also sync patient_goals
+          if (data.height !== undefined && data.height > 0) {
+            await (supabase as any)
+              .from('patient_goals')
+              .upsert({ height: data.height, user_id: u.id }, { onConflict: 'user_id' })
           }
-        })
+        }
+      } catch {
+        fetchBodyMetrics()
+      }
     })
   }
   const addMentalHealthLog = (data: {
