@@ -8,15 +8,14 @@ import {
   DialogTrigger,
 } from '@/components/ui/dialog'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { Droplet, Trash2, HelpCircle, BarChart3 } from 'lucide-react'
+import { Droplet, Trash2, HelpCircle, Activity, Info, Calendar } from 'lucide-react'
 import {
-  BarChart,
-  Bar,
+  LineChart,
+  Line,
   XAxis,
   YAxis,
   CartesianGrid,
   Tooltip,
-  Legend,
   ResponsiveContainer,
 } from 'recharts'
 import { subDays, format, isValid } from 'date-fns'
@@ -136,24 +135,34 @@ export function ExcretionsWidget() {
     addUrineLog(today, type, '')
   }
 
-  // Gráfico Urina & Digestão - 7 últimos dias em BarChart com barras agrupadas (não empilhadas)
-  const last7DaysChartData = useMemo(() => {
+  const [daysRange, setDaysRange] = useState<7 | 14>(14)
+  const [visibleSeries, setVisibleSeries] = useState<{ urina: boolean; digestao: boolean }>({
+    urina: true,
+    digestao: true,
+  })
+
+  // Gráfico Urina & Digestão - Linhas suaves e pontos claros com eixos independentes
+  const chartData = useMemo(() => {
     const todayObj = new Date()
+    if (isNaN(todayObj.getTime())) return []
     todayObj.setHours(0, 0, 0, 0)
+
+    const totalDays = daysRange
     const result = []
 
-    for (let i = 6; i >= 0; i--) {
+    for (let i = totalDays - 1; i >= 0; i--) {
       const dayDate = subDays(todayObj, i)
-      const dayStr = isValid(dayDate) ? format(dayDate, 'yyyy-MM-dd') : ''
-      const label = isValid(dayDate) ? format(dayDate, 'dd/MM', { locale: ptBR }) : ''
+      if (!isValid(dayDate) || isNaN(dayDate.getTime())) continue
 
-      // Buscar último registro de urina do dia
+      const dayStr = format(dayDate, 'yyyy-MM-dd')
+      const label = format(dayDate, 'dd/MM', { locale: ptBR })
+
+      // Buscar registros do dia
       const dayUrineLogs = (urineLogs || [])
         .filter((l) => l.date === dayStr)
         .sort((a, b) => b.timestamp.localeCompare(a.timestamp))
       const latestDayUrine = dayUrineLogs[0]
 
-      // Buscar último registro de digestão do dia
       const dayDigestionLogs = (digestionLogs || [])
         .filter((l) => l.date === dayStr)
         .sort((a, b) => b.timestamp.localeCompare(a.timestamp))
@@ -171,19 +180,31 @@ export function ExcretionsWidget() {
         rawDate: dayStr,
         urina: latestDayUrine ? latestDayUrine.colorType : null,
         urinaLabel: urineScale?.label || null,
+        urinaColor: urineScale?.color || '#1CB0F6',
         urinaCount: dayUrineLogs.length,
         digestao: latestDayDig ? Number(latestDayDig.bristolType) : null,
         digestaoLabel: bristolScale?.label || null,
+        digestaoColor: bristolScale?.color || '#FF9600',
         digestaoCount: dayDigestionLogs.length,
       })
     }
 
     return result
-  }, [urineLogs, digestionLogs])
+  }, [urineLogs, digestionLogs, daysRange])
 
   const hasExcretionData = useMemo(() => {
-    return last7DaysChartData.some((d) => d.urina !== null || d.digestao !== null)
-  }, [last7DaysChartData])
+    return chartData.some((d) => d.urina !== null || d.digestao !== null)
+  }, [chartData])
+
+  const toggleSeries = (key: 'urina' | 'digestao') => {
+    setVisibleSeries((prev) => {
+      // Evitar desmarcar ambos
+      if (prev[key] && !prev[key === 'urina' ? 'digestao' : 'urina']) {
+        return prev
+      }
+      return { ...prev, [key]: !prev[key] }
+    })
+  }
 
   return (
     <div className="bg-card border-2 border-b-4 border-[#E5E5E5] dark:border-[#3B4A55] rounded-3xl p-5 shadow-sm flex flex-col gap-4">
@@ -494,73 +515,193 @@ export function ExcretionsWidget() {
         </TabsContent>
       </Tabs>
 
-      {/* Redesign do Gráfico "Urina & Digestão" com BarChart agrupado (não empilhado) */}
+      {/* Novo Design de Evolução de Excreções */}
       <div className="mt-1 pt-4 border-t border-[#E5E5E5] dark:border-[#3B4A55]/60 space-y-3">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-1.5">
-            <BarChart3 className="w-4 h-4 text-[#FF9600]" />
-            <span className="text-xs font-black uppercase tracking-wider text-muted-foreground">
-              Comparativo dos Últimos 7 Dias
-            </span>
+        {/* Cabeçalho do Gráfico com Seletor de Período e Título */}
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
+            <div className="w-6 h-6 rounded-lg bg-primary/10 flex items-center justify-center text-primary">
+              <Activity className="w-3.5 h-3.5" />
+            </div>
+            <div>
+              <h4 className="text-xs font-black uppercase tracking-wider text-foreground">
+                Evolução Temporal
+              </h4>
+              <p className="text-[10px] font-bold text-muted-foreground">
+                Leitura separada por escalas independentes
+              </p>
+            </div>
           </div>
-          <span className="text-[10px] font-extrabold text-muted-foreground bg-muted/60 px-2 py-0.5 rounded-full">
-            Barras agrupadas
-          </span>
+
+          {/* Filtro 7D / 14D */}
+          <div className="flex items-center bg-muted/50 p-0.5 rounded-xl border border-[#E5E5E5] dark:border-[#3B4A55]">
+            <button
+              type="button"
+              onClick={() => setDaysRange(7)}
+              className={cn(
+                'px-2.5 py-1 text-[11px] font-extrabold rounded-lg transition-all',
+                daysRange === 7
+                  ? 'bg-card text-foreground shadow-xs'
+                  : 'text-muted-foreground hover:text-foreground',
+              )}
+            >
+              7 dias
+            </button>
+            <button
+              type="button"
+              onClick={() => setDaysRange(14)}
+              className={cn(
+                'px-2.5 py-1 text-[11px] font-extrabold rounded-lg transition-all',
+                daysRange === 14
+                  ? 'bg-card text-foreground shadow-xs'
+                  : 'text-muted-foreground hover:text-foreground',
+              )}
+            >
+              14 dias
+            </button>
+          </div>
         </div>
 
+        {/* Legenda Interativa / Filtro de Métricas */}
+        <div className="flex flex-wrap items-center justify-between gap-2 px-1 pt-1">
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => toggleSeries('urina')}
+              className={cn(
+                'inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-xs font-extrabold border-2 border-b-3 transition-all select-none',
+                visibleSeries.urina
+                  ? 'border-[#1CB0F6] bg-[#1CB0F6]/10 text-[#0E8FCC] dark:text-[#1CB0F6]'
+                  : 'border-transparent bg-muted/40 text-muted-foreground/60 opacity-60 line-through',
+              )}
+              title="Clique para ligar/desligar Urina"
+            >
+              <span className="w-2.5 h-2.5 rounded-full bg-[#1CB0F6] shrink-0" />
+              <span>Urina (1–6)</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => toggleSeries('digestao')}
+              className={cn(
+                'inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-xs font-extrabold border-2 border-b-3 transition-all select-none',
+                visibleSeries.digestao
+                  ? 'border-[#FF9600] bg-[#FF9600]/10 text-[#CC6E00] dark:text-[#FF9600]'
+                  : 'border-transparent bg-muted/40 text-muted-foreground/60 opacity-60 line-through',
+              )}
+              title="Clique para ligar/desligar Digestão"
+            >
+              <span className="w-2.5 h-2.5 rounded-full bg-[#FF9600] shrink-0" />
+              <span>Bristol (1–7)</span>
+            </button>
+          </div>
+
+          <div className="hidden sm:flex items-center gap-1 text-[10px] font-bold text-muted-foreground">
+            <Info className="w-3 h-3 text-muted-foreground/70" />
+            <span>Passe o mouse ou toque nos pontos para detalhes</span>
+          </div>
+        </div>
+
+        {/* Área do Gráfico */}
         {hasExcretionData ? (
-          <div className="h-56 w-full pt-1">
+          <div className="h-60 w-full pt-2">
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart
-                data={last7DaysChartData}
-                margin={{ top: 12, right: 12, left: -15, bottom: 4 }}
-                barCategoryGap="25%"
-                barGap={4}
-              >
-                <CartesianGrid strokeDasharray="3 3" className="stroke-muted/40" vertical={false} />
+              <LineChart data={chartData} margin={{ top: 12, right: 12, left: -16, bottom: 4 }}>
+                <CartesianGrid strokeDasharray="4 4" className="stroke-muted/30" vertical={false} />
                 <XAxis
                   dataKey="day"
-                  tick={{ fontSize: 11, fontWeight: 700 }}
+                  tick={{ fontSize: 10, fontWeight: 700 }}
                   axisLine={false}
                   tickLine={false}
+                  dy={4}
                 />
+                {/* Eixo Y da Esquerda: Urina (1 a 6) */}
                 <YAxis
-                  domain={[0, 7]}
-                  ticks={[1, 2, 3, 4, 5, 6, 7]}
-                  tick={{ fontSize: 10, fontWeight: 600 }}
+                  yAxisId="left"
+                  domain={[1, 6]}
+                  ticks={[1, 2, 3, 4, 5, 6]}
+                  tick={{ fontSize: 10, fontWeight: 700, fill: '#1CB0F6' }}
                   axisLine={false}
                   tickLine={false}
-                  width={28}
+                  width={30}
+                  hide={!visibleSeries.urina}
                 />
-                <Tooltip content={<ExcretionsChartTooltip />} />
-                <Legend
-                  wrapperStyle={{ fontSize: '11px', fontWeight: 800, paddingTop: '8px' }}
-                  iconType="circle"
+                {/* Eixo Y da Direita: Digestão / Bristol (1 a 7) */}
+                <YAxis
+                  yAxisId="right"
+                  orientation="right"
+                  domain={[1, 7]}
+                  ticks={[1, 2, 3, 4, 5, 6, 7]}
+                  tick={{ fontSize: 10, fontWeight: 700, fill: '#FF9600' }}
+                  axisLine={false}
+                  tickLine={false}
+                  width={24}
+                  hide={!visibleSeries.digestao}
                 />
-                <Bar
-                  dataKey="urina"
-                  name="Urina (Escala 1-6)"
-                  fill="#FFC800"
-                  radius={[6, 6, 0, 0]}
-                  maxBarSize={22}
+                <Tooltip
+                  content={<ExcretionsChartTooltip />}
+                  cursor={{ stroke: 'rgba(128,128,128,0.2)', strokeWidth: 1.5 }}
                 />
-                <Bar
-                  dataKey="digestao"
-                  name="Digestão (Bristol 1-7)"
-                  fill="#FF9600"
-                  radius={[6, 6, 0, 0]}
-                  maxBarSize={22}
-                />
-              </BarChart>
+                {visibleSeries.urina && (
+                  <Line
+                    yAxisId="left"
+                    type="monotone"
+                    dataKey="urina"
+                    name="Urina"
+                    stroke="#1CB0F6"
+                    strokeWidth={3}
+                    dot={{
+                      r: 4,
+                      strokeWidth: 2,
+                      fill: '#FFFFFF',
+                      stroke: '#1CB0F6',
+                    }}
+                    activeDot={{
+                      r: 7,
+                      strokeWidth: 3,
+                      fill: '#1CB0F6',
+                      stroke: '#FFFFFF',
+                    }}
+                    connectNulls
+                  />
+                )}
+                {visibleSeries.digestao && (
+                  <Line
+                    yAxisId="right"
+                    type="monotone"
+                    dataKey="digestao"
+                    name="Digestão"
+                    stroke="#FF9600"
+                    strokeWidth={3}
+                    dot={{
+                      r: 4,
+                      strokeWidth: 2,
+                      fill: '#FFFFFF',
+                      stroke: '#FF9600',
+                    }}
+                    activeDot={{
+                      r: 7,
+                      strokeWidth: 3,
+                      fill: '#FF9600',
+                      stroke: '#FFFFFF',
+                    }}
+                    connectNulls
+                  />
+                )}
+              </LineChart>
             </ResponsiveContainer>
           </div>
         ) : (
-          <div className="h-32 flex flex-col items-center justify-center text-center bg-muted/20 rounded-2xl border border-dashed border-[#E5E5E5] dark:border-[#3B4A55] p-3">
-            <p className="text-xs font-extrabold text-muted-foreground">
-              Sem excreções registradas nos últimos 7 dias.
+          <div className="h-44 flex flex-col items-center justify-center text-center bg-muted/20 rounded-3xl border-2 border-dashed border-[#E5E5E5] dark:border-[#3B4A55] p-5">
+            <div className="w-10 h-10 rounded-2xl bg-muted/50 flex items-center justify-center text-muted-foreground mb-2">
+              <Calendar className="w-5 h-5" />
+            </div>
+            <p className="text-sm font-extrabold text-foreground">
+              Nenhum registro nos últimos {daysRange} dias
             </p>
-            <p className="text-[11px] text-muted-foreground/80 mt-0.5">
-              Toque nos botões acima para registrar urina ou digestão hoje.
+            <p className="text-xs text-muted-foreground font-semibold mt-1 max-w-xs">
+              Toque nos botões de coloração de urina ou escala de Bristol acima para fazer seu
+              primeiro registro de hoje.
             </p>
           </div>
         )}
@@ -569,47 +710,82 @@ export function ExcretionsWidget() {
   )
 }
 
-function ExcretionsChartTooltip({ active, payload, label }: any) {
+function ExcretionsChartTooltip({
+  active,
+  payload,
+  label,
+}: {
+  active?: boolean
+  payload?: Array<{ payload?: any }>
+  label?: string
+}) {
   if (!active || !payload || !payload.length) return null
 
   const itemData = payload[0]?.payload
+  if (!itemData) return null
 
   return (
-    <div className="bg-card border-2 border-b-4 border-[#E5E5E5] dark:border-[#3B4A55] rounded-2xl p-3 shadow-xl text-xs space-y-1.5 min-w-[190px]">
-      <p className="font-black text-foreground border-b border-muted pb-1">{label}</p>
-      {itemData?.urina !== null && itemData?.urina !== undefined && (
-        <div className="flex items-center justify-between gap-3">
-          <span className="flex items-center gap-1.5 font-bold text-[#B28200] dark:text-[#FFC800]">
-            <span className="w-2.5 h-2.5 rounded-full inline-block bg-[#FFC800]" />
-            Urina:
-          </span>
-          <span className="font-black text-foreground">
-            Tipo {itemData.urina}
-            {itemData.urinaLabel ? ` (${itemData.urinaLabel})` : ''}
-          </span>
+    <div className="bg-card border-2 border-b-4 border-[#E5E5E5] dark:border-[#3B4A55] rounded-2xl p-3 shadow-xl text-xs space-y-2 min-w-[210px]">
+      <div className="flex items-center justify-between border-b border-muted pb-1.5">
+        <span className="font-black text-foreground">{label}</span>
+        <span className="text-[10px] font-bold text-muted-foreground">{itemData.rawDate}</span>
+      </div>
+
+      {itemData.urina !== null && itemData.urina !== undefined ? (
+        <div className="flex items-start justify-between gap-3 bg-[#1CB0F6]/10 p-2 rounded-xl">
+          <div className="flex items-center gap-1.5 font-extrabold text-[#0E8FCC] dark:text-[#1CB0F6]">
+            <Droplet className="w-3.5 h-3.5 fill-current" />
+            <span>Urina:</span>
+          </div>
+          <div className="text-right">
+            <div className="font-black text-foreground">
+              {itemData.urinaLabel} (Nível {itemData.urina})
+            </div>
+            <div className="text-[10px] text-muted-foreground font-semibold">
+              {itemData.urina <= 2
+                ? 'Hidratação ideal'
+                : itemData.urina <= 4
+                  ? 'Beba mais água'
+                  : 'Alerta desidratação'}
+            </div>
+          </div>
+        </div>
+      ) : (
+        <div className="text-[11px] text-muted-foreground/70 italic px-1">
+          Sem registro de urina neste dia
         </div>
       )}
-      {itemData?.digestao !== null && itemData?.digestao !== undefined && (
-        <div className="flex items-center justify-between gap-3">
-          <span className="flex items-center gap-1.5 font-bold text-[#CC6E00] dark:text-[#FF9600]">
-            <span className="w-2.5 h-2.5 rounded-full inline-block bg-[#FF9600]" />
-            Digestão:
-          </span>
-          <span className="font-black text-foreground">
-            Tipo {itemData.digestao}
-            {itemData.digestaoLabel ? ` (${itemData.digestaoLabel})` : ''}
-          </span>
+
+      {itemData.digestao !== null && itemData.digestao !== undefined ? (
+        <div className="flex items-start justify-between gap-3 bg-[#FF9600]/10 p-2 rounded-xl">
+          <div className="flex items-center gap-1.5 font-extrabold text-[#CC6E00] dark:text-[#FF9600]">
+            <span className="text-xs">🚽</span>
+            <span>Bristol:</span>
+          </div>
+          <div className="text-right">
+            <div className="font-black text-foreground">
+              {itemData.digestaoLabel} (Tipo {itemData.digestao})
+            </div>
+            <div className="text-[10px] text-muted-foreground font-semibold">
+              {itemData.digestao >= 3 && itemData.digestao <= 4
+                ? 'Consistência ideal'
+                : itemData.digestao < 3
+                  ? 'Constipação'
+                  : 'Diarreia/Aceleração'}
+            </div>
+          </div>
+        </div>
+      ) : (
+        <div className="text-[11px] text-muted-foreground/70 italic px-1">
+          Sem registro de Bristol neste dia
         </div>
       )}
-      {itemData?.urinaCount > 1 && (
-        <p className="text-[10px] text-muted-foreground font-semibold pt-0.5">
-          {itemData.urinaCount} registros de urina no dia (exibindo último).
-        </p>
-      )}
-      {itemData?.digestaoCount > 1 && (
-        <p className="text-[10px] text-muted-foreground font-semibold pt-0.5">
-          {itemData.digestaoCount} registros de digestão no dia (exibindo último).
-        </p>
+
+      {(itemData.urinaCount > 1 || itemData.digestaoCount > 1) && (
+        <div className="pt-1 border-t border-muted text-[10px] text-muted-foreground font-bold">
+          {itemData.urinaCount > 1 && `${itemData.urinaCount} registros de urina. `}
+          {itemData.digestaoCount > 1 && `${itemData.digestaoCount} de digestão.`}
+        </div>
       )}
     </div>
   )
