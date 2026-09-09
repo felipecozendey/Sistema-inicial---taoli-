@@ -28,21 +28,35 @@ export function BodyGoalsDashboard() {
   const targetFat = patientGoals.targetBodyFat || 0
   const targetLean = patientGoals.targetLeanMass || 0
 
-  const weightProgress =
-    targetWeight > 0 && startWeight > targetWeight
-      ? Math.min(
-          100,
-          Math.round(((startWeight - currentWeight) / (startWeight - targetWeight)) * 100),
-        )
-      : 0
-  const fatProgress =
-    targetFat > 0 && startFat > targetFat
-      ? Math.min(100, Math.round(((startFat - currentFat) / (startFat - targetFat)) * 100))
-      : 0
-  const leanProgress =
-    targetLean > 0 && currentLean > 0 && targetLean > startLean
-      ? Math.min(100, Math.round(((currentLean - startLean) / (targetLean - startLean)) * 100))
-      : 0
+  const calcBidirectional = (
+    current: number,
+    start: number,
+    target: number,
+  ): { progress: number; remaining: number; direction: 'loss' | 'gain' | 'equal' } => {
+    if (target <= 0 || current <= 0) {
+      return { progress: 0, remaining: 0, direction: 'equal' }
+    }
+    const baseline = start > 0 ? start : current
+    if (Math.abs(target - baseline) < 0.001) {
+      const reached = current >= target
+      return { progress: reached ? 100 : 0, remaining: 0, direction: 'equal' }
+    }
+    const isGain = target > baseline
+    const totalDistance = Math.abs(target - baseline)
+    const coveredDistance = isGain ? current - baseline : baseline - current
+    const remaining = Math.max(0, Math.abs(target - current))
+    const rawProgress = (coveredDistance / totalDistance) * 100
+    const progress = Math.max(0, Math.min(100, Math.round(rawProgress)))
+    return {
+      progress,
+      remaining: Math.round(remaining * 10) / 10,
+      direction: isGain ? 'gain' : 'loss',
+    }
+  }
+
+  const weightCalc = calcBidirectional(currentWeight, startWeight, targetWeight)
+  const fatCalc = calcBidirectional(currentFat, startFat, targetFat)
+  const leanCalc = calcBidirectional(currentLean, startLean, targetLean)
 
   const handleSave = () => {
     updatePatientGoals({
@@ -67,8 +81,11 @@ export function BodyGoalsDashboard() {
       title: 'Peso Atual vs. Meta',
       current: currentWeight,
       target: targetWeight,
+      start: startWeight,
       unit: 'kg',
-      progress: weightProgress,
+      progress: weightCalc.progress,
+      remaining: weightCalc.remaining,
+      direction: weightCalc.direction,
       color: '#1CB0F6',
       emoji: '⚖️',
     },
@@ -76,8 +93,11 @@ export function BodyGoalsDashboard() {
       title: 'Gordura Corporal vs. Meta',
       current: currentFat,
       target: targetFat,
+      start: startFat,
       unit: '%',
-      progress: fatProgress,
+      progress: fatCalc.progress,
+      remaining: fatCalc.remaining,
+      direction: fatCalc.direction,
       color: '#FF9600',
       emoji: '🔥',
     },
@@ -85,8 +105,11 @@ export function BodyGoalsDashboard() {
       title: 'Massa Magra vs. Meta',
       current: currentLean,
       target: targetLean,
+      start: startLean,
       unit: 'kg',
-      progress: leanProgress,
+      progress: leanCalc.progress,
+      remaining: leanCalc.remaining,
+      direction: leanCalc.direction,
       color: '#10b981',
       emoji: '💪',
     },
@@ -100,38 +123,75 @@ export function BodyGoalsDashboard() {
           Definir Metas
         </button>
       </div>
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        {cards.map((card) => (
-          <div
-            key={card.title}
-            className="bg-card border-2 border-b-4 rounded-3xl p-5 shadow-sm"
-            style={{ borderColor: card.color + '40', borderBottomColor: card.color }}
-          >
-            <div className="flex items-center gap-2 mb-3">
-              <span className="text-2xl">{card.emoji}</span>
-              <div>
-                <p className="text-xs font-bold text-muted-foreground">{card.title}</p>
-                <p className="text-xl font-extrabold" style={{ color: card.color }}>
-                  {card.current}
-                  {card.unit}
-                  <span className="text-sm text-muted-foreground font-bold">
-                    {' '}
-                    ➔ {card.target}
-                    {card.unit}
+      {bodyMetrics.length === 0 && targetWeight === 0 && targetFat === 0 && targetLean === 0 ? (
+        <div className="bg-card border-2 border-dashed border-[#E5E5E5] dark:border-[#3B4A55] rounded-3xl p-8 text-center space-y-2">
+          <span className="text-3xl block">🎯</span>
+          <p className="text-sm font-bold text-muted-foreground">
+            Nenhuma avaliação ainda. Registre sua primeira medida!
+          </p>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          {cards.map((card) => (
+            <div
+              key={card.title}
+              className="bg-card border-2 border-b-4 rounded-3xl p-5 shadow-sm"
+              style={{ borderColor: card.color + '40', borderBottomColor: card.color }}
+            >
+              <div className="flex items-center gap-2 mb-3">
+                <span className="text-2xl">{card.emoji}</span>
+                <div className="min-w-0 flex-1">
+                  <p className="text-xs font-bold text-muted-foreground">{card.title}</p>
+                  <div className="flex items-baseline gap-1.5 flex-wrap">
+                    <span className="text-xl font-extrabold" style={{ color: card.color }}>
+                      {card.current}
+                      {card.unit}
+                    </span>
+                    {card.target > 0 && (
+                      <span className="text-sm text-muted-foreground font-bold flex items-center gap-0.5">
+                        ➔ {card.target}
+                        {card.unit}
+                        {card.direction === 'gain' && (
+                          <span className="text-xs font-black text-emerald-500" title="Ganho">
+                            ↑
+                          </span>
+                        )}
+                        {card.direction === 'loss' && (
+                          <span className="text-xs font-black text-amber-500" title="Perda">
+                            ↓
+                          </span>
+                        )}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              </div>
+              <div className="h-4 rounded-full bg-muted overflow-hidden">
+                <div
+                  className="h-full rounded-full transition-all duration-500"
+                  style={{ width: `${card.progress}%`, backgroundColor: card.color }}
+                />
+              </div>
+              <div className="flex items-center justify-between mt-2 text-xs font-bold">
+                <span className="text-muted-foreground">{card.progress}% da meta</span>
+                {card.target > 0 && (
+                  <span
+                    className={
+                      card.remaining === 0
+                        ? 'text-emerald-500 font-extrabold'
+                        : 'text-muted-foreground font-extrabold'
+                    }
+                  >
+                    {card.remaining === 0
+                      ? 'Meta atingida! 🎉'
+                      : `faltam ${card.remaining} ${card.unit}`}
                   </span>
-                </p>
+                )}
               </div>
             </div>
-            <div className="h-4 rounded-full bg-muted overflow-hidden">
-              <div
-                className="h-full rounded-full transition-all duration-500"
-                style={{ width: `${card.progress}%`, backgroundColor: card.color }}
-              />
-            </div>
-            <p className="text-xs font-bold text-muted-foreground mt-1">{card.progress}% da meta</p>
-          </div>
-        ))}
-      </div>
+          ))}
+        </div>
+      )}
 
       <Dialog open={editOpen} onOpenChange={setEditOpen}>
         <DialogContent className="sm:max-w-[400px] rounded-3xl">

@@ -40,10 +40,10 @@ export function MetabolicEvolutionChart({ logs }: { logs: MetabolicLog[] }) {
 
   if (chartData.length === 0) {
     return (
-      <div className="bg-card border-2 border-dashed border-[#E5E5E5] dark:border-[#3B4A55] rounded-2xl p-8 text-center">
-        <span className="text-3xl block mb-2">📊</span>
+      <div className="bg-card border-2 border-dashed border-[#E5E5E5] dark:border-[#3B4A55] rounded-2xl p-8 text-center space-y-2">
+        <span className="text-3xl block">📊</span>
         <p className="text-sm font-bold text-muted-foreground">
-          Nenhum dado metabólico para exibir no gráfico.
+          Nenhuma avaliação ainda. Registre sua primeira medida!
         </p>
       </div>
     )

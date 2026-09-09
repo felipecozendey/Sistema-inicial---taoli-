@@ -21,8 +21,11 @@ interface Props {
 }
 
 function safeDateStr(date: Date): string {
-  if (!date || isNaN(date.getTime())) return new Date().toISOString().split('T')[0]
-  return date.toISOString().split('T')[0]
+  const safe = date instanceof Date && !isNaN(date.getTime()) ? date : new Date()
+  const y = safe.getFullYear()
+  const m = String(safe.getMonth() + 1).padStart(2, '0')
+  const d = String(safe.getDate()).padStart(2, '0')
+  return `${y}-${m}-${d}`
 }
 
 export function MetabolicDashboard({ selectedDate }: Props) {
@@ -43,12 +46,10 @@ export function MetabolicDashboard({ selectedDate }: Props) {
 
   const log = useMemo(() => {
     if (!metabolicLogs?.length) {
-      console.log('[MetabolicDashboard] No metabolic logs available')
       return null
     }
     const sorted = [...metabolicLogs].sort((a, b) => b.date.localeCompare(a.date))
     const found = sorted.find((l) => l.date <= selectedDateStr) || sorted[0]
-    console.log('[MetabolicDashboard] Selected log:', found?.id, 'for date:', selectedDateStr)
     return found
   }, [metabolicLogs, selectedDateStr])
 
@@ -66,11 +67,7 @@ export function MetabolicDashboard({ selectedDate }: Props) {
   const activities = log?.extraActivities || []
 
   const formattedDate = useMemo(() => {
-    try {
-      return safeFormatDateLong(dashboardDate.toISOString())
-    } catch {
-      return 'Data Inválida'
-    }
+    return safeFormatDateLong(dashboardDate)
   }, [dashboardDate])
 
   return (
@@ -108,10 +105,10 @@ export function MetabolicDashboard({ selectedDate }: Props) {
           </Popover>
 
           {!log ? (
-            <div className="bg-muted/30 rounded-2xl p-8 text-center">
-              <Flame className="w-10 h-10 text-muted-foreground mx-auto mb-2" />
+            <div className="bg-muted/30 border-2 border-dashed border-[#E5E5E5] dark:border-[#3B4A55] rounded-2xl p-8 text-center space-y-2">
+              <Flame className="w-10 h-10 text-muted-foreground mx-auto" />
               <p className="text-sm font-bold text-muted-foreground">
-                Nenhum gasto energético calculado para esta data.
+                Nenhuma avaliação ainda. Registre sua primeira medida!
               </p>
             </div>
           ) : (

@@ -18,23 +18,45 @@ export function EvolutionChart() {
   const chartData = useMemo(() => {
     return [...bodyMetrics]
       .sort((a, b) => a.date.localeCompare(b.date))
-      .map((m) => ({
-        date: new Date(m.date + 'T00:00:00').toLocaleDateString('pt-BR', {
-          day: '2-digit',
-          month: '2-digit',
-        }),
-        weight: m.weight,
-        height: m.height,
-        leanMass: m.leanMass,
-        fatMass:
-          m.fatMass ??
-          (m.weight && m.bodyFatPercentage
-            ? Math.round(m.weight * (m.bodyFatPercentage / 100) * 10) / 10
-            : undefined),
-      }))
+      .map((m) => {
+        let dateLabel = '—'
+        if (m.date) {
+          const raw = m.date.includes('T') ? m.date : `${m.date}T00:00:00`
+          const parsed = new Date(raw)
+          if (!isNaN(parsed.getTime())) {
+            dateLabel = parsed.toLocaleDateString('pt-BR', {
+              day: '2-digit',
+              month: '2-digit',
+            })
+          }
+        }
+        return {
+          date: dateLabel,
+          weight: m.weight,
+          height: m.height,
+          leanMass: m.leanMass,
+          fatMass:
+            m.fatMass ??
+            (m.weight && m.bodyFatPercentage
+              ? Math.round(m.weight * (m.bodyFatPercentage / 100) * 10) / 10
+              : undefined),
+        }
+      })
   }, [bodyMetrics])
 
-  if (chartData.length === 0) return null
+  if (chartData.length === 0) {
+    return (
+      <div className="bg-card border-2 border-b-4 border-[#E5E5E5] dark:border-[#3B4A55] rounded-3xl p-6 shadow-sm">
+        <h3 className="text-lg font-extrabold mb-4">Evolução Corporal</h3>
+        <div className="bg-muted/30 border-2 border-dashed border-[#E5E5E5] dark:border-[#3B4A55] rounded-2xl p-8 text-center space-y-2">
+          <span className="text-3xl block">📈</span>
+          <p className="text-sm font-bold text-muted-foreground">
+            Nenhuma avaliação ainda. Registre sua primeira medida!
+          </p>
+        </div>
+      </div>
+    )
+  }
 
   const targetFatMass =
     patientGoals.targetWeight && patientGoals.targetBodyFat

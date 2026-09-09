@@ -85,11 +85,14 @@ export function AssessmentHistory({ onEdit, onEditMetabolic }: Props) {
 
   if (sorted.length === 0 && metabolicSorted.length === 0) {
     return (
-      <div className="bg-card border-2 border-dashed border-[#E5E5E5] dark:border-[#3B4A55] rounded-3xl p-10 text-center">
-        <span className="text-4xl block mb-3">📋</span>
-        <p className="text-sm font-bold text-muted-foreground">
-          Nenhuma avaliação registrada ainda.
-        </p>
+      <div className="space-y-3">
+        <h3 className="text-lg font-extrabold">Histórico de Avaliações</h3>
+        <div className="bg-card border-2 border-dashed border-[#E5E5E5] dark:border-[#3B4A55] rounded-3xl p-10 text-center space-y-2">
+          <span className="text-4xl block">📋</span>
+          <p className="text-sm font-bold text-muted-foreground">
+            Nenhuma avaliação ainda. Registre sua primeira medida!
+          </p>
+        </div>
       </div>
     )
   }
@@ -107,7 +110,7 @@ export function AssessmentHistory({ onEdit, onEditMetabolic }: Props) {
           {paginated.length === 0 ? (
             <div className="bg-card border-2 border-dashed border-[#E5E5E5] dark:border-[#3B4A55] rounded-2xl p-8 text-center">
               <p className="text-sm font-bold text-muted-foreground">
-                Nenhuma avaliação antropométrica.
+                Nenhuma avaliação ainda. Registre sua primeira medida!
               </p>
             </div>
           ) : (
@@ -170,7 +173,7 @@ export function AssessmentHistory({ onEdit, onEditMetabolic }: Props) {
           {metabolicPaginated.length === 0 ? (
             <div className="bg-card border-2 border-dashed border-[#E5E5E5] dark:border-[#3B4A55] rounded-2xl p-8 text-center">
               <p className="text-sm font-bold text-muted-foreground">
-                Nenhuma avaliação de gasto energético.
+                Nenhuma avaliação ainda. Registre sua primeira medida!
               </p>
             </div>
           ) : (

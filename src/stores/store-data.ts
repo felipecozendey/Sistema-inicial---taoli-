@@ -100,7 +100,12 @@ export type BodyMetric = {
   leanMass?: number
   fatMass?: number
 }
-export type PatientGoal = { targetWeight: number; targetBodyFat: number; height: number }
+export type PatientGoal = {
+  targetWeight: number
+  targetBodyFat: number
+  targetLeanMass?: number
+  height: number
+}
 export type MedicalExam = { id: string; date: string; title: string; fileUrl: string }
 export type NutritionMicroGoal = { id: string; title: string; isActive: boolean; emoji?: string }
 export type FastingFeeling = 'good' | 'normal' | 'bad'
