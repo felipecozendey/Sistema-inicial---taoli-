@@ -18,11 +18,15 @@ interface DynamicEvolutionChartProps {
 }
 
 export function DynamicEvolutionChart({ data, selectedMetrics }: DynamicEvolutionChartProps) {
-  // Determine which series should be displayed based on selectedMetrics
+  // Determine which series should be displayed based on granular selectedMetrics
+  const showHeartRate = selectedMetrics.includes('heart_rate')
+  const showBloodPressure = selectedMetrics.includes('blood_pressure')
+  const showGlucose = selectedMetrics.includes('glucose')
+  const showWeight = selectedMetrics.includes('weight')
+  const showHeight = selectedMetrics.includes('height')
   const showHydration = selectedMetrics.includes('hydration')
   const showUrine = selectedMetrics.includes('urine')
   const showDigestion = selectedMetrics.includes('digestion')
-  const showQuickVitals = selectedMetrics.includes('quick_vitals')
 
   // Check if there is any data to plot for the selected metrics
   const hasPlotData = useMemo(() => {
@@ -31,18 +35,25 @@ export function DynamicEvolutionChart({ data, selectedMetrics }: DynamicEvolutio
       if (showHydration && point.hydration !== undefined) return true
       if (showUrine && point.urineColor !== undefined) return true
       if (showDigestion && point.bristolType !== undefined) return true
-      if (
-        showQuickVitals &&
-        (point.weight !== undefined ||
-          point.heartRate !== undefined ||
-          point.glucose !== undefined ||
-          point.systolic !== undefined)
-      ) {
+      if (showWeight && point.weight !== undefined) return true
+      if (showHeight && point.height !== undefined) return true
+      if (showHeartRate && point.heartRate !== undefined) return true
+      if (showGlucose && point.glucose !== undefined) return true
+      if (showBloodPressure && (point.systolic !== undefined || point.diastolic !== undefined))
         return true
-      }
       return false
     })
-  }, [data, showHydration, showUrine, showDigestion, showQuickVitals])
+  }, [
+    data,
+    showHydration,
+    showUrine,
+    showDigestion,
+    showWeight,
+    showHeight,
+    showHeartRate,
+    showGlucose,
+    showBloodPressure,
+  ])
 
   if (!selectedMetrics.length) {
     return (
@@ -71,11 +82,9 @@ export function DynamicEvolutionChart({ data, selectedMetrics }: DynamicEvolutio
   }
 
   // Eixos Y independentes para escalas diferentes:
-  // left: Hidratação (ml, 0-4000) e Glicose (mg/dL) se isolado
-  // right: Escalas discretas Urina (1-6) e Bristol (1-7)
-  // weightAxis: Peso corporal (kg, 30-150)
-  // vitalsAxis: Sinais vitais (BPM / Pressão mmHg)
-  // Para manter o gráfico super limpo estilo Raio-X Corporal, usamos dois eixos visíveis principais (yAxisId="left" para valores contínuos e yAxisId="right" para escalas 1 a 7) e tooltip detalhado para normalização e clareza.
+  // left: Hidratação (ml, 0-4000), Peso (kg), Altura (cm), FC (bpm), PA (mmHg), Glicose (mg/dL)
+  // scale: Escalas discretas Urina (1-6) e Bristol (1-7)
+  const hasScaleMetrics = showUrine || showDigestion
 
   return (
     <div className="bg-card border-2 border-b-4 border-[#E5E5E5] dark:border-[#3B4A55] rounded-3xl p-5 shadow-sm space-y-3">
@@ -99,7 +108,7 @@ export function DynamicEvolutionChart({ data, selectedMetrics }: DynamicEvolutio
               axisLine={false}
               tickLine={false}
             />
-            {/* Eixo Esquerdo: Volume em ml / Peso / Vitals */}
+            {/* Eixo Esquerdo: Valores contínuos (bpm, mmHg, mg/dL, kg, cm, ml) */}
             <YAxis
               yAxisId="left"
               tick={{ fontSize: 11 }}
@@ -117,7 +126,7 @@ export function DynamicEvolutionChart({ data, selectedMetrics }: DynamicEvolutio
               axisLine={false}
               tickLine={false}
               width={28}
-              hide={!showUrine && !showDigestion}
+              hide={!hasScaleMetrics}
             />
 
             <Tooltip content={<CustomHealthTooltip />} />
@@ -125,6 +134,98 @@ export function DynamicEvolutionChart({ data, selectedMetrics }: DynamicEvolutio
               wrapperStyle={{ fontSize: '11px', fontWeight: 700, paddingTop: '10px' }}
               iconType="circle"
             />
+
+            {/* Frequência Cardíaca (bpm) */}
+            {showHeartRate && (
+              <Line
+                yAxisId="left"
+                type="monotone"
+                dataKey="heartRate"
+                name="Freq. Cardíaca (bpm)"
+                stroke="#FF4B4B"
+                strokeWidth={2.5}
+                dot={{ fill: '#FF4B4B', r: 3.5 }}
+                activeDot={{ r: 5.5 }}
+                connectNulls
+              />
+            )}
+
+            {/* Pressão Arterial - Sistólica (mmHg) */}
+            {showBloodPressure && (
+              <Line
+                yAxisId="left"
+                type="monotone"
+                dataKey="systolic"
+                name="PA Sistólica (mmHg)"
+                stroke="#0E8FCC"
+                strokeWidth={2}
+                dot={{ fill: '#0E8FCC', r: 3 }}
+                activeDot={{ r: 5 }}
+                connectNulls
+              />
+            )}
+
+            {/* Pressão Arterial - Diastólica (mmHg) */}
+            {showBloodPressure && (
+              <Line
+                yAxisId="left"
+                type="monotone"
+                dataKey="diastolic"
+                name="PA Diastólica (mmHg)"
+                stroke="#0A6A99"
+                strokeWidth={1.5}
+                strokeDasharray="4 4"
+                dot={{ fill: '#0A6A99', r: 2.5 }}
+                activeDot={{ r: 4.5 }}
+                connectNulls
+              />
+            )}
+
+            {/* Glicose (mg/dL) */}
+            {showGlucose && (
+              <Line
+                yAxisId="left"
+                type="monotone"
+                dataKey="glucose"
+                name="Glicose (mg/dL)"
+                stroke="#CE82FF"
+                strokeWidth={2}
+                strokeDasharray="3 3"
+                dot={{ fill: '#CE82FF', r: 3 }}
+                activeDot={{ r: 5 }}
+                connectNulls
+              />
+            )}
+
+            {/* Peso (kg) */}
+            {showWeight && (
+              <Line
+                yAxisId="left"
+                type="monotone"
+                dataKey="weight"
+                name="Peso (kg)"
+                stroke="#58CC02"
+                strokeWidth={3}
+                dot={{ fill: '#58CC02', r: 4 }}
+                activeDot={{ r: 6 }}
+                connectNulls
+              />
+            )}
+
+            {/* Altura (cm) */}
+            {showHeight && (
+              <Line
+                yAxisId="left"
+                type="monotone"
+                dataKey="height"
+                name="Altura (cm)"
+                stroke="#1CB0F6"
+                strokeWidth={2}
+                dot={{ fill: '#1CB0F6', r: 3 }}
+                activeDot={{ r: 5 }}
+                connectNulls
+              />
+            )}
 
             {/* Hidratação (ml) */}
             {showHydration && (
@@ -163,71 +264,11 @@ export function DynamicEvolutionChart({ data, selectedMetrics }: DynamicEvolutio
                 yAxisId="scale"
                 type="monotone"
                 dataKey="bristolType"
-                name="Bristol (Tipo 1-7)"
+                name="Digestão (Bristol 1-7)"
                 stroke="#FF9600"
                 strokeWidth={2.5}
                 dot={{ fill: '#FF9600', r: 4 }}
                 activeDot={{ r: 6 }}
-                connectNulls
-              />
-            )}
-
-            {/* Avaliação Rápida: Peso */}
-            {showQuickVitals && (
-              <Line
-                yAxisId="left"
-                type="monotone"
-                dataKey="weight"
-                name="Peso (kg)"
-                stroke="#58CC02"
-                strokeWidth={3}
-                dot={{ fill: '#58CC02', r: 4 }}
-                activeDot={{ r: 6 }}
-                connectNulls
-              />
-            )}
-
-            {/* Avaliação Rápida: FC (BPM) */}
-            {showQuickVitals && (
-              <Line
-                yAxisId="left"
-                type="monotone"
-                dataKey="heartRate"
-                name="FC (BPM)"
-                stroke="#FF4B4B"
-                strokeWidth={2}
-                dot={{ fill: '#FF4B4B', r: 3 }}
-                activeDot={{ r: 5 }}
-                connectNulls
-              />
-            )}
-
-            {/* Avaliação Rápida: Glicose */}
-            {showQuickVitals && (
-              <Line
-                yAxisId="left"
-                type="monotone"
-                dataKey="glucose"
-                name="Glicose (mg/dL)"
-                stroke="#CE82FF"
-                strokeWidth={2}
-                strokeDasharray="3 3"
-                dot={{ fill: '#CE82FF', r: 3 }}
-                activeDot={{ r: 5 }}
-                connectNulls
-              />
-            )}
-
-            {/* Avaliação Rápida: Pressão Sistólica */}
-            {showQuickVitals && (
-              <Line
-                yAxisId="left"
-                type="monotone"
-                dataKey="systolic"
-                name="PA Sistólica"
-                stroke="#0E8FCC"
-                strokeWidth={1.5}
-                dot={{ fill: '#0E8FCC', r: 2.5 }}
                 connectNulls
               />
             )}

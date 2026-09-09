@@ -1,6 +1,14 @@
 import type { BowelType } from '@/stores/useAppStore'
 
-export type HealthMetricCategory = 'hydration' | 'urine' | 'digestion' | 'quick_vitals'
+export type HealthMetricCategory =
+  | 'heart_rate'
+  | 'blood_pressure'
+  | 'glucose'
+  | 'weight'
+  | 'height'
+  | 'hydration'
+  | 'urine'
+  | 'digestion'
 
 export interface HealthMetricOption {
   id: HealthMetricCategory
@@ -8,15 +16,57 @@ export interface HealthMetricOption {
   emoji: string
   color: string
   description: string
+  unit: string
 }
 
 export const HEALTH_METRIC_OPTIONS: HealthMetricOption[] = [
+  {
+    id: 'heart_rate',
+    label: 'Frequência Cardíaca',
+    emoji: '❤️',
+    color: '#FF4B4B',
+    description: 'Frequência cardíaca em repouso',
+    unit: 'bpm',
+  },
+  {
+    id: 'blood_pressure',
+    label: 'Pressão Arterial',
+    emoji: '🩺',
+    color: '#0E8FCC',
+    description: 'Pressão sistólica e diastólica',
+    unit: 'mmHg',
+  },
+  {
+    id: 'glucose',
+    label: 'Glicose',
+    emoji: '🩸',
+    color: '#CE82FF',
+    description: 'Nível de glicemia capilar',
+    unit: 'mg/dL',
+  },
+  {
+    id: 'weight',
+    label: 'Peso',
+    emoji: '⚖️',
+    color: '#58CC02',
+    description: 'Peso corporal',
+    unit: 'kg',
+  },
+  {
+    id: 'height',
+    label: 'Altura',
+    emoji: '📏',
+    color: '#1CB0F6',
+    description: 'Estatura aferida',
+    unit: 'cm',
+  },
   {
     id: 'hydration',
     label: 'Hidratação',
     emoji: '💧',
     color: '#1CB0F6',
-    description: 'Consumo diário de água (ml)',
+    description: 'Consumo diário de água',
+    unit: 'ml',
   },
   {
     id: 'urine',
@@ -24,6 +74,7 @@ export const HEALTH_METRIC_OPTIONS: HealthMetricOption[] = [
     emoji: '🟡',
     color: '#FFC800',
     description: 'Escala de coloração urinária (1 a 6)',
+    unit: 'escala',
   },
   {
     id: 'digestion',
@@ -31,13 +82,7 @@ export const HEALTH_METRIC_OPTIONS: HealthMetricOption[] = [
     emoji: '🚽',
     color: '#FF9600',
     description: 'Escala de Bristol fecal (1 a 7)',
-  },
-  {
-    id: 'quick_vitals',
-    label: 'Avaliação Rápida',
-    emoji: '⚡',
-    color: '#58CC02',
-    description: 'Peso, Altura, FC, PA e Glicose',
+    unit: 'escala',
   },
 ]
 

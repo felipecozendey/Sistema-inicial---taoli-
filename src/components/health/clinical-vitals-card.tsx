@@ -1,7 +1,6 @@
 import { useState, useMemo, type ReactNode } from 'react'
 import { HeartPulse, Activity, Droplet, Plus, Scale, Ruler } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { VitalsChart } from '@/components/health/vitals-chart'
 import { QuickVitalsModal } from '@/components/health/quick-vitals-modal'
 import { useAppStore } from '@/stores/useAppStore'
 
@@ -120,16 +119,6 @@ export function ClinicalVitalsCard() {
           sub="mg/dL"
           className="col-span-2 sm:col-span-1"
         />
-      </div>
-
-      {/* Gráfico de Evolução dos Sinais Vitais */}
-      <div className="bg-card border-2 border-b-4 border-[#E5E5E5] dark:border-[#3B4A55] rounded-3xl p-4 shadow-sm">
-        <div className="flex items-center justify-between mb-2">
-          <p className="text-xs font-extrabold text-muted-foreground uppercase tracking-wider">
-            📈 Tendência dos Sinais Vitais
-          </p>
-        </div>
-        <VitalsChart />
       </div>
 
       {/* Modal de Avaliação Rápida */}

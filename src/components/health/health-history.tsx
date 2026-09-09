@@ -46,12 +46,16 @@ export function HealthHistory() {
   const [dateRange, setDateRange] = useState<DateRange | undefined>(undefined)
   const [activePreset, setActivePreset] = useState<QuickPreset>('all')
 
-  // 3. FILTRO MULTI-MÉTRICAS: ToggleGroup com múltipla seleção
+  // 3. FILTRO MULTI-MÉTRICAS: ToggleGroup com múltipla seleção granular
   const [selectedMetrics, setSelectedMetrics] = useState<HealthMetricCategory[]>([
+    'heart_rate',
+    'blood_pressure',
+    'glucose',
+    'weight',
+    'height',
     'hydration',
     'urine',
     'digestion',
-    'quick_vitals',
   ])
 
   // Verificação de pertencimento ao período filtrado
@@ -135,35 +139,45 @@ export function HealthHistory() {
     }
 
     // Avaliação Rápida (dados em bodyMetrics: peso, altura, BPM, PA, glicose)
-    if (selectedMetrics.includes('quick_vitals') && bodyMetrics) {
+    // Sincronização granular: apenas categorias ativas entram na lista
+    const hasAnyBodyMetricActive =
+      selectedMetrics.includes('weight') ||
+      selectedMetrics.includes('height') ||
+      selectedMetrics.includes('heart_rate') ||
+      selectedMetrics.includes('blood_pressure') ||
+      selectedMetrics.includes('glucose')
+
+    if (hasAnyBodyMetricActive && bodyMetrics) {
       bodyMetrics.forEach((bm: any) => {
         const dateStr = getSafeDayString(bm.date)
         if (!isDateInRange(dateStr)) return
 
         const timestamp = bm.created_at || `${dateStr}T12:00:00Z`
 
-        if (bm.weight && Number(bm.weight) > 0) {
+        // Peso
+        if (selectedMetrics.includes('weight') && bm.weight && Number(bm.weight) > 0) {
           list.push({
             id: `bm-${bm.id}-weight`,
             date: dateStr,
             timestamp,
-            category: 'quick_vitals',
+            category: 'weight',
             title: 'Peso Corporal',
             value: `${bm.weight} kg`,
             numericValue: Number(bm.weight),
             unit: 'kg',
             badge: 'Peso',
             color: '#58CC02',
-            details: 'Avaliação rápida de peso',
+            details: 'Avaliação de peso',
           })
         }
 
-        if (bm.height && Number(bm.height) > 0) {
+        // Altura
+        if (selectedMetrics.includes('height') && bm.height && Number(bm.height) > 0) {
           list.push({
             id: `bm-${bm.id}-height`,
             date: dateStr,
             timestamp,
-            category: 'quick_vitals',
+            category: 'height',
             title: 'Altura / Estatura',
             value: `${bm.height} cm`,
             numericValue: Number(bm.height),
@@ -174,30 +188,32 @@ export function HealthHistory() {
           })
         }
 
+        // Frequência Cardíaca
         const hr = bm.heart_rate_rest ?? bm.heartRateRest
-        if (hr && Number(hr) > 0) {
+        if (selectedMetrics.includes('heart_rate') && hr && Number(hr) > 0) {
           list.push({
             id: `bm-${bm.id}-hr`,
             date: dateStr,
             timestamp,
-            category: 'quick_vitals',
+            category: 'heart_rate',
             title: 'Frequência Cardíaca',
-            value: `${hr} BPM`,
+            value: `${hr} bpm`,
             numericValue: Number(hr),
-            unit: 'BPM',
+            unit: 'bpm',
             badge: 'Cardíaco',
             color: '#FF4B4B',
             details: 'FC em repouso',
           })
         }
 
+        // Pressão Arterial
         const bp = bm.blood_pressure || bm.bloodPressure
-        if (bp && String(bp).trim()) {
+        if (selectedMetrics.includes('blood_pressure') && bp && String(bp).trim()) {
           list.push({
             id: `bm-${bm.id}-bp`,
             date: dateStr,
             timestamp,
-            category: 'quick_vitals',
+            category: 'blood_pressure',
             title: 'Pressão Arterial',
             value: `${bp} mmHg`,
             unit: 'mmHg',
@@ -207,12 +223,13 @@ export function HealthHistory() {
           })
         }
 
-        if (bm.glucose && Number(bm.glucose) > 0) {
+        // Glicose
+        if (selectedMetrics.includes('glucose') && bm.glucose && Number(bm.glucose) > 0) {
           list.push({
             id: `bm-${bm.id}-gl`,
             date: dateStr,
             timestamp,
-            category: 'quick_vitals',
+            category: 'glucose',
             title: 'Glicose Sanguínea',
             value: `${bm.glucose} mg/dL`,
             numericValue: Number(bm.glucose),
@@ -236,6 +253,13 @@ export function HealthHistory() {
   // 5. PROCESSAMENTO SÍNCRONO PARA O RECHARTS: Agrupar por data (YYYY-MM-DD)
   const chartPoints = useMemo<UnifiedChartPoint[]>(() => {
     const map = new Map<string, UnifiedChartPoint>()
+
+    const hasAnyBodyMetric =
+      selectedMetrics.includes('weight') ||
+      selectedMetrics.includes('height') ||
+      selectedMetrics.includes('heart_rate') ||
+      selectedMetrics.includes('blood_pressure') ||
+      selectedMetrics.includes('glucose')
 
     // Função auxiliar para inicializar um ponto de data
     const getOrCreatePoint = (dateStr: string): UnifiedChartPoint => {
@@ -294,8 +318,8 @@ export function HealthHistory() {
       })
     }
 
-    // Processar Avaliação Rápida (peso, altura, FC, glicose, PA)
-    if (selectedMetrics.includes('quick_vitals') && bodyMetrics) {
+    // Processar Métricas Corporais Granulares (peso, altura, FC, glicose, PA)
+    if (hasAnyBodyMetric && bodyMetrics) {
       const sortedMetrics = [...bodyMetrics].sort(
         (a: any, b: any) => getSafeTime(a.date) - getSafeTime(b.date),
       )
@@ -304,21 +328,31 @@ export function HealthHistory() {
         if (!isDateInRange(dayStr)) return
         const pt = getOrCreatePoint(dayStr)
 
-        if (bm.weight && Number(bm.weight) > 0) pt.weight = Number(bm.weight)
-        if (bm.height && Number(bm.height) > 0) pt.height = Number(bm.height)
+        if (selectedMetrics.includes('weight') && bm.weight && Number(bm.weight) > 0) {
+          pt.weight = Number(bm.weight)
+        }
+        if (selectedMetrics.includes('height') && bm.height && Number(bm.height) > 0) {
+          pt.height = Number(bm.height)
+        }
 
         const hr = bm.heart_rate_rest ?? bm.heartRateRest
-        if (hr && Number(hr) > 0) pt.heartRate = Number(hr)
+        if (selectedMetrics.includes('heart_rate') && hr && Number(hr) > 0) {
+          pt.heartRate = Number(hr)
+        }
 
-        if (bm.glucose && Number(bm.glucose) > 0) pt.glucose = Number(bm.glucose)
+        if (selectedMetrics.includes('glucose') && bm.glucose && Number(bm.glucose) > 0) {
+          pt.glucose = Number(bm.glucose)
+        }
 
-        const bp = bm.blood_pressure || bm.bloodPressure
-        if (bp && String(bp).includes('/')) {
-          const parts = String(bp).split('/')
-          const sys = parseInt(parts[0], 10)
-          const dia = parseInt(parts[1], 10)
-          if (!isNaN(sys)) pt.systolic = sys
-          if (!isNaN(dia)) pt.diastolic = dia
+        if (selectedMetrics.includes('blood_pressure')) {
+          const bp = bm.blood_pressure || bm.bloodPressure
+          if (bp && String(bp).includes('/')) {
+            const parts = String(bp).split('/')
+            const sys = parseInt(parts[0], 10)
+            const dia = parseInt(parts[1], 10)
+            if (!isNaN(sys)) pt.systolic = sys
+            if (!isNaN(dia)) pt.diastolic = dia
+          }
         }
       })
     }

@@ -8,7 +8,19 @@ import {
   DialogTrigger,
 } from '@/components/ui/dialog'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { Droplet, Trash2, HelpCircle } from 'lucide-react'
+import { Droplet, Trash2, HelpCircle, BarChart3 } from 'lucide-react'
+import {
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  Legend,
+  ResponsiveContainer,
+} from 'recharts'
+import { subDays, format, isValid } from 'date-fns'
+import { ptBR } from 'date-fns/locale'
 import { cn } from '@/lib/utils'
 
 // Escala de Bristol para Digestão
@@ -123,6 +135,55 @@ export function ExcretionsWidget() {
   const handleSelectUrine = (type: number) => {
     addUrineLog(today, type, '')
   }
+
+  // Gráfico Urina & Digestão - 7 últimos dias em BarChart com barras agrupadas (não empilhadas)
+  const last7DaysChartData = useMemo(() => {
+    const todayObj = new Date()
+    todayObj.setHours(0, 0, 0, 0)
+    const result = []
+
+    for (let i = 6; i >= 0; i--) {
+      const dayDate = subDays(todayObj, i)
+      const dayStr = isValid(dayDate) ? format(dayDate, 'yyyy-MM-dd') : ''
+      const label = isValid(dayDate) ? format(dayDate, 'dd/MM', { locale: ptBR }) : ''
+
+      // Buscar último registro de urina do dia
+      const dayUrineLogs = (urineLogs || [])
+        .filter((l) => l.date === dayStr)
+        .sort((a, b) => b.timestamp.localeCompare(a.timestamp))
+      const latestDayUrine = dayUrineLogs[0]
+
+      // Buscar último registro de digestão do dia
+      const dayDigestionLogs = (digestionLogs || [])
+        .filter((l) => l.date === dayStr)
+        .sort((a, b) => b.timestamp.localeCompare(a.timestamp))
+      const latestDayDig = dayDigestionLogs[0]
+
+      const urineScale = latestDayUrine
+        ? URINE_COLORS.find((u) => u.type === latestDayUrine.colorType)
+        : null
+      const bristolScale = latestDayDig
+        ? BRISTOL_TYPES.find((b) => b.type === latestDayDig.bristolType)
+        : null
+
+      result.push({
+        day: label,
+        rawDate: dayStr,
+        urina: latestDayUrine ? latestDayUrine.colorType : null,
+        urinaLabel: urineScale?.label || null,
+        urinaCount: dayUrineLogs.length,
+        digestao: latestDayDig ? Number(latestDayDig.bristolType) : null,
+        digestaoLabel: bristolScale?.label || null,
+        digestaoCount: dayDigestionLogs.length,
+      })
+    }
+
+    return result
+  }, [urineLogs, digestionLogs])
+
+  const hasExcretionData = useMemo(() => {
+    return last7DaysChartData.some((d) => d.urina !== null || d.digestao !== null)
+  }, [last7DaysChartData])
 
   return (
     <div className="bg-card border-2 border-b-4 border-[#E5E5E5] dark:border-[#3B4A55] rounded-3xl p-5 shadow-sm flex flex-col gap-4">
@@ -432,6 +493,124 @@ export function ExcretionsWidget() {
           )}
         </TabsContent>
       </Tabs>
+
+      {/* Redesign do Gráfico "Urina & Digestão" com BarChart agrupado (não empilhado) */}
+      <div className="mt-1 pt-4 border-t border-[#E5E5E5] dark:border-[#3B4A55]/60 space-y-3">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-1.5">
+            <BarChart3 className="w-4 h-4 text-[#FF9600]" />
+            <span className="text-xs font-black uppercase tracking-wider text-muted-foreground">
+              Comparativo dos Últimos 7 Dias
+            </span>
+          </div>
+          <span className="text-[10px] font-extrabold text-muted-foreground bg-muted/60 px-2 py-0.5 rounded-full">
+            Barras agrupadas
+          </span>
+        </div>
+
+        {hasExcretionData ? (
+          <div className="h-56 w-full pt-1">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart
+                data={last7DaysChartData}
+                margin={{ top: 12, right: 12, left: -15, bottom: 4 }}
+                barCategoryGap="25%"
+                barGap={4}
+              >
+                <CartesianGrid strokeDasharray="3 3" className="stroke-muted/40" vertical={false} />
+                <XAxis
+                  dataKey="day"
+                  tick={{ fontSize: 11, fontWeight: 700 }}
+                  axisLine={false}
+                  tickLine={false}
+                />
+                <YAxis
+                  domain={[0, 7]}
+                  ticks={[1, 2, 3, 4, 5, 6, 7]}
+                  tick={{ fontSize: 10, fontWeight: 600 }}
+                  axisLine={false}
+                  tickLine={false}
+                  width={28}
+                />
+                <Tooltip content={<ExcretionsChartTooltip />} />
+                <Legend
+                  wrapperStyle={{ fontSize: '11px', fontWeight: 800, paddingTop: '8px' }}
+                  iconType="circle"
+                />
+                <Bar
+                  dataKey="urina"
+                  name="Urina (Escala 1-6)"
+                  fill="#FFC800"
+                  radius={[6, 6, 0, 0]}
+                  maxBarSize={22}
+                />
+                <Bar
+                  dataKey="digestao"
+                  name="Digestão (Bristol 1-7)"
+                  fill="#FF9600"
+                  radius={[6, 6, 0, 0]}
+                  maxBarSize={22}
+                />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        ) : (
+          <div className="h-32 flex flex-col items-center justify-center text-center bg-muted/20 rounded-2xl border border-dashed border-[#E5E5E5] dark:border-[#3B4A55] p-3">
+            <p className="text-xs font-extrabold text-muted-foreground">
+              Sem excreções registradas nos últimos 7 dias.
+            </p>
+            <p className="text-[11px] text-muted-foreground/80 mt-0.5">
+              Toque nos botões acima para registrar urina ou digestão hoje.
+            </p>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+function ExcretionsChartTooltip({ active, payload, label }: any) {
+  if (!active || !payload || !payload.length) return null
+
+  const itemData = payload[0]?.payload
+
+  return (
+    <div className="bg-card border-2 border-b-4 border-[#E5E5E5] dark:border-[#3B4A55] rounded-2xl p-3 shadow-xl text-xs space-y-1.5 min-w-[190px]">
+      <p className="font-black text-foreground border-b border-muted pb-1">{label}</p>
+      {itemData?.urina !== null && itemData?.urina !== undefined && (
+        <div className="flex items-center justify-between gap-3">
+          <span className="flex items-center gap-1.5 font-bold text-[#B28200] dark:text-[#FFC800]">
+            <span className="w-2.5 h-2.5 rounded-full inline-block bg-[#FFC800]" />
+            Urina:
+          </span>
+          <span className="font-black text-foreground">
+            Tipo {itemData.urina}
+            {itemData.urinaLabel ? ` (${itemData.urinaLabel})` : ''}
+          </span>
+        </div>
+      )}
+      {itemData?.digestao !== null && itemData?.digestao !== undefined && (
+        <div className="flex items-center justify-between gap-3">
+          <span className="flex items-center gap-1.5 font-bold text-[#CC6E00] dark:text-[#FF9600]">
+            <span className="w-2.5 h-2.5 rounded-full inline-block bg-[#FF9600]" />
+            Digestão:
+          </span>
+          <span className="font-black text-foreground">
+            Tipo {itemData.digestao}
+            {itemData.digestaoLabel ? ` (${itemData.digestaoLabel})` : ''}
+          </span>
+        </div>
+      )}
+      {itemData?.urinaCount > 1 && (
+        <p className="text-[10px] text-muted-foreground font-semibold pt-0.5">
+          {itemData.urinaCount} registros de urina no dia (exibindo último).
+        </p>
+      )}
+      {itemData?.digestaoCount > 1 && (
+        <p className="text-[10px] text-muted-foreground font-semibold pt-0.5">
+          {itemData.digestaoCount} registros de digestão no dia (exibindo último).
+        </p>
+      )}
     </div>
   )
 }

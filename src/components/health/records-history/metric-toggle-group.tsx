@@ -94,6 +94,10 @@ function getDarkerShade(hex: string): string {
       return '#46A302'
     case '#CE82FF':
       return '#9B54BA'
+    case '#FF4B4B':
+      return '#CC3838'
+    case '#0E8FCC':
+      return '#0A6A99'
     default:
       return '#3B4A55'
   }
