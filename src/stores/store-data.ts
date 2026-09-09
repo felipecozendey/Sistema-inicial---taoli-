@@ -57,6 +57,8 @@ export type MealLog = {
   protein: number
   carbs: number
   fat: number
+  fibersG?: number
+  sodiumMg?: number
   adherence: string
   timestamp: string
   photoUrl?: string

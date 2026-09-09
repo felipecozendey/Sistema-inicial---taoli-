@@ -188,12 +188,26 @@ const mapFood = (d: any): CustomFood => ({
   tags: d.tags || [],
 })
 
+export interface MacroGoalConfig {
+  proteinGPerKg: number
+  fatPct: number
+}
+
 export interface NutritionState {
   dietPlans: DietPlan[]
   customFoods: CustomFood[]
   nutritionRecipes: NutritionRecipe[]
+  macroGoalConfig: MacroGoalConfig | null
+  fetchMacroGoals: () => Promise<void>
+  updateMacroGoalConfig: (config: MacroGoalConfig) => Promise<void>
+  loadModelDietPlans: () => Promise<void>
   fetchDietPlans: () => Promise<void>
   addDietPlan: (name: string, time: string) => Promise<void>
+  updateDietPlan: (
+    id: string,
+    updates: Partial<Pick<DietPlan, 'name' | 'time' | 'orderIndex'>>,
+  ) => Promise<void>
+  reorderDietPlan: (id: string, direction: 'up' | 'down') => Promise<void>
   deleteDietPlan: (id: string) => Promise<void>
   addDietPlanItem: (planId: string, item: Omit<DietPlanItem, 'id'>) => Promise<void>
   updateDietPlanItem: (
@@ -220,9 +234,104 @@ export interface NutritionState {
 export const useNutritionStore = create<NutritionState>()(
   persist(
     (set, get) => ({
-      dietPlans: initialDietPlans,
-      customFoods: initialCustomFoods,
+      dietPlans: [],
+      customFoods: [],
       nutritionRecipes: [],
+      macroGoalConfig: null,
+
+      fetchMacroGoals: async () => {
+        const {
+          data: { user },
+        } = await supabase.auth.getUser()
+        if (!user) return
+        const { data } = await (supabase as any)
+          .from('nutrition_macro_goals')
+          .select('protein_g_per_kg, fat_pct')
+          .eq('user_id', user.id)
+          .maybeSingle()
+        if (data) {
+          set({
+            macroGoalConfig: {
+              proteinGPerKg: Number(data.protein_g_per_kg) || 2.0,
+              fatPct: Number(data.fat_pct) || 25.0,
+            },
+          })
+        }
+      },
+
+      updateMacroGoalConfig: async (config: MacroGoalConfig) => {
+        const prev = get().macroGoalConfig
+        set({ macroGoalConfig: config })
+        const {
+          data: { user },
+        } = await supabase.auth.getUser()
+        if (!user) {
+          set({ macroGoalConfig: prev })
+          toast.error('Você precisa estar autenticado para salvar as metas.')
+          return
+        }
+        const { error } = await (supabase as any).from('nutrition_macro_goals').upsert(
+          {
+            user_id: user.id,
+            protein_g_per_kg: config.proteinGPerKg,
+            fat_pct: config.fatPct,
+            updated_at: new Date().toISOString(),
+          },
+          { onConflict: 'user_id' },
+        )
+        if (error) {
+          set({ macroGoalConfig: prev })
+          toast.error('Erro ao salvar metas de macros.')
+        } else {
+          toast.success('Metas de macros atualizadas! 🎯')
+        }
+      },
+
+      loadModelDietPlans: async () => {
+        const {
+          data: { user },
+        } = await supabase.auth.getUser()
+        if (!user) {
+          toast.error('Você precisa estar autenticado para carregar os modelos.')
+          return
+        }
+        try {
+          for (const plan of initialDietPlans) {
+            const { data: insertedPlan, error: pError } = await supabase
+              .from('diet_plans')
+              .insert({
+                name: plan.name,
+                time: plan.time,
+                order_index: plan.orderIndex,
+                user_id: user.id,
+              })
+              .select('id')
+              .single()
+            if (pError || !insertedPlan) continue
+
+            if (plan.items.length > 0) {
+              await supabase.from('diet_plan_items').insert(
+                plan.items.map((it) => ({
+                  plan_id: insertedPlan.id,
+                  description: it.description,
+                  quantity: it.quantity,
+                  calories: it.calories,
+                  carbs_g: it.carbsG,
+                  protein_g: it.proteinG,
+                  fat_g: it.fatG,
+                  fibers_g: it.fibersG,
+                  sodium_mg: it.sodiumMg,
+                  allergens: it.allergens,
+                })),
+              )
+            }
+          }
+          await get().fetchDietPlans()
+          toast.success('Modelos de plano alimentar carregados com sucesso! 🥗')
+        } catch {
+          toast.error('Erro ao carregar modelos.')
+        }
+      },
 
       fetchDietPlans: async () => {
         const {
@@ -270,7 +379,11 @@ export const useNutritionStore = create<NutritionState>()(
         const {
           data: { user: u },
         } = await supabase.auth.getUser()
-        if (!u) return
+        if (!u) {
+          set({ dietPlans: previousDietPlans })
+          toast.error('Você precisa estar autenticado para criar refeições.')
+          return
+        }
 
         // 2. Chamada ao Supabase com .select('id').single()
         const { data, error } = await supabase
@@ -290,6 +403,69 @@ export const useNutritionStore = create<NutritionState>()(
         set({
           dietPlans: get().dietPlans.map((d) => (d.id === tempId ? { ...d, id: data.id } : d)),
         })
+      },
+
+      updateDietPlan: async (
+        id: string,
+        updates: Partial<Pick<DietPlan, 'name' | 'time' | 'orderIndex'>>,
+      ) => {
+        const previousDietPlans = get().dietPlans
+        set({
+          dietPlans: previousDietPlans.map((d) => (d.id === id ? { ...d, ...updates } : d)),
+        })
+
+        const dbU: Record<string, any> = {}
+        if (updates.name !== undefined) dbU.name = updates.name
+        if (updates.time !== undefined) dbU.time = updates.time
+        if (updates.orderIndex !== undefined) dbU.order_index = updates.orderIndex
+
+        const { error } = await (supabase as any).from('diet_plans').update(dbU).eq('id', id)
+        if (error) {
+          set({ dietPlans: previousDietPlans })
+          toast.error('Erro ao atualizar refeição.')
+        }
+      },
+
+      reorderDietPlan: async (id: string, direction: 'up' | 'down') => {
+        const plans = [...get().dietPlans].sort((a, b) => a.orderIndex - b.orderIndex)
+        const idx = plans.findIndex((p) => p.id === id)
+        if (idx === -1) return
+        if (direction === 'up' && idx === 0) return
+        if (direction === 'down' && idx === plans.length - 1) return
+
+        const targetIdx = direction === 'up' ? idx - 1 : idx + 1
+        const currentPlan = plans[idx]
+        const targetPlan = plans[targetIdx]
+
+        // Swap orderIndex
+        const newCurrentOrder = targetPlan.orderIndex
+        const newTargetOrder = currentPlan.orderIndex
+
+        const updatedPlans = plans
+          .map((p) => {
+            if (p.id === currentPlan.id) return { ...p, orderIndex: newCurrentOrder }
+            if (p.id === targetPlan.id) return { ...p, orderIndex: newTargetOrder }
+            return p
+          })
+          .sort((a, b) => a.orderIndex - b.orderIndex)
+
+        const previousDietPlans = get().dietPlans
+        set({ dietPlans: updatedPlans })
+
+        // Persist to Supabase
+        const { error: err1 } = await (supabase as any)
+          .from('diet_plans')
+          .update({ order_index: newCurrentOrder })
+          .eq('id', currentPlan.id)
+        const { error: err2 } = await (supabase as any)
+          .from('diet_plans')
+          .update({ order_index: newTargetOrder })
+          .eq('id', targetPlan.id)
+
+        if (err1 || err2) {
+          set({ dietPlans: previousDietPlans })
+          toast.error('Erro ao reordenar refeição.')
+        }
       },
 
       deleteDietPlan: async (id: string) => {
@@ -319,7 +495,11 @@ export const useNutritionStore = create<NutritionState>()(
         const {
           data: { user: u },
         } = await supabase.auth.getUser()
-        if (!u) return
+        if (!u) {
+          set({ dietPlans: previousDietPlans })
+          toast.error('Você precisa estar autenticado para adicionar alimentos.')
+          return
+        }
 
         // 2. Chamada ao Supabase com .select('id').single()
         const { data, error } = await supabase
@@ -448,7 +628,11 @@ export const useNutritionStore = create<NutritionState>()(
         const {
           data: { user: u },
         } = await supabase.auth.getUser()
-        if (!u) return
+        if (!u) {
+          set({ customFoods: previousCustomFoods })
+          toast.error('Você precisa estar autenticado para cadastrar alimentos.')
+          return
+        }
 
         // 2. Chamada ao Supabase com .select('id').single()
         const { data, error } = await supabase
@@ -516,7 +700,11 @@ export const useNutritionStore = create<NutritionState>()(
         const { error } = await supabase.from('custom_foods').delete().eq('id', id)
         if (error) {
           set({ customFoods: previousCustomFoods })
-          toast.error('Erro ao excluir alimento.')
+          if (error.code === '23503' || error.message?.includes('foreign key')) {
+            toast.error('Este alimento está em uso em uma receita.')
+          } else {
+            toast.error('Erro ao excluir alimento.')
+          }
         }
       },
 
@@ -614,7 +802,11 @@ export const useNutritionStore = create<NutritionState>()(
         const {
           data: { user: u },
         } = await supabase.auth.getUser()
-        if (!u) return
+        if (!u) {
+          set({ nutritionRecipes: previousRecipes })
+          toast.error('Você precisa estar autenticado para criar receitas.')
+          return
+        }
 
         // 2. Chamada ao Supabase com .select('id').single()
         const { data: recipeData, error } = await supabase
@@ -650,23 +842,16 @@ export const useNutritionStore = create<NutritionState>()(
           return
         }
 
-        // 4. Sucesso: swap silencioso de tempId pelo UUID real do Supabase (e dos ingredientes caso retornados)
-        const ingredientIdMap = new Map<string, string>()
-        if (insertedIngredients) {
-          insertedIngredients.forEach((ii: any) => {
-            if (ii.food_id && ii.id) ingredientIdMap.set(ii.food_id, ii.id)
-          })
-        }
-
+        // 4. Sucesso: swap de IDs por POSIÇÃO/ÍNDICE para não colidir quando o mesmo alimento aparece duas vezes
         set({
           nutritionRecipes: get().nutritionRecipes.map((r) => {
             if (r.id !== tempId) return r
             return {
               ...r,
               id: recipeData.id,
-              ingredients: r.ingredients.map((ing) => ({
+              ingredients: r.ingredients.map((ing, idx) => ({
                 ...ing,
-                id: ingredientIdMap.get(ing.foodId) || ing.id,
+                id: (insertedIngredients && insertedIngredients[idx]?.id) || ing.id,
               })),
             }
           }),
@@ -694,8 +879,3 @@ export const useNutritionStore = create<NutritionState>()(
     },
   ),
 )
-
-// Exportação compatível para facilitar caso algum componente ainda importe NutritionStoreProvider
-export function NutritionStoreProvider({ children }: { children: React.ReactNode }) {
-  return <>{children}</>
-}

@@ -72,6 +72,8 @@ export type MealLog = {
   protein: number
   carbs: number
   fat: number
+  fibersG?: number
+  sodiumMg?: number
   adherence: string
   timestamp: string
   photoUrl?: string
@@ -431,9 +433,26 @@ interface AppState {
     protein: number
     carbs: number
     fat: number
+    fibersG?: number
+    sodiumMg?: number
     adherence: string
     photoUrl?: string
   }) => Promise<void>
+  updateMealLog: (
+    id: string,
+    data: {
+      mealType?: string
+      description?: string
+      calories?: number
+      protein?: number
+      carbs?: number
+      fat?: number
+      fibersG?: number
+      sodiumMg?: number
+      adherence?: string
+      photoUrl?: string
+    },
+  ) => Promise<void>
   deleteMealLog: (id: string) => Promise<void>
   fetchMealLogs: () => Promise<void>
   dailyChecklist: Record<string, boolean>
@@ -1297,6 +1316,8 @@ export const AppStoreProvider = ({ children }: { children: ReactNode }) => {
     protein: number
     carbs: number
     fat: number
+    fibersG?: number
+    sodiumMg?: number
     adherence: string
     photoUrl?: string
   }) => {
@@ -1308,34 +1329,99 @@ export const AppStoreProvider = ({ children }: { children: ReactNode }) => {
       timestamp: nowIso(),
     }
     setMealLogs((p) => [log, ...p])
-    supabase.auth.getUser().then(({ data: { user: u } }) => {
-      if (!u) return
-      ;(supabase as any)
-        .from('meal_logs')
-        .insert({
-          meal_type: data.mealType,
-          description: data.description,
-          calories: data.calories,
-          protein: data.protein,
-          carbs: data.carbs,
-          fat: data.fat,
-          adherence: data.adherence,
-          photo_url: data.photoUrl || null,
-          user_id: u.id,
-        })
-        .then(({ error }: { error: any }) => {
-          if (error) {
-            setMealLogs((p) => p.filter((l) => l.id !== tempId))
-            toast.error('Erro ao salvar refeição. Tente novamente.')
-          } else {
-            fetchMealLogs()
-          }
-        })
-    })
+
+    const {
+      data: { user: u },
+    } = await supabase.auth.getUser()
+    if (!u) {
+      setMealLogs((p) => p.filter((l) => l.id !== tempId))
+      toast.error('Você precisa estar autenticado para registrar a refeição.')
+      return
+    }
+
+    const { data: inserted, error } = await (supabase as any)
+      .from('meal_logs')
+      .insert({
+        meal_type: data.mealType,
+        description: data.description,
+        calories: data.calories,
+        protein: data.protein,
+        carbs: data.carbs,
+        fat: data.fat,
+        fibers_g: data.fibersG || 0,
+        sodium_mg: data.sodiumMg || 0,
+        adherence: data.adherence,
+        photo_url: data.photoUrl || null,
+        user_id: u.id,
+      })
+      .select('id, created_at')
+      .single()
+
+    if (error || !inserted) {
+      setMealLogs((p) => p.filter((l) => l.id !== tempId))
+      toast.error('Erro ao salvar refeição. Tente novamente.')
+      return
+    }
+
+    // Zero Lag: swap tempId with Supabase UUID and timestamp without refetch
+    setMealLogs((p) =>
+      p.map((l) =>
+        l.id === tempId
+          ? {
+              ...l,
+              id: inserted.id,
+              timestamp: inserted.created_at || l.timestamp,
+              date: inserted.created_at ? inserted.created_at.split('T')[0] : l.date,
+            }
+          : l,
+      ),
+    )
+  }
+  const updateMealLog = async (
+    id: string,
+    data: {
+      mealType?: string
+      description?: string
+      calories?: number
+      protein?: number
+      carbs?: number
+      fat?: number
+      fibersG?: number
+      sodiumMg?: number
+      adherence?: string
+      photoUrl?: string
+    },
+  ) => {
+    const previousMealLogs = mealLogs
+    setMealLogs((p) => p.map((l) => (l.id === id ? { ...l, ...data } : l)))
+
+    const dbU: Record<string, any> = {}
+    if (data.mealType !== undefined) dbU.meal_type = data.mealType
+    if (data.description !== undefined) dbU.description = data.description
+    if (data.calories !== undefined) dbU.calories = data.calories
+    if (data.protein !== undefined) dbU.protein = data.protein
+    if (data.carbs !== undefined) dbU.carbs = data.carbs
+    if (data.fat !== undefined) dbU.fat = data.fat
+    if (data.fibersG !== undefined) dbU.fibers_g = data.fibersG
+    if (data.sodiumMg !== undefined) dbU.sodium_mg = data.sodiumMg
+    if (data.adherence !== undefined) dbU.adherence = data.adherence
+    if (data.photoUrl !== undefined) dbU.photo_url = data.photoUrl || null
+
+    const { error } = await (supabase as any).from('meal_logs').update(dbU).eq('id', id)
+
+    if (error) {
+      setMealLogs(previousMealLogs)
+      toast.error('Erro ao atualizar refeição.')
+    }
   }
   const deleteMealLog = async (id: string) => {
+    const previousMealLogs = mealLogs
     setMealLogs((p) => p.filter((l) => l.id !== id))
-    await (supabase as any).from('meal_logs').delete().eq('id', id)
+    const { error } = await (supabase as any).from('meal_logs').delete().eq('id', id)
+    if (error) {
+      setMealLogs(previousMealLogs)
+      toast.error('Erro ao excluir refeição.')
+    }
   }
   const fetchMealLogs = async () => {
     const {
@@ -1346,7 +1432,6 @@ export const AppStoreProvider = ({ children }: { children: ReactNode }) => {
       .from('meal_logs')
       .select('*')
       .eq('user_id', authUser.id)
-      .neq('meal_type', 'checklist')
       .order('created_at', { ascending: false })
     if (data)
       setMealLogs(
@@ -1359,6 +1444,8 @@ export const AppStoreProvider = ({ children }: { children: ReactNode }) => {
           protein: d.protein || 0,
           carbs: d.carbs || 0,
           fat: d.fat || 0,
+          fibersG: Number(d.fibers_g) || 0,
+          sodiumMg: Number(d.sodium_mg) || 0,
           adherence: d.adherence || 'perfect',
           timestamp: d.created_at,
           photoUrl: d.photo_url || undefined,
@@ -1370,13 +1457,12 @@ export const AppStoreProvider = ({ children }: { children: ReactNode }) => {
       data: { user: authUser },
     } = await supabase.auth.getUser()
     if (!authUser) return
+    const today = todayStr()
     const { data } = await (supabase as any)
-      .from('meal_logs')
+      .from('daily_checklist')
       .select('*')
       .eq('user_id', authUser.id)
-      .eq('meal_type', 'checklist')
-      .order('created_at', { ascending: false })
-      .limit(1)
+      .eq('date', today)
       .maybeSingle()
     if (data?.items) {
       setDailyChecklist(data.items as Record<string, boolean>)
@@ -1385,35 +1471,33 @@ export const AppStoreProvider = ({ children }: { children: ReactNode }) => {
     }
   }
   const toggleChecklistItem = (key: string) => {
-    setDailyChecklist((prev) => {
-      const newChecklist = { ...prev, [key]: !prev[key] }
-      supabase.auth.getUser().then(({ data: { user: u } }) => {
-        if (!u) return
-        ;(async () => {
-          const { data: existing } = await (supabase as any)
-            .from('meal_logs')
-            .select('id')
-            .eq('user_id', u.id)
-            .eq('meal_type', 'checklist')
-            .order('created_at', { ascending: false })
-            .limit(1)
-            .maybeSingle()
-          if (existing) {
-            await (supabase as any)
-              .from('meal_logs')
-              .update({ items: newChecklist })
-              .eq('id', existing.id)
-          } else {
-            await (supabase as any).from('meal_logs').insert({
-              meal_type: 'checklist',
-              quality: 'checklist',
-              items: newChecklist,
-              user_id: u.id,
-            })
+    const prevChecklist = dailyChecklist
+    const newChecklist = { ...prevChecklist, [key]: !prevChecklist[key] }
+    setDailyChecklist(newChecklist)
+
+    supabase.auth.getUser().then(({ data: { user: u } }) => {
+      if (!u) {
+        setDailyChecklist(prevChecklist)
+        toast.error('Você precisa estar autenticado para marcar o checklist.')
+        return
+      }
+      const today = todayStr()
+      ;(supabase as any)
+        .from('daily_checklist')
+        .upsert(
+          {
+            user_id: u.id,
+            date: today,
+            items: newChecklist,
+          },
+          { onConflict: 'user_id,date' },
+        )
+        .then(({ error }: { error: any }) => {
+          if (error) {
+            setDailyChecklist(prevChecklist)
+            toast.error('Erro ao sincronizar micro-meta.')
           }
-        })()
-      })
-      return newChecklist
+        })
     })
   }
   const addWorkoutRoutine = (title: string, exercises: WorkoutExercise[], description?: string) => {
@@ -2723,6 +2807,7 @@ export const AppStoreProvider = ({ children }: { children: ReactNode }) => {
     deleteFastingLog,
     fetchFastingLogs,
     addMealLog,
+    updateMealLog,
     deleteMealLog,
     fetchMealLogs,
     dailyChecklist,
