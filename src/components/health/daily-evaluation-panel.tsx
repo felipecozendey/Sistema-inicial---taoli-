@@ -16,13 +16,12 @@ interface Props {
 
 export function DailyEvaluationPanel({ selectedDate, onDateChange }: Props) {
   const bodyMetrics = useAppStore((s) => s.bodyMetrics)
-  const fetchBodyMetrics = useAppStore((s) => s.fetchBodyMetrics)
 
-  useEffect(() => {
-    fetchBodyMetrics()
-  }, [fetchBodyMetrics])
-
-  const selectedDateStr = selectedDate.toISOString().split('T')[0]
+  const selectedDateStr = useMemo(() => {
+    const d =
+      selectedDate instanceof Date && !isNaN(selectedDate.getTime()) ? selectedDate : new Date()
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+  }, [selectedDate])
 
   const metric = useMemo(() => {
     if (!bodyMetrics?.length) return null
@@ -32,11 +31,34 @@ export function DailyEvaluationPanel({ selectedDate, onDateChange }: Props) {
 
   if (!metric) {
     return (
-      <div className="bg-card border-2 border-dashed border-[#E5E5E5] dark:border-[#3B4A55] rounded-3xl p-10 text-center">
-        <span className="text-4xl block mb-3">📋</span>
-        <p className="text-sm font-bold text-muted-foreground">
-          Nenhuma avaliação registrada para esta data.
-        </p>
+      <div className="space-y-4">
+        <Popover>
+          <PopoverTrigger asChild>
+            <Button
+              variant="outline"
+              className="w-full justify-start border-2 rounded-2xl font-bold"
+            >
+              <CalendarIcon className="w-4 h-4 mr-2" />
+              {safeFormatDate(selectedDate)}
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent className="w-auto p-0" align="start">
+            <Calendar
+              mode="single"
+              selected={selectedDate}
+              onSelect={(d) => d && onDateChange(d)}
+              locale={ptBR}
+              initialFocus
+            />
+          </PopoverContent>
+        </Popover>
+
+        <div className="bg-card border-2 border-dashed border-[#E5E5E5] dark:border-[#3B4A55] rounded-3xl p-10 text-center">
+          <span className="text-4xl block mb-3">📋</span>
+          <p className="text-sm font-bold text-muted-foreground">
+            Nenhuma avaliação ainda. Registre sua primeira medida!
+          </p>
+        </div>
       </div>
     )
   }

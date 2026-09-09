@@ -60,7 +60,15 @@ export function eachDayOfInterval(start: Date, end: Date): Date[] {
 }
 
 export function toDateString(date: Date): string {
-  return date.toISOString().split('T')[0]
+  const safe = date instanceof Date && !isNaN(date.getTime()) ? date : new Date()
+  const year = safe.getFullYear()
+  const month = String(safe.getMonth() + 1).padStart(2, '0')
+  const day = String(safe.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
+
+export function todayStr(): string {
+  return toDateString(new Date())
 }
 
 export function safeFormatDate(dateInput: string | Date | undefined | null): string {

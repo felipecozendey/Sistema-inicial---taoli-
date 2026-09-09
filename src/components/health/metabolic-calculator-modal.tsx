@@ -213,11 +213,37 @@ export function MetabolicCalculatorModal({ open, onOpenChange, editLog }: Props)
 
   const handleSubmit = async () => {
     if (!result) return
+
+    // Validações numéricas
+    const parsedWeight = parseFloat(weight)
+    const parsedHeight = parseFloat(height)
+    const parsedAge = parseInt(age, 10)
+
+    if (isNaN(parsedWeight) || parsedWeight <= 0) {
+      toast.error('Informe um peso válido maior que zero.')
+      return
+    }
+    if (isNaN(parsedHeight) || parsedHeight <= 0) {
+      toast.error('Informe uma altura válida maior que zero.')
+      return
+    }
+    if (isNaN(parsedAge) || parsedAge <= 0) {
+      toast.error('Informe uma idade válida.')
+      return
+    }
+    if (leanMass && (isNaN(parseFloat(leanMass)) || parseFloat(leanMass) < 0)) {
+      toast.error('Informe uma massa magra válida ou deixe em branco.')
+      return
+    }
+
     onOpenChange(false)
     const {
       data: { user },
     } = await supabase.auth.getUser()
-    if (!user) return
+    if (!user) {
+      toast.error('Você precisa estar autenticado para salvar.')
+      return
+    }
 
     const metJson = activities.map((a) => ({
       id: a.id,

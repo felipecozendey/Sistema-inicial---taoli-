@@ -170,7 +170,10 @@ export type User = {
 }
 
 export const genId = () => Math.random().toString(36).substring(2, 9)
-export const todayStr = () => new Date().toISOString().split('T')[0]
+export const todayStr = () => {
+  const d = new Date()
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
 export const nowIso = () => new Date().toISOString()
 
 export const lsGet = <T>(key: string, fallback: T): T => {
@@ -467,62 +470,16 @@ export const initialHabits: Habit[] = [
   },
 ]
 
-export const initialBodyMetrics: BodyMetric[] = [
-  {
-    id: 'bm1',
-    date: '2026-06-10',
-    weight: 85,
-    bodyFatPercentage: 22,
-    muscleMass: 62,
-    measurements: { waist: 92, hip: 98, chest: 100 },
-    photoUrls: [],
-  },
-  {
-    id: 'bm2',
-    date: '2026-06-20',
-    weight: 83.5,
-    bodyFatPercentage: 21,
-    muscleMass: 63,
-    measurements: { waist: 90, hip: 97, chest: 99 },
-    photoUrls: [],
-  },
-  {
-    id: 'bm3',
-    date: '2026-06-30',
-    weight: 82,
-    bodyFatPercentage: 19.5,
-    muscleMass: 64,
-    measurements: { waist: 88, hip: 96, chest: 98 },
-    photoUrls: ['https://img.usecurling.com/p/400/500?q=before%20fitness&dpr=2'],
-  },
-  {
-    id: 'bm4',
-    date: '2026-07-08',
-    weight: 81,
-    bodyFatPercentage: 18,
-    muscleMass: 64.5,
-    measurements: { waist: 86, hip: 95, chest: 97 },
-    photoUrls: ['https://img.usecurling.com/p/400/500?q=after%20fitness&dpr=2'],
-    gender: 'male',
-    age: 30,
-    height: 175,
-    activityLevel: 'moderate',
-    tmb: 1759,
-    get: 2726,
-    primaryGoal: 'Hipertrofia',
-    heartRateRest: 65,
-    bloodPressure: '120/80',
-    sleepQuality: 4,
-    stressLevel: 2,
-  },
-]
+export const initialBodyMetrics: BodyMetric[] = []
 
-export const initialPatientGoals: PatientGoal = { targetWeight: 75, targetBodyFat: 15, height: 175 }
+export const initialPatientGoals: PatientGoal = {
+  targetWeight: 0,
+  targetBodyFat: 0,
+  targetLeanMass: 0,
+  height: 0,
+}
 
-export const initialMedicalExams: MedicalExam[] = [
-  { id: 'me1', date: '2026-06-15', title: 'Hemograma Completo', fileUrl: '' },
-  { id: 'me2', date: '2026-07-01', title: 'Check-up Cardiológico', fileUrl: '' },
-]
+export const initialMedicalExams: MedicalExam[] = []
 
 export const initialMicroGoals: NutritionMicroGoal[] = [
   { id: 'mg1', title: 'Bati a Proteína', isActive: true, emoji: '🥩' },

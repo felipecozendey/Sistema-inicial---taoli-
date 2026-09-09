@@ -195,7 +195,13 @@ export function AnthropometryModal({ open, onOpenChange, editMetric }: Props) {
   }, [open, editMetric])
 
   const update = (field: string, value: string) => setForm((prev) => ({ ...prev, [field]: value }))
-  const num = (v: string): number | undefined => (v ? parseFloat(v) : undefined)
+  const num = (v: string): number | undefined => {
+    if (!v) return undefined
+    const cleaned = String(v).replace(',', '.').trim()
+    const val = parseFloat(cleaned)
+    if (isNaN(val) || val < 0) return undefined
+    return val
+  }
 
   const requiredSkinfolds = useMemo(
     () => getRequiredSkinfolds(form.calcProtocol as CalcProtocol, form.gender as Gender),
@@ -275,7 +281,20 @@ export function AnthropometryModal({ open, onOpenChange, editMetric }: Props) {
   )
 
   const handleSave = () => {
-    onOpenChange(false)
+    // Validar se há dados preenchidos com valores numéricos inválidos (ex: negativos ou não-números)
+    if (form.weight && num(form.weight) === undefined) {
+      toast.error('Informe um peso válido (positivo).')
+      return
+    }
+    if (form.height && num(form.height) === undefined) {
+      toast.error('Informe uma altura válida (positiva).')
+      return
+    }
+    if (form.bodyFatPercentage && num(form.bodyFatPercentage) === undefined) {
+      toast.error('Informe um percentual de gordura válido.')
+      return
+    }
+
     const weightNum = num(form.weight) || 0
     const fatPct = num(form.bodyFatPercentage) || 0
     const calculatedFatMass =
@@ -286,12 +305,19 @@ export function AnthropometryModal({ open, onOpenChange, editMetric }: Props) {
         ? Math.round((weightNum - calculatedFatMass) * 10) / 10
         : undefined)
     const measurements: Record<string, number> = {}
-    if (form.waistCirc) measurements.waist = parseFloat(form.waistCirc)
-    if (form.hipCirc) measurements.hip = parseFloat(form.hipCirc)
-    if (form.chestCirc) measurements.chest = parseFloat(form.chestCirc)
+    const waistVal = num(form.waistCirc)
+    const hipVal = num(form.hipCirc)
+    const chestVal = num(form.chestCirc)
+    if (waistVal !== undefined) measurements.waist = waistVal
+    if (hipVal !== undefined) measurements.hip = hipVal
+    if (chestVal !== undefined) measurements.chest = chestVal
+
+    // Usar data de calendário local (YYYY-MM-DD) para blindagem de timezone
+    const safeDate = date instanceof Date && !isNaN(date.getTime()) ? date : new Date()
+    const localDateStr = `${safeDate.getFullYear()}-${String(safeDate.getMonth() + 1).padStart(2, '0')}-${String(safeDate.getDate()).padStart(2, '0')}`
 
     const metric = {
-      date: date.toISOString(),
+      date: localDateStr,
       weight: weightNum,
       height: num(form.height),
       sittingHeight: num(form.sittingHeight),
@@ -353,6 +379,7 @@ export function AnthropometryModal({ open, onOpenChange, editMetric }: Props) {
     } else {
       addBodyMetric?.(metric)
     }
+    onOpenChange(false)
   }
 
   const sf = (key: string) => requiredSkinfolds.includes(key)

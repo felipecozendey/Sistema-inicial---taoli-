@@ -507,7 +507,11 @@ interface AppState {
   fetchPatientGoals: () => Promise<void>
   updatePatientGoals: (updates: Partial<PatientGoal>) => void
   fetchMedicalExams: () => Promise<void>
-  addMedicalExam: (title: string, fileUrl: string) => void
+  addMedicalExam: (title: string, fileUrl: string, date?: string) => void
+  updateMedicalExam: (
+    id: string,
+    updates: { title?: string; date?: string; fileUrl?: string },
+  ) => void
   deleteMedicalExam: (id: string) => void
   fetchMetabolicLogs: () => Promise<void>
   saveMetabolicLog: (data: {
@@ -539,7 +543,10 @@ interface AppState {
 
 const AppStoreContext = createContext<AppState | undefined>(undefined)
 const genId = () => Math.random().toString(36).substring(2, 9)
-const todayStr = () => new Date().toISOString().split('T')[0]
+const todayStr = () => {
+  const d = new Date()
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
 const nowIso = () => new Date().toISOString()
 
 function genCompletions(prob: number): string[] {
@@ -638,69 +645,14 @@ function genUrineMock(): UrineLog[] {
   return logs
 }
 
-const initialBodyMetrics: BodyMetric[] = [
-  {
-    id: 'bm1',
-    date: '2026-06-10',
-    weight: 85,
-    bodyFatPercentage: 22,
-    muscleMass: 62,
-    measurements: { waist: 92, hip: 98, chest: 100 },
-    photoUrls: [],
-  },
-  {
-    id: 'bm2',
-    date: '2026-06-20',
-    weight: 83.5,
-    bodyFatPercentage: 21,
-    muscleMass: 63,
-    measurements: { waist: 90, hip: 97, chest: 99 },
-    photoUrls: [],
-  },
-  {
-    id: 'bm3',
-    date: '2026-06-30',
-    weight: 82,
-    bodyFatPercentage: 19.5,
-    muscleMass: 64,
-    measurements: { waist: 88, hip: 96, chest: 98 },
-    photoUrls: ['https://img.usecurling.com/p/400/500?q=before%20fitness&dpr=2'],
-  },
-  {
-    id: 'bm4',
-    date: '2026-07-08',
-    weight: 81,
-    bodyFatPercentage: 18,
-    muscleMass: 64.5,
-    measurements: { waist: 86, hip: 95, chest: 97 },
-    photoUrls: ['https://img.usecurling.com/p/400/500?q=after%20fitness&dpr=2'],
-    gender: 'male',
-    age: 30,
-    height: 175,
-    activityLevel: 'moderate',
-    tmb: 1759,
-    get: 2726,
-    primaryGoal: 'Hipertrofia',
-    heartRateRest: 65,
-    bloodPressure: '120/80',
-    sleepQuality: 4,
-    stressLevel: 2,
-    methodologyUsed: 'mifflin',
-    injuryFactor: 1.0,
-    ventaTarget: 3226,
-    metActivities: [],
-  },
-]
+const initialBodyMetrics: BodyMetric[] = []
 const initialPatientGoals: PatientGoal = {
-  targetWeight: 75,
-  targetBodyFat: 15,
-  targetLeanMass: 65,
-  height: 175,
+  targetWeight: 0,
+  targetBodyFat: 0,
+  targetLeanMass: 0,
+  height: 0,
 }
-const initialMedicalExams: MedicalExam[] = [
-  { id: 'me1', date: '2026-06-15', title: 'Hemograma Completo', fileUrl: '' },
-  { id: 'me2', date: '2026-07-01', title: 'Check-up Cardiológico', fileUrl: '' },
-]
+const initialMedicalExams: MedicalExam[] = []
 const initialMicroGoals: NutritionMicroGoal[] = [
   { id: 'mg1', title: 'Bati a Proteína', isActive: true, emoji: '🥩' },
   { id: 'mg2', title: 'Zero Açúcar', isActive: true, emoji: '🚫' },
@@ -1721,7 +1673,11 @@ export const AppStoreProvider = ({ children }: { children: ReactNode }) => {
     const tempId = genId()
     setBodyMetrics((p) => [...p, { ...metric, id: tempId }])
     supabase.auth.getUser().then(({ data: { user: u } }) => {
-      if (!u) return
+      if (!u) {
+        setBodyMetrics((p) => p.filter((m) => m.id !== tempId))
+        toast.error('Você precisa estar autenticado para registrar medidas.')
+        return
+      }
       ;(supabase as any)
         .from('body_metrics')
         .insert({
@@ -1798,27 +1754,38 @@ export const AppStoreProvider = ({ children }: { children: ReactNode }) => {
           observations: metric.observations || null,
           user_id: u.id,
         })
-        .then(({ error }: { error: any }) => {
-          if (error) {
+        .select('id, created_at')
+        .single()
+        .then(({ data: inserted, error }: { data: any; error: any }) => {
+          if (error || !inserted) {
             setBodyMetrics((p) => p.filter((m) => m.id !== tempId))
             toast.error('Erro ao salvar avaliação. Tente novamente.')
+          } else {
+            setBodyMetrics((p) => p.map((m) => (m.id === tempId ? { ...m, id: inserted.id } : m)))
+            toast.success('Avaliação salva com sucesso!')
           }
         })
     })
   }
   const updateAnthropometryLog = (id: string, metric: Omit<BodyMetric, 'id'>) => {
-    setBodyMetrics((p) => p.map((m) => (m.id === id ? { ...metric, id } : m)))
+    let previousItem: BodyMetric | undefined
+    setBodyMetrics((p) => {
+      previousItem = p.find((m) => m.id === id)
+      return p.map((m) => (m.id === id ? { ...metric, id } : m))
+    })
     ;(supabase as any)
       .from('body_metrics')
       .update(buildBodyMetricPayload(metric))
       .eq('id', id)
       .then(({ error }: { error: any }) => {
         if (error) {
+          if (previousItem) {
+            const rollbackItem = previousItem
+            setBodyMetrics((p) => p.map((m) => (m.id === id ? rollbackItem : m)))
+          }
           toast.error('Erro ao atualizar avaliação.')
-          fetchBodyMetrics()
         } else {
           toast.success('Avaliação atualizada com sucesso!')
-          fetchBodyMetrics()
         }
       })
   }
@@ -2142,23 +2109,36 @@ export const AppStoreProvider = ({ children }: { children: ReactNode }) => {
       })
   }
   const updatePatientGoals = (updates: Partial<PatientGoal>) => {
+    let previousGoals: PatientGoal
     setPatientGoals((p) => {
+      previousGoals = p
       const newGoals = { ...p, ...updates }
       supabase.auth.getUser().then(({ data: { user: u } }) => {
-        if (u)
-          (supabase as any)
-            .from('patient_goals')
-            .upsert(
-              {
-                target_weight: newGoals.targetWeight,
-                target_body_fat: newGoals.targetBodyFat,
-                target_lean_mass: newGoals.targetLeanMass,
-                height: newGoals.height,
-                user_id: u.id,
-              },
-              { onConflict: 'user_id' },
-            )
-            .then()
+        if (!u) {
+          setPatientGoals(previousGoals)
+          toast.error('Você precisa estar autenticado para salvar metas.')
+          return
+        }
+        ;(supabase as any)
+          .from('patient_goals')
+          .upsert(
+            {
+              target_weight: newGoals.targetWeight,
+              target_body_fat: newGoals.targetBodyFat,
+              target_lean_mass: newGoals.targetLeanMass,
+              height: newGoals.height,
+              user_id: u.id,
+            },
+            { onConflict: 'user_id' },
+          )
+          .then(({ error }: { error: any }) => {
+            if (error) {
+              setPatientGoals(previousGoals)
+              toast.error('Erro ao salvar metas corporais.')
+            } else {
+              toast.success('Metas atualizadas!')
+            }
+          })
       })
       return newGoals
     })
@@ -2183,43 +2163,114 @@ export const AppStoreProvider = ({ children }: { children: ReactNode }) => {
         })),
       )
   }
-  const addMedicalExam = (title: string, fileUrl: string) => {
-    const exam: MedicalExam = { id: genId(), date: todayStr(), title, fileUrl }
+  const addMedicalExam = (title: string, fileUrl: string, date?: string) => {
+    const examDate = date || todayStr()
+    const tempId = genId()
+    const exam: MedicalExam = { id: tempId, date: examDate, title, fileUrl }
     setMedicalExams((p) => [exam, ...p])
     supabase.auth.getUser().then(({ data: { user: u } }) => {
-      if (u)
-        (supabase as any)
-          .from('medical_exams')
-          .insert({ title, file_url: fileUrl, user_id: u.id })
-          .then()
+      if (!u) {
+        setMedicalExams((p) => p.filter((e) => e.id !== tempId))
+        toast.error('Você precisa estar autenticado para registrar exame.')
+        return
+      }
+      ;(supabase as any)
+        .from('medical_exams')
+        .insert({ title, file_url: fileUrl, date: examDate, user_id: u.id })
+        .select('id, date, created_at')
+        .single()
+        .then(({ data: inserted, error }: { data: any; error: any }) => {
+          if (error || !inserted) {
+            setMedicalExams((p) => p.filter((e) => e.id !== tempId))
+            toast.error('Erro ao salvar exame médico.')
+          } else {
+            setMedicalExams((p) =>
+              p.map((e) =>
+                e.id === tempId
+                  ? {
+                      ...e,
+                      id: inserted.id,
+                      date: (inserted.date || examDate).split('T')[0],
+                    }
+                  : e,
+              ),
+            )
+            toast.success('Exame cadastrado com sucesso!')
+          }
+        })
+    })
+  }
+  const updateMedicalExam = (
+    id: string,
+    updates: { title?: string; date?: string; fileUrl?: string },
+  ) => {
+    let previousExam: MedicalExam | undefined
+    setMedicalExams((p) => {
+      previousExam = p.find((e) => e.id === id)
+      return p.map((e) => (e.id === id ? { ...e, ...updates } : e))
+    })
+    supabase.auth.getUser().then(({ data: { user: u } }) => {
+      if (!u) {
+        if (previousExam) {
+          const rollback = previousExam
+          setMedicalExams((p) => p.map((e) => (e.id === id ? rollback : e)))
+        }
+        toast.error('Você precisa estar autenticado para editar exame.')
+        return
+      }
+      const payload: Record<string, any> = {}
+      if (updates.title !== undefined) payload.title = updates.title
+      if (updates.date !== undefined) payload.date = updates.date
+      if (updates.fileUrl !== undefined) payload.file_url = updates.fileUrl
+
+      ;(supabase as any)
+        .from('medical_exams')
+        .update(payload)
+        .eq('id', id)
+        .then(({ error }: { error: any }) => {
+          if (error) {
+            if (previousExam) {
+              const rollback = previousExam
+              setMedicalExams((p) => p.map((e) => (e.id === id ? rollback : e)))
+            }
+            toast.error('Erro ao atualizar exame médico.')
+          } else {
+            toast.success('Exame atualizado!')
+          }
+        })
     })
   }
   const deleteMedicalExam = (id: string) => {
-    setMedicalExams((p) => p.filter((e) => e.id !== id))
-    ;(supabase as any).from('medical_exams').delete().eq('id', id).then()
+    let previousExam: MedicalExam | undefined
+    setMedicalExams((p) => {
+      previousExam = p.find((e) => e.id === id)
+      return p.filter((e) => e.id !== id)
+    })
+    ;(supabase as any)
+      .from('medical_exams')
+      .delete()
+      .eq('id', id)
+      .then(({ error }: { error: any }) => {
+        if (error && previousExam) {
+          const rollback = previousExam
+          setMedicalExams((p) => [rollback, ...p])
+          toast.error('Erro ao excluir exame.')
+        } else {
+          toast.success('Exame excluído com sucesso!')
+        }
+      })
   }
   const fetchMetabolicLogs = async () => {
     const {
       data: { user: authUser },
     } = await supabase.auth.getUser()
-    if (!authUser) {
-      console.warn('[fetchMetabolicLogs] No authenticated user found')
-      return
-    }
+    if (!authUser) return
     const { data, error } = await (supabase as any)
       .from('metabolic_logs')
       .select('*')
       .eq('user_id', authUser.id)
       .order('date', { ascending: true })
-    if (error) {
-      console.error('[fetchMetabolicLogs] Supabase query error:', error)
-      return
-    }
-    if (!data) {
-      console.warn('[fetchMetabolicLogs] No data returned from query')
-      return
-    }
-    console.log('[fetchMetabolicLogs] Fetched logs:', data.length, 'rows')
+    if (error || !data) return
     setMetabolicLogs(
       data.map((d: any) => ({
         id: d.id,
@@ -2250,6 +2301,7 @@ export const AppStoreProvider = ({ children }: { children: ReactNode }) => {
     const logDate = data.date || todayStr()
     const existing = metabolicLogs.find((l) => l.date === logDate)
     const tempId = existing?.id || genId()
+    const previousLogs = [...metabolicLogs]
     const log: MetabolicLog = {
       id: tempId,
       date: logDate,
@@ -2270,7 +2322,11 @@ export const AppStoreProvider = ({ children }: { children: ReactNode }) => {
     const {
       data: { user: u },
     } = await supabase.auth.getUser()
-    if (!u) return
+    if (!u) {
+      setMetabolicLogs(previousLogs)
+      toast.error('Você precisa estar autenticado para registrar avaliação metabólica.')
+      return
+    }
     const payload = {
       date: logDate,
       formula: data.formula,
@@ -2289,8 +2345,10 @@ export const AppStoreProvider = ({ children }: { children: ReactNode }) => {
         .update(payload)
         .eq('id', tempId)
       if (error) {
-        fetchMetabolicLogs()
+        setMetabolicLogs(previousLogs)
         toast.error('Erro ao atualizar log metabólico.')
+      } else {
+        toast.success('Log metabólico atualizado!')
       }
     } else {
       const { data: inserted, error } = await (supabase as any)
@@ -2299,12 +2357,13 @@ export const AppStoreProvider = ({ children }: { children: ReactNode }) => {
         .select()
         .single()
       if (error) {
-        setMetabolicLogs((prev) => prev.filter((l) => l.id !== tempId))
+        setMetabolicLogs(previousLogs)
         toast.error('Erro ao salvar log metabólico.')
       } else if (inserted) {
         setMetabolicLogs((prev) =>
           prev.map((l) => (l.id === tempId ? { ...l, id: inserted.id } : l)),
         )
+        toast.success('Log metabólico salvo!')
       }
     }
   }
@@ -2840,6 +2899,7 @@ export const AppStoreProvider = ({ children }: { children: ReactNode }) => {
     updatePatientGoals,
     fetchMedicalExams,
     addMedicalExam,
+    updateMedicalExam,
     deleteMedicalExam,
     metabolicLogs,
     fetchMetabolicLogs,
