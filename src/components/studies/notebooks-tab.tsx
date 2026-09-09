@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { useStudiesStore, Notebook } from '@/stores/useStudiesStore'
 import { NotebookCard } from '@/components/studies/notebook-card'
 import { NotebookDialog } from '@/components/studies/notebook-dialog'
@@ -13,7 +13,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
-import { Plus } from 'lucide-react'
+import { Plus, BookOpen } from 'lucide-react'
 
 interface NotebooksTabProps {
   onOpenNotebook: (notebookId: string) => void
@@ -24,6 +24,20 @@ export function NotebooksTab({ onOpenNotebook }: NotebooksTabProps) {
   const [dialogOpen, setDialogOpen] = useState(false)
   const [editingNotebook, setEditingNotebook] = useState<Notebook | null>(null)
   const [deleteId, setDeleteId] = useState<string | null>(null)
+
+  // Memoized note counts per notebook
+  const notebookNoteCounts = useMemo(() => {
+    const map = new Map<string, number>()
+    for (const nb of notebooks) {
+      map.set(nb.id, 0)
+    }
+    for (const n of notes) {
+      if (n.notebookId) {
+        map.set(n.notebookId, (map.get(n.notebookId) || 0) + 1)
+      }
+    }
+    return map
+  }, [notebooks, notes])
 
   return (
     <div className="space-y-4">
@@ -46,7 +60,7 @@ export function NotebooksTab({ onOpenNotebook }: NotebooksTabProps) {
           <NotebookCard
             key={nb.id}
             notebook={nb}
-            noteCount={notes.filter((n) => n.notebookId === nb.id).length}
+            noteCount={notebookNoteCounts.get(nb.id) || 0}
             onOpen={() => onOpenNotebook(nb.id)}
             onEdit={() => {
               setEditingNotebook(nb)
@@ -58,8 +72,14 @@ export function NotebooksTab({ onOpenNotebook }: NotebooksTabProps) {
       </div>
 
       {notebooks.length === 0 && (
-        <div className="text-center p-12 text-muted-foreground bg-card/50 rounded-3xl border border-dashed">
-          Nenhum caderno criado ainda.
+        <div className="text-center p-12 text-muted-foreground bg-card/50 rounded-3xl border border-dashed flex flex-col items-center justify-center">
+          <div className="w-16 h-16 rounded-3xl bg-muted flex items-center justify-center mb-3">
+            <BookOpen className="w-8 h-8 text-muted-foreground" />
+          </div>
+          <h4 className="text-base font-extrabold text-foreground">Nenhum caderno criado ainda</h4>
+          <p className="text-sm font-semibold max-w-sm mt-1">
+            Organize suas anotações criando seu primeiro caderno de estudos!
+          </p>
         </div>
       )}
 
@@ -70,17 +90,19 @@ export function NotebooksTab({ onOpenNotebook }: NotebooksTabProps) {
       />
 
       <AlertDialog open={!!deleteId} onOpenChange={(open) => !open && setDeleteId(null)}>
-        <AlertDialogContent className="rounded-3xl">
+        <AlertDialogContent className="rounded-3xl border-2 border-b-4">
           <AlertDialogHeader>
             <AlertDialogTitle className="text-xl font-extrabold">Excluir Caderno?</AlertDialogTitle>
-            <AlertDialogDescription>
+            <AlertDialogDescription className="font-semibold">
               As notas dentro deste caderno não serão removidas, mas ficarão sem caderno associado.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel className="rounded-2xl font-bold">Cancelar</AlertDialogCancel>
+            <AlertDialogCancel className="rounded-2xl font-bold border-2 border-b-4">
+              Cancelar
+            </AlertDialogCancel>
             <AlertDialogAction
-              className="rounded-2xl bg-[#FF4B4B] text-white hover:bg-[#FF4B4B]/90 font-bold"
+              className="rounded-2xl bg-[#FF4B4B] text-white hover:bg-[#FF4B4B]/90 font-bold border-2 border-b-4 border-[#FF4B4B]/80"
               onClick={() => {
                 if (deleteId) deleteNotebook(deleteId)
                 setDeleteId(null)

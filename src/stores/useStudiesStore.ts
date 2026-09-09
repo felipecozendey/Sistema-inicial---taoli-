@@ -1,9 +1,10 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import { extractLinkTitles, extractNoteIds } from '@/lib/link-parser'
-import { mockNotebooks, mockNotes, mockDecks, mockFlashcards } from '@/lib/studies-mock-data'
 import { calculateSRS } from '@/lib/srs'
 import { supabase } from '@/lib/supabase/client'
+import { cleanupOrphanReferences } from '@/services/note-references'
+import { toast } from '@/hooks/use-toast'
 import type { Deck, Flashcard, ReviewFeedback } from '@/types/flashcard'
 
 export type Notebook = {
@@ -24,10 +25,25 @@ export type Note = {
   lastEdited: string
 }
 
-const genId = () =>
-  typeof crypto !== 'undefined' && crypto.randomUUID
-    ? crypto.randomUUID()
-    : Math.random().toString(36).substring(2, 11)
+export interface ReviewLog {
+  id: string
+  user_id: string
+  flashcard_id: string
+  feedback: ReviewFeedback
+  reviewed_at: string
+}
+
+const genId = (): string => {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID()
+  }
+  // Fallback to strict UUID v4 format
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+    const r = (Math.random() * 16) | 0
+    const v = c === 'x' ? r : (r & 0x3) | 0x8
+    return v.toString(16)
+  })
+}
 
 const nowIso = () => new Date().toISOString()
 
@@ -39,96 +55,176 @@ function computeLinkedIds(content: string, notes: Note[], selfId: string): strin
   return [...new Set([...ids, ...titleIds])]
 }
 
-async function syncRefsInternal(noteId: string, content: string) {
-  const ids = extractNoteIds(content)
-  const refsTable = (supabase as any).from('note_references')
-  try {
-    await refsTable.delete().eq('source_note_id', noteId)
-    if (ids.length > 0) {
-      await refsTable.insert(
-        ids.map((targetId) => ({
-          source_note_id: noteId,
-          target_note_id: targetId,
-        })),
-      )
-    }
-  } catch {
-    /* intentionally ignored */
-  }
-}
-
 interface StudiesState {
   notebooks: Notebook[]
   notes: Note[]
   decks: Deck[]
   flashcards: Flashcard[]
-  addNotebook: (data: { title: string; emoji: string; coverColor: string }) => void
+  reviewLogs: ReviewLog[]
+  loading: boolean
+
+  addNotebook: (data: {
+    title: string
+    emoji: string
+    coverColor: string
+  }) => Promise<string | null>
   updateNotebook: (
     id: string,
     updates: Partial<Pick<Notebook, 'title' | 'emoji' | 'coverColor'>>,
-  ) => void
-  deleteNotebook: (id: string) => void
+  ) => Promise<void>
+  deleteNotebook: (id: string) => Promise<void>
+
   addNote: (data: {
     notebookId: string
     title: string
     content: string
     emoji: string
     tags: string[]
-  }) => string
+  }) => Promise<string | null>
   updateNote: (
     id: string,
     updates: Partial<Pick<Note, 'title' | 'content' | 'emoji' | 'tags' | 'notebookId'>>,
-  ) => void
-  deleteNote: (id: string) => void
+  ) => Promise<void>
+  deleteNote: (id: string) => Promise<void>
+
   getNoteByTitle: (title: string) => Note | undefined
   getBacklinks: (noteId: string) => Note[]
-  addDeck: (data: { title: string; emoji: string; color: string }) => Promise<void>
+
+  addDeck: (data: { title: string; emoji: string; color: string }) => Promise<string | null>
   updateDeck: (
     id: string,
     updates: Partial<Pick<Deck, 'title' | 'emoji' | 'color'>>,
   ) => Promise<void>
   deleteDeck: (id: string) => Promise<void>
+
   addFlashcard: (data: {
     deckId: string
     noteId?: string | null
     front: string
     back: string
-  }) => Promise<void>
+  }) => Promise<string | null>
   updateFlashcard: (
     id: string,
     updates: Partial<Pick<Flashcard, 'front' | 'back' | 'noteId'>>,
   ) => Promise<void>
   deleteFlashcard: (id: string) => Promise<void>
+
   reviewCard: (cardId: string, feedback: ReviewFeedback) => Promise<void>
-  syncNoteReferences: (noteId: string, content: string) => Promise<void>
   loadStudiesData: () => Promise<void>
 }
 
 export const useStudiesStore = create<StudiesState>()(
   persist(
     (set, get) => ({
-      notebooks: mockNotebooks,
-      notes: mockNotes,
-      decks: mockDecks,
-      flashcards: mockFlashcards,
+      notebooks: [],
+      notes: [],
+      decks: [],
+      flashcards: [],
+      reviewLogs: [],
+      loading: false,
 
-      addNotebook: (data) =>
-        set((s) => ({ notebooks: [...s.notebooks, { ...data, id: genId() }] })),
+      addNotebook: async (data) => {
+        const tempId = genId()
+        const newNotebook: Notebook = { ...data, id: tempId }
+        const prevNotebooks = get().notebooks
 
-      updateNotebook: (id, updates) =>
+        // Optimistic update
+        set({ notebooks: [...prevNotebooks, newNotebook] })
+
+        const { data: userData } = await supabase.auth.getUser()
+        const user = userData?.user
+        if (!user) {
+          // Rollback silently + toast.error
+          set({ notebooks: prevNotebooks })
+          toast({
+            title: 'Erro de autenticação',
+            description: 'Você precisa estar logado para salvar o caderno.',
+            variant: 'destructive',
+          })
+          return null
+        }
+
+        const { data: inserted, error } = await supabase
+          .from('notebooks')
+          .insert({
+            id: tempId,
+            user_id: user.id,
+            name: data.title,
+            emoji: data.emoji,
+            color: data.coverColor,
+          })
+          .select('id')
+          .single()
+
+        if (error || !inserted) {
+          set({ notebooks: prevNotebooks })
+          toast({
+            title: 'Erro ao criar caderno',
+            description: error?.message || 'Falha ao salvar no banco de dados.',
+            variant: 'destructive',
+          })
+          return null
+        }
+
+        const realId = inserted.id
+        if (realId !== tempId) {
+          set((s) => ({
+            notebooks: s.notebooks.map((nb) => (nb.id === tempId ? { ...nb, id: realId } : nb)),
+            notes: s.notes.map((n) => (n.notebookId === tempId ? { ...n, notebookId: realId } : n)),
+          }))
+        }
+        toast({ title: 'Caderno criado com sucesso!' })
+        return realId
+      },
+
+      updateNotebook: async (id, updates) => {
+        const prevNotebooks = get().notebooks
         set((s) => ({
           notebooks: s.notebooks.map((nb) => (nb.id === id ? { ...nb, ...updates } : nb)),
-        })),
+        }))
 
-      deleteNotebook: (id) =>
+        const dbUpdates: { name?: string; emoji?: string; color?: string } = {}
+        if (updates.title !== undefined) dbUpdates.name = updates.title
+        if (updates.emoji !== undefined) dbUpdates.emoji = updates.emoji
+        if (updates.coverColor !== undefined) dbUpdates.color = updates.coverColor
+
+        const { error } = await supabase.from('notebooks').update(dbUpdates).eq('id', id)
+        if (error) {
+          set({ notebooks: prevNotebooks })
+          toast({
+            title: 'Erro ao atualizar caderno',
+            description: error.message,
+            variant: 'destructive',
+          })
+        }
+      },
+
+      deleteNotebook: async (id) => {
+        const prevNotebooks = get().notebooks
+        const prevNotes = get().notes
+
         set((s) => ({
           notebooks: s.notebooks.filter((nb) => nb.id !== id),
           notes: s.notes.map((n) => (n.notebookId === id ? { ...n, notebookId: '' } : n)),
-        })),
+        }))
 
-      addNote: (data) => {
-        const id = genId()
-        const note: Note = { ...data, id, linkedNoteIds: [], lastEdited: nowIso() }
+        const { error } = await supabase.from('notebooks').delete().eq('id', id)
+        if (error) {
+          set({ notebooks: prevNotebooks, notes: prevNotes })
+          toast({
+            title: 'Erro ao excluir caderno',
+            description: error.message,
+            variant: 'destructive',
+          })
+        }
+      },
+
+      addNote: async (data) => {
+        const tempId = genId()
+        const note: Note = { ...data, id: tempId, linkedNoteIds: [], lastEdited: nowIso() }
+        const prevNotes = get().notes
+
+        // Optimistic update
         set((s) => {
           const allNotes = [...s.notes, note]
           const withLinks = allNotes.map((n) => ({
@@ -137,73 +233,131 @@ export const useStudiesStore = create<StudiesState>()(
           }))
           return { notes: withLinks }
         })
-        supabase.auth.getUser().then(({ data: { user } }) => {
-          if (!user)
-            return supabase
-              .from('notes')
-              .insert({
-                id,
-                user_id: user.id,
-                notebook_id: data.notebookId || null,
-                title: data.title,
-                content: data.content,
-                emoji: data.emoji,
-                tag_ids: data.tags,
-              })
-              .then(() => syncRefsInternal(id, data.content))
-        })
-        return id
+
+        const { data: userData } = await supabase.auth.getUser()
+        const user = userData?.user
+        if (!user) {
+          set({ notes: prevNotes })
+          toast({
+            title: 'Erro de autenticação',
+            description: 'Você precisa estar logado para salvar a nota.',
+            variant: 'destructive',
+          })
+          return null
+        }
+
+        const { data: inserted, error } = await supabase
+          .from('notes')
+          .insert({
+            id: tempId,
+            user_id: user.id,
+            notebook_id: data.notebookId || null,
+            title: data.title,
+            content: data.content,
+            emoji: data.emoji,
+            tag_ids: data.tags,
+          })
+          .select('id, updated_at')
+          .single()
+
+        if (error || !inserted) {
+          set({ notes: prevNotes })
+          toast({
+            title: 'Erro ao criar nota',
+            description: error?.message || 'Falha ao salvar no banco de dados.',
+            variant: 'destructive',
+          })
+          return null
+        }
+
+        const realId = inserted.id
+        if (realId !== tempId) {
+          set((s) => {
+            const mapped = s.notes.map((n) =>
+              n.id === tempId
+                ? { ...n, id: realId, lastEdited: inserted.updated_at || n.lastEdited }
+                : n,
+            )
+            return {
+              notes: mapped.map((n) => ({
+                ...n,
+                linkedNoteIds: computeLinkedIds(n.content, mapped, n.id),
+              })),
+            }
+          })
+        }
+        toast({ title: 'Nota criada com sucesso!' })
+        return realId
       },
 
-      updateNote: (id, updates) => {
+      updateNote: async (id, updates) => {
+        const prevNotes = get().notes
         set((s) => {
           const updatedNotes = s.notes.map((n) =>
             n.id === id ? { ...n, ...updates, lastEdited: nowIso() } : n,
           )
-          const withLinks = updatedNotes.map((n) => ({
-            ...n,
-            linkedNoteIds: computeLinkedIds(n.content, updatedNotes, n.id),
-          }))
-          return { notes: withLinks }
+          return {
+            notes: updatedNotes.map((n) => ({
+              ...n,
+              linkedNoteIds: computeLinkedIds(n.content, updatedNotes, n.id),
+            })),
+          }
         })
-        supabase.auth.getUser().then(({ data: { user } }) => {
-          if (!user) return
-          const updateData: {
-            updated_at?: string
-            title?: string
-            content?: string
-            emoji?: string
-            notebook_id?: string | null
-            tag_ids?: string[]
-          } = { updated_at: nowIso() }
-          if (updates.title !== undefined) updateData.title = updates.title
-          if (updates.content !== undefined) updateData.content = updates.content
-          if (updates.emoji !== undefined) updateData.emoji = updates.emoji
-          if (updates.notebookId !== undefined) updateData.notebook_id = updates.notebookId || null
-          if (updates.tags !== undefined) updateData.tag_ids = updates.tags
-          supabase
-            .from('notes')
-            .update(updateData)
-            .eq('id', id)
-            .then(() => {
-              if (updates.content !== undefined) syncRefsInternal(id, updates.content)
-            })
-        })
+
+        const updateData: {
+          updated_at: string
+          title?: string
+          content?: string
+          emoji?: string
+          notebook_id?: string | null
+          tag_ids?: string[]
+        } = { updated_at: nowIso() }
+
+        if (updates.title !== undefined) updateData.title = updates.title
+        if (updates.content !== undefined) updateData.content = updates.content
+        if (updates.emoji !== undefined) updateData.emoji = updates.emoji
+        if (updates.notebookId !== undefined) updateData.notebook_id = updates.notebookId || null
+        if (updates.tags !== undefined) updateData.tag_ids = updates.tags
+
+        const { error } = await supabase.from('notes').update(updateData).eq('id', id)
+        if (error) {
+          set({ notes: prevNotes })
+          toast({
+            title: 'Erro ao atualizar nota',
+            description: error.message,
+            variant: 'destructive',
+          })
+        }
       },
 
-      deleteNote: (id) => {
+      deleteNote: async (id) => {
+        const prevNotes = get().notes
+        const prevFlashcards = get().flashcards
+
         set((s) => ({
           notes: s.notes.filter((n) => n.id !== id),
           flashcards: s.flashcards.map((fc) => (fc.noteId === id ? { ...fc, noteId: null } : fc)),
         }))
-        supabase
-          .from('notes')
-          .delete()
-          .eq('id', id)
-          .then(() => {})
+
+        // Clean up orphan references first
+        cleanupOrphanReferences(id)
+
+        const { error } = await supabase.from('notes').delete().eq('id', id)
+        if (error) {
+          set({ notes: prevNotes, flashcards: prevFlashcards })
+          toast({
+            title: 'Erro ao excluir nota',
+            description: error.message,
+            variant: 'destructive',
+          })
+        } else {
+          toast({ title: 'Nota excluída com sucesso.' })
+        }
       },
 
-      getNoteByTitle: (title) => get().notes.find((n) => n.title === title),
+      getNoteByTitle: (title) =>
+        get().notes.find((n) => n.title.trim().toLowerCase() === title.trim().toLowerCase()),
+
       getBacklinks: (noteId) => {
         const note = get().notes.find((n) => n.id === noteId)
         if (!note) return []
@@ -211,43 +365,100 @@ export const useStudiesStore = create<StudiesState>()(
       },
 
       addDeck: async (data) => {
-        const id = genId()
-        const deck: Deck = { id, ...data }
-        set((s) => ({ decks: [...s.decks, deck] }))
-        try {
-          await supabase
-            .from('decks')
-            .insert({ id, title: data.title, emoji: data.emoji, color: data.color })
-        } catch {
-          /* intentionally ignored */
+        const tempId = genId()
+        const newDeck: Deck = { id: tempId, ...data }
+        const prevDecks = get().decks
+
+        set((s) => ({ decks: [...s.decks, newDeck] }))
+
+        const { data: userData } = await supabase.auth.getUser()
+        const user = userData?.user
+        if (!user) {
+          set({ decks: prevDecks })
+          toast({
+            title: 'Erro de autenticação',
+            description: 'Você precisa estar logado para salvar o baralho.',
+            variant: 'destructive',
+          })
+          return null
         }
+
+        const { data: inserted, error } = await supabase
+          .from('decks')
+          .insert({
+            id: tempId,
+            user_id: user.id,
+            title: data.title,
+            emoji: data.emoji,
+            color: data.color,
+          })
+          .select('id')
+          .single()
+
+        if (error || !inserted) {
+          set({ decks: prevDecks })
+          toast({
+            title: 'Erro ao criar baralho',
+            description: error?.message || 'Falha ao salvar no banco de dados.',
+            variant: 'destructive',
+          })
+          return null
+        }
+
+        const realId = inserted.id
+        if (realId !== tempId) {
+          set((s) => ({
+            decks: s.decks.map((d) => (d.id === tempId ? { ...d, id: realId } : d)),
+            flashcards: s.flashcards.map((f) =>
+              f.deckId === tempId ? { ...f, deckId: realId } : f,
+            ),
+          }))
+        }
+        toast({ title: 'Baralho criado com sucesso!' })
+        return realId
       },
 
       updateDeck: async (id, updates) => {
+        const prevDecks = get().decks
         set((s) => ({ decks: s.decks.map((d) => (d.id === id ? { ...d, ...updates } : d)) }))
-        try {
-          await supabase.from('decks').update(updates).eq('id', id)
-        } catch {
-          /* intentionally ignored */
+
+        const { error } = await supabase.from('decks').update(updates).eq('id', id)
+        if (error) {
+          set({ decks: prevDecks })
+          toast({
+            title: 'Erro ao atualizar baralho',
+            description: error.message,
+            variant: 'destructive',
+          })
         }
       },
 
       deleteDeck: async (id) => {
+        const prevDecks = get().decks
+        const prevCards = get().flashcards
+
         set((s) => ({
           decks: s.decks.filter((d) => d.id !== id),
           flashcards: s.flashcards.filter((fc) => fc.deckId !== id),
         }))
-        try {
-          await supabase.from('decks').delete().eq('id', id)
-        } catch {
-          /* intentionally ignored */
+
+        const { error } = await supabase.from('decks').delete().eq('id', id)
+        if (error) {
+          set({ decks: prevDecks, flashcards: prevCards })
+          toast({
+            title: 'Erro ao excluir baralho',
+            description: error.message,
+            variant: 'destructive',
+          })
+        } else {
+          toast({ title: 'Baralho excluído com sucesso.' })
         }
       },
 
       addFlashcard: async (data) => {
-        const id = genId()
+        const tempId = genId()
         const card: Flashcard = {
-          id,
+          id: tempId,
           deckId: data.deckId,
           noteId: data.noteId ?? null,
           front: data.front,
@@ -256,118 +467,203 @@ export const useStudiesStore = create<StudiesState>()(
           interval: 0,
           easeFactor: 2.5,
         }
+        const prevCards = get().flashcards
         set((s) => ({ flashcards: [...s.flashcards, card] }))
-        try {
-          await supabase.from('flashcards').insert({
-            id,
+
+        const { data: userData } = await supabase.auth.getUser()
+        const user = userData?.user
+        if (!user) {
+          set({ flashcards: prevCards })
+          toast({
+            title: 'Erro de autenticação',
+            description: 'Você precisa estar logado para salvar o flashcard.',
+            variant: 'destructive',
+          })
+          return null
+        }
+
+        const { data: inserted, error } = await supabase
+          .from('flashcards')
+          .insert({
+            id: tempId,
+            user_id: user.id,
             deck_id: data.deckId,
-            note_id: data.noteId,
+            note_id: data.noteId || null,
             front: data.front,
             back: data.back,
             next_review_date: card.nextReviewDate,
             interval: 0,
             ease_factor: 2.5,
           })
-        } catch {
-          /* intentionally ignored */
+          .select('id')
+          .single()
+
+        if (error || !inserted) {
+          set({ flashcards: prevCards })
+          toast({
+            title: 'Erro ao criar flashcard',
+            description: error?.message || 'Falha ao salvar no banco de dados.',
+            variant: 'destructive',
+          })
+          return null
         }
+
+        const realId = inserted.id
+        if (realId !== tempId) {
+          set((s) => ({
+            flashcards: s.flashcards.map((f) => (f.id === tempId ? { ...f, id: realId } : f)),
+          }))
+        }
+        toast({ title: 'Flashcard criado com sucesso!' })
+        return realId
       },
 
       updateFlashcard: async (id, updates) => {
+        const prevCards = get().flashcards
         set((s) => ({
           flashcards: s.flashcards.map((fc) => (fc.id === id ? { ...fc, ...updates } : fc)),
         }))
-        try {
-          await supabase
-            .from('flashcards')
-            .update({ front: updates.front, back: updates.back, note_id: updates.noteId })
-            .eq('id', id)
-        } catch {
-          /* intentionally ignored */
+
+        const { error } = await supabase
+          .from('flashcards')
+          .update({
+            front: updates.front,
+            back: updates.back,
+            note_id: updates.noteId !== undefined ? updates.noteId : undefined,
+          })
+          .eq('id', id)
+
+        if (error) {
+          set({ flashcards: prevCards })
+          toast({
+            title: 'Erro ao atualizar flashcard',
+            description: error.message,
+            variant: 'destructive',
+          })
         }
       },
 
       deleteFlashcard: async (id) => {
+        const prevCards = get().flashcards
         set((s) => ({ flashcards: s.flashcards.filter((fc) => fc.id !== id) }))
-        try {
-          await supabase.from('flashcards').delete().eq('id', id)
-        } catch {
-          /* intentionally ignored */
+
+        const { error } = await supabase.from('flashcards').delete().eq('id', id)
+        if (error) {
+          set({ flashcards: prevCards })
+          toast({
+            title: 'Erro ao excluir flashcard',
+            description: error.message,
+            variant: 'destructive',
+          })
+        } else {
+          toast({ title: 'Flashcard excluído.' })
         }
       },
 
       loadStudiesData: async () => {
+        set({ loading: true })
         try {
           const [
-            { data: notebooksData },
-            { data: notesData },
-            { data: decksData },
-            { data: cardsData },
+            { data: notebooksData, error: nbErr },
+            { data: notesData, error: notesErr },
+            { data: decksData, error: decksErr },
+            { data: cardsData, error: cardsErr },
+            { data: logsData },
           ] = await Promise.all([
             supabase.from('notebooks').select('*').order('created_at', { ascending: true }),
             supabase.from('notes').select('*').order('updated_at', { ascending: false }),
             supabase.from('decks').select('*').order('created_at', { ascending: true }),
             supabase.from('flashcards').select('*').order('created_at', { ascending: true }),
+            (supabase as any)
+              .from('review_logs')
+              .select('*')
+              .order('reviewed_at', { ascending: false })
+              .limit(500),
           ])
-          if (notebooksData && notebooksData.length > 0) {
-            set({
-              notebooks: notebooksData.map((nb) => ({
-                id: nb.id,
-                title: nb.name,
-                emoji: nb.emoji,
-                coverColor: nb.color,
-              })),
+
+          if (nbErr || notesErr || decksErr || cardsErr) {
+            const firstErr = nbErr || notesErr || decksErr || cardsErr
+            toast({
+              title: 'Erro ao carregar dados de estudos',
+              description: firstErr?.message || 'Falha ao sincronizar com o servidor.',
+              variant: 'destructive',
             })
           }
-          if (notesData && notesData.length > 0) {
-            const mapped: Note[] = notesData.map((n) => ({
-              id: n.id,
-              notebookId: n.notebook_id || '',
-              title: n.title,
-              content: n.content,
-              emoji: n.emoji,
-              tags: n.tag_ids || [],
-              linkedNoteIds: [],
-              lastEdited: n.updated_at,
-            }))
-            set({
-              notes: mapped.map((n) => ({
-                ...n,
-                linkedNoteIds: computeLinkedIds(n.content, mapped, n.id),
-              })),
-            })
-          }
-          if (decksData && decksData.length > 0) {
-            set({
-              decks: decksData.map((d) => ({
-                id: d.id,
-                title: d.title,
-                emoji: d.emoji,
-                color: d.color,
-              })),
-            })
-          }
-          if (cardsData && cardsData.length > 0) {
-            set({
-              flashcards: cardsData.map((c) => ({
-                id: c.id,
-                deckId: c.deck_id,
-                noteId: c.note_id,
-                front: c.front,
-                back: c.back,
-                nextReviewDate: c.next_review_date,
-                interval: c.interval,
-                easeFactor: c.ease_factor,
-              })),
-            })
-          }
-        } catch {
-          /* intentionally ignored */
+
+          // Always set state to what returned from database (even if empty!)
+          const mappedNotebooks: Notebook[] = (notebooksData || []).map((nb) => ({
+            id: nb.id,
+            title: nb.name,
+            emoji: nb.emoji,
+            coverColor: nb.color,
+          }))
+
+          const rawNotes = notesData || []
+          const mappedNotes: Note[] = rawNotes.map((n) => ({
+            id: n.id,
+            notebookId: n.notebook_id || '',
+            title: n.title,
+            content: n.content,
+            emoji: n.emoji,
+            tags: n.tag_ids || [],
+            linkedNoteIds: [],
+            lastEdited: n.updated_at,
+          }))
+
+          const withLinks = mappedNotes.map((n) => ({
+            ...n,
+            linkedNoteIds: computeLinkedIds(n.content, mappedNotes, n.id),
+          }))
+
+          const mappedDecks: Deck[] = (decksData || []).map((d) => ({
+            id: d.id,
+            title: d.title,
+            emoji: d.emoji,
+            color: d.color,
+          }))
+
+          const mappedCards: Flashcard[] = (cardsData || []).map((c) => ({
+            id: c.id,
+            deckId: c.deck_id,
+            noteId: c.note_id,
+            front: c.front,
+            back: c.back,
+            nextReviewDate: c.next_review_date,
+            interval: c.interval,
+            easeFactor: c.ease_factor,
+          }))
+
+          const mappedLogs: ReviewLog[] = (logsData || []).map((l: any) => ({
+            id: l.id,
+            user_id: l.user_id,
+            flashcard_id: l.flashcard_id,
+            feedback: l.feedback,
+            reviewed_at: l.reviewed_at,
+          }))
+
+          set({
+            notebooks: mappedNotebooks,
+            notes: withLinks,
+            decks: mappedDecks,
+            flashcards: mappedCards,
+            reviewLogs: mappedLogs,
+            loading: false,
+          })
+        } catch (err: any) {
+          toast({
+            title: 'Erro inesperado',
+            description: err?.message || 'Falha na conexão.',
+            variant: 'destructive',
+          })
+          set({ loading: false })
         }
       },
 
       reviewCard: async (cardId, feedback) => {
         let updated: Flashcard | undefined
+        const prevCards = get().flashcards
+
+        // Optimistic SRS update
         set((s) => ({
           flashcards: s.flashcards.map((fc) => {
             if (fc.id !== cardId) return fc
@@ -376,26 +672,69 @@ export const useStudiesStore = create<StudiesState>()(
             return updated
           }),
         }))
+
         if (updated) {
-          try {
-            await supabase
-              .from('flashcards')
-              .update({
-                interval: updated.interval,
-                ease_factor: updated.easeFactor,
-                next_review_date: updated.nextReviewDate,
+          const { error: cardError } = await supabase
+            .from('flashcards')
+            .update({
+              interval: updated.interval,
+              ease_factor: updated.easeFactor,
+              next_review_date: updated.nextReviewDate,
+            })
+            .eq('id', cardId)
+
+          if (cardError) {
+            set({ flashcards: prevCards })
+            toast({
+              title: 'Erro ao atualizar revisão',
+              description: cardError.message,
+              variant: 'destructive',
+            })
+            return
+          }
+
+          // Record telemetry log in review_logs (optimistic, UI continues)
+          const { data: userData } = await supabase.auth.getUser()
+          const user = userData?.user
+          if (user) {
+            const tempLogId = genId()
+            const now = nowIso()
+            const newLog: ReviewLog = {
+              id: tempLogId,
+              user_id: user.id,
+              flashcard_id: cardId,
+              feedback,
+              reviewed_at: now,
+            }
+            set((s) => ({ reviewLogs: [newLog, ...s.reviewLogs] }))
+
+            ;(supabase as any)
+              .from('review_logs')
+              .insert({
+                id: tempLogId,
+                user_id: user.id,
+                flashcard_id: cardId,
+                feedback,
+                reviewed_at: now,
               })
-              .eq('id', cardId)
-          } catch {
-            /* intentionally ignored */
+              .then(({ error: logErr }: any) => {
+                if (logErr) {
+                  console.warn('Falha silenciosa ao registrar review_log:', logErr.message)
+                }
+              })
           }
         }
       },
-
-      syncNoteReferences: async (noteId, content) => {
-        await syncRefsInternal(noteId, content)
-      },
     }),
-    { name: 'taoli-studies-storage' },
+    {
+      name: 'taoli-studies-storage-v2',
+      // Only keep lightweight data if desired, or let it sync cleanly
+      partialize: (state) => ({
+        notebooks: state.notebooks,
+        notes: state.notes,
+        decks: state.decks,
+        flashcards: state.flashcards,
+      }),
+    },
   ),
 )

@@ -39,8 +39,10 @@ export function FlashcardDialog({ open, onOpenChange, noteId }: FlashcardDialogP
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!stripHtml(front) || !stripHtml(back) || !deckId) return
-    await addFlashcard({ deckId, noteId, front, back })
-    onOpenChange(false)
+    const res = await addFlashcard({ deckId, noteId, front, back })
+    if (res) {
+      onOpenChange(false)
+    }
   }
 
   return (

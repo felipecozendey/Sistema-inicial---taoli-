@@ -7,6 +7,17 @@ export interface BacklinkNote {
   emoji: string
 }
 
+export async function cleanupOrphanReferences(deletedNoteId: string): Promise<void> {
+  try {
+    await Promise.all([
+      supabase.from('note_references').delete().eq('source_note_id', deletedNoteId),
+      supabase.from('note_references').delete().eq('target_note_id', deletedNoteId),
+    ])
+  } catch (err) {
+    console.error('Falha ao limpar referências da nota excluída:', err)
+  }
+}
+
 export async function syncNoteReferences(noteId: string, content: string): Promise<void> {
   const targetIds = [...new Set(extractNoteIds(content))].filter((id) => id && id !== noteId)
 

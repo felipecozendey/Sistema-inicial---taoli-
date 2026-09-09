@@ -25,7 +25,7 @@ interface RichTextEditorProps {
   content: string
   onChange: (html: string) => void
   onLinkClick?: (noteTitle: string) => void
-  onCreateNote?: (title: string) => string
+  onCreateNote?: (title: string) => string | Promise<string>
   notes?: Array<{ id: string; title: string; emoji: string }>
   currentNoteId?: string | null
   placeholder?: string
@@ -141,10 +141,13 @@ export function RichTextEditor({
     onChange(editorRef.current?.innerHTML || '')
   }
 
-  const handleCreateNote = () => {
+  const handleCreateNote = async () => {
     if (!onCreateNote) return
-    const id = onCreateNote(query.trim())
-    insertNoteLink({ id, title: query.trim(), emoji: '📝' })
+    const res = onCreateNote(query.trim())
+    const id = typeof res === 'string' ? res : await res
+    if (id) {
+      insertNoteLink({ id, title: query.trim(), emoji: '📝' })
+    }
   }
 
   const selectOption = (index: number) => {

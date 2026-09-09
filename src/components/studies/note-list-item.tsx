@@ -5,8 +5,12 @@ interface NoteListItemProps {
   onClick: () => void
 }
 
-function formatRelativeTime(iso: string): string {
-  const diff = Date.now() - new Date(iso).getTime()
+function formatRelativeTime(iso?: string | null): string {
+  if (!iso) return '—'
+  const date = new Date(iso)
+  if (isNaN(date.getTime())) return '—'
+  const diff = Date.now() - date.getTime()
+  if (diff < 0) return 'agora'
   const min = Math.floor(diff / 60000)
   if (min < 1) return 'agora'
   if (min < 60) return `há ${min} min`
@@ -15,7 +19,7 @@ function formatRelativeTime(iso: string): string {
   const d = Math.floor(h / 24)
   if (d === 1) return 'ontem'
   if (d < 7) return `há ${d} dias`
-  return new Date(iso).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })
+  return date.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })
 }
 
 export function NoteListItem({ note, onClick }: NoteListItemProps) {

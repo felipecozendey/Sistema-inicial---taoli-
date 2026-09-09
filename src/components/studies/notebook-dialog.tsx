@@ -44,11 +44,14 @@ export function NotebookDialog({ open, onOpenChange, editingNotebook }: Notebook
     }
   }, [open, editingNotebook])
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!title.trim()) return
-    if (editingNotebook) updateNotebook(editingNotebook.id, { title, emoji, coverColor })
-    else addNotebook({ title, emoji, coverColor })
+    if (editingNotebook) {
+      await updateNotebook(editingNotebook.id, { title, emoji, coverColor })
+    } else {
+      await addNotebook({ title, emoji, coverColor })
+    }
     onOpenChange(false)
   }
 

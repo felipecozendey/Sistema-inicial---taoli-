@@ -4,8 +4,14 @@ export function calculateSRS(
   card: Pick<Flashcard, 'interval' | 'easeFactor'>,
   feedback: ReviewFeedback,
 ): { interval: number; easeFactor: number; nextReviewDate: string } {
-  let interval = card.interval
-  let easeFactor = card.easeFactor
+  let interval =
+    typeof card.interval === 'number' && !isNaN(card.interval) && card.interval >= 0
+      ? card.interval
+      : 0
+  let easeFactor =
+    typeof card.easeFactor === 'number' && !isNaN(card.easeFactor) && card.easeFactor >= 1.3
+      ? card.easeFactor
+      : 2.5
 
   switch (feedback) {
     case 'AGAIN': {

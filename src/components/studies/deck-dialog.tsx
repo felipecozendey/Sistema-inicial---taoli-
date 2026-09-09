@@ -48,9 +48,15 @@ export function DeckDialog({ open, onOpenChange, editingDeck }: DeckDialogProps)
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!title.trim()) return
-    if (editingDeck) await updateDeck(editingDeck.id, { title, emoji, color })
-    else await addDeck({ title, emoji, color })
-    onOpenChange(false)
+    if (editingDeck) {
+      await updateDeck(editingDeck.id, { title, emoji, color })
+      onOpenChange(false)
+    } else {
+      const res = await addDeck({ title, emoji, color })
+      if (res) {
+        onOpenChange(false)
+      }
+    }
   }
 
   return (
