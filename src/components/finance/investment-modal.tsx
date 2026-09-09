@@ -16,8 +16,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { useFinanceStore, type Investment, type InvestmentGoal } from '@/stores/useFinanceStore'
+import { useFinanceStore, type Investment, type YieldFrequency } from '@/stores/useFinanceStore'
 import { toast } from 'sonner'
+import { TrendingUp, Percent } from 'lucide-react'
 
 export const INVESTMENT_TYPES = [
   'Ações',
@@ -44,8 +45,9 @@ export function InvestmentModal({ open, onOpenChange, editingInvestment }: Inves
 
   const [name, setName] = useState('')
   const [type, setType] = useState('CDB / Renda Fixa')
-  const [investedAmount, setInvestedAmount] = useState('')
-  const [currentAmount, setCurrentAmount] = useState('')
+  const [initialAmount, setInitialAmount] = useState('0')
+  const [yieldRate, setYieldRate] = useState('')
+  const [yieldFrequency, setYieldFrequency] = useState<YieldFrequency>('monthly')
   const [date, setDate] = useState(new Date().toISOString().split('T')[0])
   const [bankAccountId, setBankAccountId] = useState('none')
   const [goalId, setGoalId] = useState('none')
@@ -58,8 +60,9 @@ export function InvestmentModal({ open, onOpenChange, editingInvestment }: Inves
       if (editingInvestment) {
         setName(editingInvestment.name)
         setType(editingInvestment.type)
-        setInvestedAmount(String(editingInvestment.investedAmount))
-        setCurrentAmount(String(editingInvestment.currentAmount))
+        setInitialAmount(String(editingInvestment.initialAmount ?? 0))
+        setYieldRate(editingInvestment.yieldRate != null ? String(editingInvestment.yieldRate) : '')
+        setYieldFrequency(editingInvestment.yieldFrequency || 'monthly')
         setDate(editingInvestment.date)
         setBankAccountId(editingInvestment.bankAccountId || 'none')
         setGoalId(editingInvestment.goalId || 'none')
@@ -67,8 +70,9 @@ export function InvestmentModal({ open, onOpenChange, editingInvestment }: Inves
       } else {
         setName('')
         setType('CDB / Renda Fixa')
-        setInvestedAmount('')
-        setCurrentAmount('')
+        setInitialAmount('0')
+        setYieldRate('')
+        setYieldFrequency('monthly')
         setDate(new Date().toISOString().split('T')[0])
         setBankAccountId('none')
         setGoalId('none')
@@ -82,15 +86,18 @@ export function InvestmentModal({ open, onOpenChange, editingInvestment }: Inves
       toast.error('Informe o nome do investimento')
       return
     }
-    const invested = parseFloat(investedAmount)
-    const current = parseFloat(currentAmount)
+    const initial = parseFloat(initialAmount)
 
-    if (isNaN(invested) || invested < 0) {
-      toast.error('Informe um valor investido válido')
+    if (isNaN(initial) || initial < 0) {
+      toast.error('Informe um valor inicial válido (pode ser R$ 0)')
       return
     }
 
-    const curFinal = !isNaN(current) && current >= 0 ? current : invested
+    const rateParsed = yieldRate.trim() ? parseFloat(yieldRate) : null
+    if (rateParsed !== null && (isNaN(rateParsed) || rateParsed < 0)) {
+      toast.error('Informe uma taxa de rendimento válida')
+      return
+    }
 
     onOpenChange(false)
 
@@ -98,8 +105,9 @@ export function InvestmentModal({ open, onOpenChange, editingInvestment }: Inves
       updateInvestment(editingInvestment.id, {
         name: name.trim(),
         type,
-        investedAmount: invested,
-        currentAmount: curFinal,
+        initialAmount: initial,
+        yieldRate: rateParsed,
+        yieldFrequency: rateParsed !== null ? yieldFrequency : null,
         date,
         bankAccountId: bankAccountId !== 'none' ? bankAccountId : null,
         goalId: goalId !== 'none' ? goalId : null,
@@ -110,14 +118,15 @@ export function InvestmentModal({ open, onOpenChange, editingInvestment }: Inves
       addInvestment({
         name: name.trim(),
         type,
-        investedAmount: invested,
-        currentAmount: curFinal,
+        initialAmount: initial,
+        yieldRate: rateParsed,
+        yieldFrequency: rateParsed !== null ? yieldFrequency : null,
         date,
         bankAccountId: bankAccountId !== 'none' ? bankAccountId : null,
         goalId: goalId !== 'none' ? goalId : null,
         notes: notes.trim() || undefined,
       })
-      toast.success('Investimento adicionado ao seu portfólio! 🎉')
+      toast.success('Investimento cadastrado com sucesso! 🎉')
     }
   }
 
@@ -125,11 +134,13 @@ export function InvestmentModal({ open, onOpenChange, editingInvestment }: Inves
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto rounded-3xl">
         <DialogHeader>
-          <DialogTitle className="text-xl font-extrabold">
+          <DialogTitle className="text-xl font-extrabold flex items-center gap-2">
+            <TrendingUp className="w-5 h-5 text-[#58CC02]" />
             {isEditing ? 'Editar Investimento' : 'Novo Investimento'}
           </DialogTitle>
           <DialogDescription>
-            Registre aportes em ações, fundos, tesouro, renda fixa ou cripto
+            Defina o ativo, taxa de rendimento e valor inicial. O saldo atual é calculado
+            automaticamente com base nos aportes e retiradas.
           </DialogDescription>
         </DialogHeader>
 
@@ -139,7 +150,7 @@ export function InvestmentModal({ open, onOpenChange, editingInvestment }: Inves
             <Input
               value={name}
               onChange={(e) => setName(e.target.value)}
-              placeholder="Ex: Tesouro Selic 2029 / Nubank CDB 110%"
+              placeholder="Ex: CDB 100% / Tesouro Selic 2029 / FII MXRF11"
               className="rounded-xl font-bold"
             />
           </div>
@@ -160,31 +171,65 @@ export function InvestmentModal({ open, onOpenChange, editingInvestment }: Inves
             </Select>
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1">
-              <Label className="text-sm font-extrabold">Valor Aportado (R$)</Label>
-              <Input
-                type="number"
-                inputMode="decimal"
-                value={investedAmount}
-                onChange={(e) => {
-                  setInvestedAmount(e.target.value)
-                  if (!currentAmount) setCurrentAmount(e.target.value)
-                }}
-                placeholder="0,00"
-                className="rounded-xl font-bold text-base"
-              />
+          {/* Valor Inicial (pode ser 0) */}
+          <div className="space-y-1">
+            <div className="flex items-center justify-between">
+              <Label className="text-sm font-extrabold">Valor Inicial (R$)</Label>
+              <span className="text-[11px] font-bold text-muted-foreground">
+                Pode começar com R$ 0
+              </span>
             </div>
-            <div className="space-y-1">
-              <Label className="text-sm font-extrabold">Valor Atual (R$)</Label>
-              <Input
-                type="number"
-                inputMode="decimal"
-                value={currentAmount}
-                onChange={(e) => setCurrentAmount(e.target.value)}
-                placeholder="0,00"
-                className="rounded-xl font-bold text-base"
-              />
+            <Input
+              type="number"
+              inputMode="decimal"
+              value={initialAmount}
+              onChange={(e) => setInitialAmount(e.target.value)}
+              placeholder="0,00"
+              className="rounded-xl font-bold text-base"
+            />
+            {isEditing && (
+              <p className="text-[11px] text-muted-foreground font-medium">
+                💡 O valor atual é derivado da soma dos seus aportes e retiradas.
+              </p>
+            )}
+          </div>
+
+          {/* Taxa de Rendimento e Frequência */}
+          <div className="p-3.5 rounded-2xl bg-muted/40 border space-y-3">
+            <div className="flex items-center gap-2 text-xs font-extrabold text-[#58CC02]">
+              <Percent className="w-4 h-4" />
+              <span>Configuração de Rendimento Previsto</span>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <Label className="text-xs font-extrabold">Taxa de Rendimento (%)</Label>
+                <Input
+                  type="number"
+                  inputMode="decimal"
+                  step="0.01"
+                  value={yieldRate}
+                  onChange={(e) => setYieldRate(e.target.value)}
+                  placeholder="Ex: 10 para 10%"
+                  className="rounded-xl font-bold h-10"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <Label className="text-xs font-extrabold">Frequência</Label>
+                <Select
+                  value={yieldFrequency}
+                  onValueChange={(val: YieldFrequency) => setYieldFrequency(val)}
+                >
+                  <SelectTrigger className="rounded-xl font-bold text-xs h-10">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="monthly">Mensal</SelectItem>
+                    <SelectItem value="weekly">Semanal</SelectItem>
+                    <SelectItem value="daily">Diária</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
           </div>
 

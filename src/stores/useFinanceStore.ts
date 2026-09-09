@@ -20,11 +20,27 @@ export interface BankAccount {
   createdAt: string
 }
 
+export type YieldFrequency = 'monthly' | 'weekly' | 'daily'
+export type InvestmentTransactionKind = 'contribution' | 'withdrawal'
+
+export interface InvestmentTransaction {
+  id: string
+  userId: string
+  investmentId: string | null
+  goalId: string | null
+  kind: InvestmentTransactionKind
+  amount: number
+  date: string // ISO timestamptz
+  notes: string | null
+  createdAt: string
+}
+
 export interface InvestmentGoal {
   id: string
   name: string
   targetAmount: number
-  currentAmount: number
+  initialAmount: number
+  currentAmount: number // derivado: initialAmount + sum(contributions) - sum(withdrawals)
   deadline: string | null
   createdAt: string
 }
@@ -33,8 +49,11 @@ export interface Investment {
   id: string
   name: string
   type: string // Ações, Fundos, CDB, Tesouro, Cripto, Imóveis, Outros
-  investedAmount: number
-  currentAmount: number
+  initialAmount: number
+  investedAmount: number // saldo aportado líquido (initial + aportes - retiradas)
+  currentAmount: number // valor atual derivado
+  yieldRate: number | null // ex: 10 para 10%
+  yieldFrequency: YieldFrequency | null
   date: string
   bankAccountId: string | null
   goalId: string | null
@@ -122,18 +141,28 @@ export interface NewBankAccount {
 export interface NewInvestmentGoal {
   name: string
   targetAmount: number
-  currentAmount?: number
+  initialAmount?: number
   deadline?: string | null
 }
 
 export interface NewInvestment {
   name: string
   type: string
-  investedAmount: number
-  currentAmount: number
+  initialAmount: number
+  yieldRate?: number | null
+  yieldFrequency?: YieldFrequency | null
   date: string
   bankAccountId?: string | null
   goalId?: string | null
+  notes?: string
+}
+
+export interface NewInvestmentTransaction {
+  investmentId?: string | null
+  goalId?: string | null
+  kind: InvestmentTransactionKind
+  amount: number
+  date?: string
   notes?: string
 }
 
@@ -145,6 +174,7 @@ interface FinanceStoreState {
   bankAccounts: BankAccount[]
   investments: Investment[]
   investmentGoals: InvestmentGoal[]
+  investmentTransactions: InvestmentTransaction[]
   financeDateRange: FinanceDateRange
   // Fetchers
   fetchTransactions: () => Promise<void>
@@ -154,7 +184,11 @@ interface FinanceStoreState {
   fetchBankAccounts: () => Promise<void>
   fetchInvestments: () => Promise<void>
   fetchInvestmentGoals: () => Promise<void>
+  fetchInvestmentTransactions: () => Promise<void>
   fetchAllFinanceData: () => Promise<void>
+  // Investment Transactions (Aportes e Retiradas)
+  addInvestmentTransaction: (tx: NewInvestmentTransaction) => Promise<void>
+  deleteInvestmentTransaction: (id: string) => Promise<void>
   // Transactions
   addTransaction: (tx: NewTransaction) => Promise<void>
   updateTransaction: (id: string, updates: Partial<Transaction>) => Promise<void>
@@ -267,29 +301,114 @@ function mapBankAccount(data: Record<string, unknown>): BankAccount {
   }
 }
 
-function mapInvestmentGoal(data: Record<string, unknown>): InvestmentGoal {
+function mapInvestmentTransaction(data: Record<string, unknown>): InvestmentTransaction {
   return {
     id: data.id as string,
-    name: data.name as string,
-    targetAmount: Number(data.target_amount || 0),
-    currentAmount: Number(data.current_amount || 0),
-    deadline: data.deadline ? (data.deadline as string).split('T')[0] : null,
+    userId: (data.user_id as string) || '',
+    investmentId: (data.investment_id as string) ?? null,
+    goalId: (data.goal_id as string) ?? null,
+    kind: data.kind as InvestmentTransactionKind,
+    amount: Number(data.amount || 0),
+    date: data.date as string,
+    notes: (data.notes as string) ?? null,
     createdAt: data.created_at as string,
   }
 }
 
-function mapInvestment(data: Record<string, unknown>): Investment {
+function computeDerivedInvestment(inv: any, allTransactions: InvestmentTransaction[]): Investment {
+  const id = inv.id as string
+  const initial = Number(
+    (inv.initial_amount !== undefined
+      ? inv.initial_amount
+      : inv.initialAmount !== undefined
+        ? inv.initialAmount
+        : inv.invested_amount !== undefined
+          ? inv.invested_amount
+          : inv.investedAmount) ?? 0,
+  )
+  const yieldRate =
+    inv.yield_rate !== undefined
+      ? inv.yield_rate != null
+        ? Number(inv.yield_rate)
+        : null
+      : inv.yieldRate !== undefined
+        ? inv.yieldRate != null
+          ? Number(inv.yieldRate)
+          : null
+        : null
+  const yieldFrequency =
+    inv.yield_frequency !== undefined
+      ? ((inv.yield_frequency as YieldFrequency | null) ?? null)
+      : inv.yieldFrequency !== undefined
+        ? ((inv.yieldFrequency as YieldFrequency | null) ?? null)
+        : null
+
+  const itemTxs = allTransactions.filter((tx) => tx.investmentId === id)
+  const totalContributions = itemTxs
+    .filter((tx) => tx.kind === 'contribution')
+    .reduce((sum, tx) => sum + tx.amount, 0)
+  const totalWithdrawals = itemTxs
+    .filter((tx) => tx.kind === 'withdrawal')
+    .reduce((sum, tx) => sum + tx.amount, 0)
+
+  // Saldo líquido atual = initial + aportes - retiradas (nunca negativo)
+  const derivedAmount = Math.max(0, initial + totalContributions - totalWithdrawals)
+
+  const dateVal =
+    typeof inv.date === 'string' ? inv.date.split('T')[0] : new Date().toISOString().split('T')[0]
+  const bankAccountId =
+    inv.bank_account_id !== undefined
+      ? (inv.bank_account_id as string | null)
+      : (inv.bankAccountId ?? null)
+  const goalId = inv.goal_id !== undefined ? (inv.goal_id as string | null) : (inv.goalId ?? null)
+  const notes = inv.notes !== undefined ? (inv.notes as string | null) : null
+  const createdAt = (inv.created_at as string) || inv.createdAt || new Date().toISOString()
+
   return {
-    id: data.id as string,
-    name: data.name as string,
-    type: (data.type as string) || 'Outros',
-    investedAmount: Number(data.invested_amount || 0),
-    currentAmount: Number(data.current_amount || 0),
-    date: (data.date as string).split('T')[0],
-    bankAccountId: (data.bank_account_id as string) ?? null,
-    goalId: (data.goal_id as string) ?? null,
-    notes: (data.notes as string) ?? null,
-    createdAt: data.created_at as string,
+    id,
+    name: inv.name as string,
+    type: (inv.type as string) || 'Outros',
+    initialAmount: initial,
+    investedAmount: derivedAmount,
+    currentAmount: derivedAmount,
+    yieldRate,
+    yieldFrequency,
+    date: dateVal,
+    bankAccountId,
+    goalId,
+    notes,
+    createdAt,
+  }
+}
+
+function computeDerivedGoal(goal: any, allTransactions: InvestmentTransaction[]): InvestmentGoal {
+  const id = goal.id as string
+  const initial = Number(
+    (goal.initial_amount !== undefined ? goal.initial_amount : goal.initialAmount) ?? 0,
+  )
+  const itemTxs = allTransactions.filter((tx) => tx.goalId === id)
+  const totalContributions = itemTxs
+    .filter((tx) => tx.kind === 'contribution')
+    .reduce((sum, tx) => sum + tx.amount, 0)
+  const totalWithdrawals = itemTxs
+    .filter((tx) => tx.kind === 'withdrawal')
+    .reduce((sum, tx) => sum + tx.amount, 0)
+
+  const derivedAmount = Math.max(0, initial + totalContributions - totalWithdrawals)
+  const target = Number(
+    (goal.target_amount !== undefined ? goal.target_amount : goal.targetAmount) || 0,
+  )
+  const deadline = goal.deadline ? (goal.deadline as string).split('T')[0] : null
+  const createdAt = (goal.created_at as string) || goal.createdAt || new Date().toISOString()
+
+  return {
+    id,
+    name: goal.name as string,
+    targetAmount: target,
+    initialAmount: initial,
+    currentAmount: derivedAmount,
+    deadline,
+    createdAt,
   }
 }
 
@@ -316,6 +435,7 @@ let state: FinanceStoreState = {
   bankAccounts: [],
   investments: [],
   investmentGoals: [],
+  investmentTransactions: [],
   financeDateRange: { startDate: getMonthsAgoDate(1), endDate: getTodayDate() },
 
   fetchTransactions: async () => {
@@ -393,6 +513,26 @@ let state: FinanceStoreState = {
     }
   },
 
+  fetchInvestmentTransactions: async () => {
+    const {
+      data: { session },
+    } = await supabase.auth.getSession()
+    if (!session) return
+    const { data } = await (supabase as any)
+      .from('investment_transactions')
+      .select('*')
+      .eq('user_id', session.user.id)
+      .order('date', { ascending: false })
+    if (data) {
+      const txs = data.map(mapInvestmentTransaction)
+      setState({
+        investmentTransactions: txs,
+        investments: state.investments.map((inv) => computeDerivedInvestment(inv, txs)),
+        investmentGoals: state.investmentGoals.map((g) => computeDerivedGoal(g, txs)),
+      })
+    }
+  },
+
   fetchInvestments: async () => {
     const {
       data: { session },
@@ -404,7 +544,11 @@ let state: FinanceStoreState = {
       .eq('user_id', session.user.id)
       .order('date', { ascending: false })
     if (data) {
-      setState({ investments: data.map(mapInvestment) })
+      setState({
+        investments: data.map((d: any) =>
+          computeDerivedInvestment(d, state.investmentTransactions),
+        ),
+      })
     }
   },
 
@@ -419,11 +563,15 @@ let state: FinanceStoreState = {
       .eq('user_id', session.user.id)
       .order('created_at', { ascending: true })
     if (data) {
-      setState({ investmentGoals: data.map(mapInvestmentGoal) })
+      setState({
+        investmentGoals: data.map((d: any) => computeDerivedGoal(d, state.investmentTransactions)),
+      })
     }
   },
 
   fetchAllFinanceData: async () => {
+    // Busca movimentações primeiro para derivar os saldos corretamente
+    await state.fetchInvestmentTransactions()
     await Promise.all([
       state.fetchTransactions(),
       state.fetchPasswords(),
@@ -433,6 +581,162 @@ let state: FinanceStoreState = {
       state.fetchInvestments(),
       state.fetchInvestmentGoals(),
     ])
+  },
+
+  // Aportes e Retiradas (Zero Lag, otimista com swap de tempId e recálculo síncrono do currentAmount)
+  addInvestmentTransaction: async (tx: NewInvestmentTransaction) => {
+    const {
+      data: { session },
+    } = await supabase.auth.getSession()
+    if (!session) return
+
+    const tempId = `temp-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`
+    const nowIso = tx.date ? new Date(tx.date).toISOString() : new Date().toISOString()
+    const optimisticTx: InvestmentTransaction = {
+      id: tempId,
+      userId: session.user.id,
+      investmentId: tx.investmentId || null,
+      goalId: tx.goalId || null,
+      kind: tx.kind,
+      amount: tx.amount,
+      date: nowIso,
+      notes: tx.notes || null,
+      createdAt: nowIso,
+    }
+
+    const nextTxs = [optimisticTx, ...state.investmentTransactions]
+    // Recálculo síncrono dos saldos antes do await
+    const nextInvestments = state.investments.map((inv) => computeDerivedInvestment(inv, nextTxs))
+    const nextGoals = state.investmentGoals.map((g) => computeDerivedGoal(g, nextTxs))
+
+    setState({
+      investmentTransactions: nextTxs,
+      investments: nextInvestments,
+      investmentGoals: nextGoals,
+    })
+
+    // Persistir no Supabase
+    const { data, error } = await (supabase as any)
+      .from('investment_transactions')
+      .insert({
+        user_id: session.user.id,
+        investment_id: tx.investmentId || null,
+        goal_id: tx.goalId || null,
+        kind: tx.kind,
+        amount: tx.amount,
+        date: nowIso,
+        notes: tx.notes || null,
+      })
+      .select()
+      .single()
+
+    if (error || !data) {
+      // Rollback silencioso com toast.error
+      const rollbackTxs = state.investmentTransactions.filter((t) => t.id !== tempId)
+      setState({
+        investmentTransactions: rollbackTxs,
+        investments: state.investments.map((inv) => computeDerivedInvestment(inv, rollbackTxs)),
+        investmentGoals: state.investmentGoals.map((g) => computeDerivedGoal(g, rollbackTxs)),
+      })
+      toast.error('Erro ao registrar movimentação')
+      return
+    }
+
+    // Atualizar no banco os campos current_amount / invested_amount da entidade para consistência server-side
+    const realTx = mapInvestmentTransaction(data)
+    const swappedTxs = state.investmentTransactions.map((t) => (t.id === tempId ? realTx : t))
+    const recomputedInv = state.investments.map((inv) => computeDerivedInvestment(inv, swappedTxs))
+    const recomputedGoals = state.investmentGoals.map((g) => computeDerivedGoal(g, swappedTxs))
+
+    setState({
+      investmentTransactions: swappedTxs,
+      investments: recomputedInv,
+      investmentGoals: recomputedGoals,
+    })
+
+    // Atualização em background no banco de dados para sincronizar current_amount (sem bloquear o cliente)
+    if (tx.investmentId) {
+      const targetInv = recomputedInv.find((i) => i.id === tx.investmentId)
+      if (targetInv) {
+        supabase
+          .from('investments')
+          .update({
+            invested_amount: targetInv.investedAmount,
+            current_amount: targetInv.currentAmount,
+          } as any)
+          .eq('id', tx.investmentId)
+          .then()
+      }
+    }
+    if (tx.goalId) {
+      const targetGoal = recomputedGoals.find((g) => g.id === tx.goalId)
+      if (targetGoal) {
+        supabase
+          .from('investment_goals')
+          .update({
+            current_amount: targetGoal.currentAmount,
+          } as any)
+          .eq('id', tx.goalId)
+          .then()
+      }
+    }
+  },
+
+  deleteInvestmentTransaction: async (id: string) => {
+    const prevTxs = state.investmentTransactions
+    const targetTx = prevTxs.find((t) => t.id === id)
+    if (!targetTx) return
+
+    const nextTxs = prevTxs.filter((t) => t.id !== id)
+    const nextInvestments = state.investments.map((inv) => computeDerivedInvestment(inv, nextTxs))
+    const nextGoals = state.investmentGoals.map((g) => computeDerivedGoal(g, nextTxs))
+
+    setState({
+      investmentTransactions: nextTxs,
+      investments: nextInvestments,
+      investmentGoals: nextGoals,
+    })
+
+    const { error } = await (supabase as any).from('investment_transactions').delete().eq('id', id)
+
+    if (error) {
+      // Rollback
+      setState({
+        investmentTransactions: prevTxs,
+        investments: state.investments.map((inv) => computeDerivedInvestment(inv, prevTxs)),
+        investmentGoals: state.investmentGoals.map((g) => computeDerivedGoal(g, prevTxs)),
+      })
+      toast.error('Erro ao excluir movimentação')
+      return
+    }
+
+    // Sincroniza current_amount no banco
+    if (targetTx.investmentId) {
+      const targetInv = nextInvestments.find((i) => i.id === targetTx.investmentId)
+      if (targetInv) {
+        supabase
+          .from('investments')
+          .update({
+            invested_amount: targetInv.investedAmount,
+            current_amount: targetInv.currentAmount,
+          } as any)
+          .eq('id', targetTx.investmentId)
+          .then()
+      }
+    }
+    if (targetTx.goalId) {
+      const targetGoal = nextGoals.find((g) => g.id === targetTx.goalId)
+      if (targetGoal) {
+        supabase
+          .from('investment_goals')
+          .update({
+            current_amount: targetGoal.currentAmount,
+          } as any)
+          .eq('id', targetTx.goalId)
+          .then()
+      }
+    }
+    toast.success('Movimentação removida do histórico! 🗑️')
   },
 
   addPassword: async (pwd: {
@@ -997,12 +1301,16 @@ let state: FinanceStoreState = {
     if (!session) return
 
     const tempId = `temp-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`
+    const initial = Number(inv.initialAmount || 0)
     const optimistic: Investment = {
       id: tempId,
       name: inv.name,
       type: inv.type,
-      investedAmount: Number(inv.investedAmount),
-      currentAmount: Number(inv.currentAmount),
+      initialAmount: initial,
+      investedAmount: initial,
+      currentAmount: initial,
+      yieldRate: inv.yieldRate != null ? Number(inv.yieldRate) : null,
+      yieldFrequency: inv.yieldFrequency || null,
       date: inv.date,
       bankAccountId: inv.bankAccountId || null,
       goalId: inv.goalId || null,
@@ -1018,8 +1326,11 @@ let state: FinanceStoreState = {
         user_id: session.user.id,
         name: inv.name,
         type: inv.type,
-        invested_amount: inv.investedAmount,
-        current_amount: inv.currentAmount,
+        initial_amount: initial,
+        invested_amount: initial,
+        current_amount: initial,
+        yield_rate: inv.yieldRate != null ? Number(inv.yieldRate) : null,
+        yield_frequency: inv.yieldFrequency || null,
         date: inv.date,
         bank_account_id: inv.bankAccountId || null,
         goal_id: inv.goalId || null,
@@ -1034,7 +1345,7 @@ let state: FinanceStoreState = {
       return
     }
 
-    const real = mapInvestment(data)
+    const real = computeDerivedInvestment(data, state.investmentTransactions)
     setState({
       investments: state.investments.map((i) => (i.id === tempId ? real : i)),
     })
@@ -1042,15 +1353,26 @@ let state: FinanceStoreState = {
 
   updateInvestment: async (id: string, updates: Partial<Investment>) => {
     const prev = state.investments
+    const target = prev.find((i) => i.id === id)
+    if (!target) return
+
+    const updatedItem = { ...target, ...updates }
+    const derived = computeDerivedInvestment(updatedItem, state.investmentTransactions)
+
     setState({
-      investments: prev.map((i) => (i.id === id ? { ...i, ...updates } : i)),
+      investments: prev.map((i) => (i.id === id ? derived : i)),
     })
 
     const dbUpdates: Record<string, unknown> = {}
     if (updates.name !== undefined) dbUpdates.name = updates.name
     if (updates.type !== undefined) dbUpdates.type = updates.type
-    if (updates.investedAmount !== undefined) dbUpdates.invested_amount = updates.investedAmount
-    if (updates.currentAmount !== undefined) dbUpdates.current_amount = updates.currentAmount
+    if (updates.initialAmount !== undefined) {
+      dbUpdates.initial_amount = updates.initialAmount
+      dbUpdates.invested_amount = derived.investedAmount
+      dbUpdates.current_amount = derived.currentAmount
+    }
+    if (updates.yieldRate !== undefined) dbUpdates.yield_rate = updates.yieldRate
+    if (updates.yieldFrequency !== undefined) dbUpdates.yield_frequency = updates.yieldFrequency
     if (updates.date !== undefined) dbUpdates.date = updates.date
     if (updates.bankAccountId !== undefined) dbUpdates.bank_account_id = updates.bankAccountId
     if (updates.goalId !== undefined) dbUpdates.goal_id = updates.goalId
@@ -1082,11 +1404,13 @@ let state: FinanceStoreState = {
     if (!session) return
 
     const tempId = `temp-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`
+    const initial = Number(goal.initialAmount || 0)
     const optimistic: InvestmentGoal = {
       id: tempId,
       name: goal.name,
       targetAmount: Number(goal.targetAmount),
-      currentAmount: Number(goal.currentAmount || 0),
+      initialAmount: initial,
+      currentAmount: initial,
       deadline: goal.deadline || null,
       createdAt: new Date().toISOString(),
     }
@@ -1099,7 +1423,8 @@ let state: FinanceStoreState = {
         user_id: session.user.id,
         name: goal.name,
         target_amount: goal.targetAmount,
-        current_amount: goal.currentAmount || 0,
+        initial_amount: initial,
+        current_amount: initial,
         deadline: goal.deadline || null,
       })
       .select()
@@ -1111,7 +1436,7 @@ let state: FinanceStoreState = {
       return
     }
 
-    const real = mapInvestmentGoal(data)
+    const real = computeDerivedGoal(data, state.investmentTransactions)
     setState({
       investmentGoals: state.investmentGoals.map((g) => (g.id === tempId ? real : g)),
     })
@@ -1119,14 +1444,23 @@ let state: FinanceStoreState = {
 
   updateInvestmentGoal: async (id: string, updates: Partial<InvestmentGoal>) => {
     const prev = state.investmentGoals
+    const target = prev.find((g) => g.id === id)
+    if (!target) return
+
+    const updatedItem = { ...target, ...updates }
+    const derived = computeDerivedGoal(updatedItem, state.investmentTransactions)
+
     setState({
-      investmentGoals: prev.map((g) => (g.id === id ? { ...g, ...updates } : g)),
+      investmentGoals: prev.map((g) => (g.id === id ? derived : g)),
     })
 
     const dbUpdates: Record<string, unknown> = {}
     if (updates.name !== undefined) dbUpdates.name = updates.name
     if (updates.targetAmount !== undefined) dbUpdates.target_amount = updates.targetAmount
-    if (updates.currentAmount !== undefined) dbUpdates.current_amount = updates.currentAmount
+    if (updates.initialAmount !== undefined) {
+      dbUpdates.initial_amount = updates.initialAmount
+      dbUpdates.current_amount = derived.currentAmount
+    }
     if (updates.deadline !== undefined) dbUpdates.deadline = updates.deadline
 
     const { error } = await (supabase as any)

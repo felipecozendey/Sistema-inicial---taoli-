@@ -24,7 +24,7 @@ export function InvestmentGoalModal({ open, onOpenChange, editingGoal }: Investm
 
   const [name, setName] = useState('')
   const [targetAmount, setTargetAmount] = useState('')
-  const [currentAmount, setCurrentAmount] = useState('')
+  const [initialAmount, setInitialAmount] = useState('0')
   const [deadline, setDeadline] = useState('')
 
   const isEditing = !!editingGoal
@@ -34,12 +34,12 @@ export function InvestmentGoalModal({ open, onOpenChange, editingGoal }: Investm
       if (editingGoal) {
         setName(editingGoal.name)
         setTargetAmount(String(editingGoal.targetAmount))
-        setCurrentAmount(String(editingGoal.currentAmount || 0))
+        setInitialAmount(String(editingGoal.initialAmount ?? 0))
         setDeadline(editingGoal.deadline || '')
       } else {
         setName('')
         setTargetAmount('')
-        setCurrentAmount('0')
+        setInitialAmount('0')
         setDeadline('')
       }
     }
@@ -57,7 +57,11 @@ export function InvestmentGoalModal({ open, onOpenChange, editingGoal }: Investm
       return
     }
 
-    const current = parseFloat(currentAmount) || 0
+    const initial = parseFloat(initialAmount)
+    if (isNaN(initial) || initial < 0) {
+      toast.error('Informe um valor inicial válido (pode ser R$ 0)')
+      return
+    }
 
     onOpenChange(false)
 
@@ -65,7 +69,7 @@ export function InvestmentGoalModal({ open, onOpenChange, editingGoal }: Investm
       updateInvestmentGoal(editingGoal.id, {
         name: name.trim(),
         targetAmount: target,
-        currentAmount: current,
+        initialAmount: initial,
         deadline: deadline || null,
       })
       toast.success('Meta atualizada! 🎯')
@@ -73,7 +77,7 @@ export function InvestmentGoalModal({ open, onOpenChange, editingGoal }: Investm
       addInvestmentGoal({
         name: name.trim(),
         targetAmount: target,
-        currentAmount: current,
+        initialAmount: initial,
         deadline: deadline || null,
       })
       toast.success('Nova meta de investimento criada! 🎯')
@@ -88,7 +92,8 @@ export function InvestmentGoalModal({ open, onOpenChange, editingGoal }: Investm
             {isEditing ? 'Editar Meta' : 'Nova Meta de Investimento'}
           </DialogTitle>
           <DialogDescription>
-            Ex: Reserva de Emergência de 6 meses, Carro Novo, Casa Própria, Viagem
+            Ex: Reserva de Emergência, Carro Novo, Casa Própria. O saldo atual é derivado dos
+            aportes e retiradas registrados.
           </DialogDescription>
         </DialogHeader>
 
@@ -116,17 +121,21 @@ export function InvestmentGoalModal({ open, onOpenChange, editingGoal }: Investm
               />
             </div>
             <div className="space-y-1.5">
-              <Label className="text-sm font-extrabold">Já Acumulado (R$)</Label>
+              <Label className="text-sm font-extrabold">Valor Inicial (R$)</Label>
               <Input
                 type="number"
                 inputMode="decimal"
-                value={currentAmount}
-                onChange={(e) => setCurrentAmount(e.target.value)}
+                value={initialAmount}
+                onChange={(e) => setInitialAmount(e.target.value)}
                 placeholder="0,00"
                 className="rounded-xl font-bold"
               />
             </div>
           </div>
+          <p className="text-[11px] text-muted-foreground font-medium -mt-2">
+            💡 Você pode começar com R$ 0 e registrar aportes posteriores. O saldo atual alimenta a
+            barra de progresso em tempo real.
+          </p>
 
           <div className="space-y-1.5">
             <Label className="text-sm font-extrabold">Prazo Estimado (Opcional)</Label>
