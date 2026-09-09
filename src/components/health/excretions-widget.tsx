@@ -1,792 +1,399 @@
-import { useState, useMemo } from 'react'
+import { useState } from 'react'
 import { useAppStore, BowelType } from '@/stores/useAppStore'
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from '@/components/ui/dialog'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { Droplet, Trash2, HelpCircle, Activity, Info, Calendar } from 'lucide-react'
-import {
-  LineChart,
-  Line,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
-} from 'recharts'
-import { subDays, format, isValid } from 'date-fns'
-import { ptBR } from 'date-fns/locale'
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Droplet, Droplets, Check } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 // Escala de Bristol para Digestão
-const BRISTOL_TYPES: { type: BowelType; label: string; color: string; description: string }[] = [
+const BRISTOL_TYPES: {
+  type: BowelType
+  label: string
+  color: string
+  description: string
+  status:
+    | 'Constipação Severa'
+    | 'Constipação'
+    | 'Normal'
+    | 'Ideal'
+    | 'Pouca Fibra'
+    | 'Diarreia Leve'
+    | 'Diarreia Severa'
+}[] = [
   {
     type: 1,
     label: 'Tipo 1',
     color: '#FF4B4B',
-    description: 'Pélotas duras separadas (como nozes). Constipação severa.',
+    description: 'Pélotas duras separadas (como nozes). Difícil de evacuar.',
+    status: 'Constipação Severa',
   },
   {
     type: 2,
     label: 'Tipo 2',
     color: '#FF9600',
-    description: 'Formato de salsicha, mas granulado. Constipação.',
+    description: 'Formato de salsicha, mas com superfície granulada e firme.',
+    status: 'Constipação',
   },
   {
     type: 3,
     label: 'Tipo 3',
     color: '#58CC02',
-    description: 'Como salsicha mas com rachaduras. Normal.',
+    description: 'Formato de salsicha, mas com rachaduras na superfície.',
+    status: 'Normal',
   },
   {
     type: 4,
     label: 'Tipo 4',
     color: '#58CC02',
-    description: 'Salsicha ou cobra, lisa e macia. Ideal!',
+    description: 'Formato de salsicha ou cobra, superfície lisa e macia.',
+    status: 'Ideal',
   },
   {
     type: 5,
     label: 'Tipo 5',
     color: '#FFC800',
-    description: 'Blobes macios com bordas claras. Falta de fibras.',
+    description: 'Pedaços macios com bordas nítidas. Evacuado facilmente.',
+    status: 'Pouca Fibra',
   },
   {
     type: 6,
     label: 'Tipo 6',
     color: '#FF9600',
-    description: 'Pedaços fofos com bordas irregulares. Diarreia leve.',
+    description: 'Pedaços esfarrapados, fofos e com bordas irregulares.',
+    status: 'Diarreia Leve',
   },
   {
     type: 7,
     label: 'Tipo 7',
     color: '#FF4B4B',
-    description: 'Aquoso, sem pedaços sólidos. Diarreia severa.',
+    description: 'Totalmente líquido, aquoso e sem pedaços sólidos.',
+    status: 'Diarreia Severa',
   },
 ]
 
 // Escala de Cor para Hidratação / Urina
-const URINE_COLORS: { type: number; label: string; color: string; description: string }[] = [
+const URINE_COLORS: {
+  type: number
+  label: string
+  color: string
+  borderColor: string
+  description: string
+  status: string
+}[] = [
   {
     type: 1,
     label: 'Transparente',
-    color: '#FFF9C4',
-    description: 'Excelente hidratação. Urina ideal.',
+    color: '#FFFDE7',
+    borderColor: '#FFF59D',
+    description: 'Excelente nível de hidratação. Urina muito clara ou límpida.',
+    status: 'Excelente Hidratação',
   },
-  { type: 2, label: 'Am. Claro', color: '#FFF176', description: 'Hidratação adequada.' },
-  { type: 3, label: 'Amarelo', color: '#FFEE58', description: 'Hidratação moderada.' },
-  { type: 4, label: 'Am. Escuro', color: '#FBC02D', description: 'Beba mais água.' },
-  { type: 5, label: 'Âmbar', color: '#EF6C00', description: 'Desidratação moderada.' },
+  {
+    type: 2,
+    label: 'Amarelo Claro',
+    color: '#FFF59D',
+    borderColor: '#FFEE58',
+    description: 'Boa hidratação e equilíbrio hídrico no organismo.',
+    status: 'Hidratação Adequada',
+  },
+  {
+    type: 3,
+    label: 'Amarelo Padrão',
+    color: '#FFEE58',
+    borderColor: '#FDD835',
+    description: 'Nível moderado de hidratação. Beba um pouco de água.',
+    status: 'Hidratação Moderada',
+  },
+  {
+    type: 4,
+    label: 'Amarelo Escuro',
+    color: '#FBC02D',
+    borderColor: '#F57F17',
+    description: 'Sinal inicial de desidratação. Recomenda-se beber água.',
+    status: 'Beba Mais Água',
+  },
+  {
+    type: 5,
+    label: 'Âmbar / Alaranjado',
+    color: '#EF6C00',
+    borderColor: '#E65100',
+    description: 'Desidratação moderada a alta. Aumente o consumo de líquidos.',
+    status: 'Desidratação Moderada',
+  },
   {
     type: 6,
-    label: 'Marrom',
+    label: 'Castanho / Marrom',
     color: '#6D4C41',
-    description: 'Alerta: possível desidratação severa.',
+    borderColor: '#4E342E',
+    description: 'Alerta: possível desidratação severa ou alteração hepática.',
+    status: 'Alerta / Desidratação',
   },
 ]
 
 export function ExcretionsWidget() {
-  const {
-    digestionLogs,
-    addDigestionLog,
-    deleteDigestionLog,
-    urineLogs,
-    addUrineLog,
-    deleteUrineLog,
-  } = useAppStore()
+  const { addDigestionLog, addUrineLog } = useAppStore()
 
-  const [activeTab, setActiveTab] = useState<'urina' | 'digestao'>('urina')
-  const [bristolHelpOpen, setBristolHelpOpen] = useState(false)
-  const [urineHelpOpen, setUrineHelpOpen] = useState(false)
+  // Estados dos modais de registro
+  const [urineModalOpen, setUrineModalOpen] = useState(false)
+  const [bristolModalOpen, setBristolModalOpen] = useState(false)
 
-  const today = useMemo(() => new Date().toISOString().split('T')[0], [])
-
-  // Logs do dia para Digestão
-  const todayDigestionLogs = useMemo(
-    () =>
-      digestionLogs
-        .filter((l) => l.date === today)
-        .sort((a, b) => b.timestamp.localeCompare(a.timestamp)),
-    [digestionLogs, today],
-  )
-  const latestDigestion = todayDigestionLogs[0]
-  const latestBristolItem = BRISTOL_TYPES.find((b) => b.type === latestDigestion?.bristolType)
-
-  // Logs do dia para Urina
-  const todayUrineLogs = useMemo(
-    () =>
-      urineLogs
-        .filter((l) => l.date === today)
-        .sort((a, b) => b.timestamp.localeCompare(a.timestamp)),
-    [urineLogs, today],
-  )
-  const latestUrine = todayUrineLogs[0]
-  const latestUrineItem = URINE_COLORS.find((u) => u.type === latestUrine?.colorType)
-
-  // Handlers independentes com Zero Lag (atualização otimista síncrona no Zustand)
-  const handleSelectBristol = (type: BowelType) => {
-    addDigestionLog(today, type, '')
-  }
+  // Feedback de seleção breve nos modais (zero lag)
+  const [selectedUrineType, setSelectedUrineType] = useState<number | null>(null)
+  const [selectedBristolType, setSelectedBristolType] = useState<BowelType | null>(null)
 
   const handleSelectUrine = (type: number) => {
+    setSelectedUrineType(type)
+    const today = new Date().toISOString().split('T')[0]
     addUrineLog(today, type, '')
+    setTimeout(() => {
+      setSelectedUrineType(null)
+      setUrineModalOpen(false)
+    }, 200)
   }
 
-  const [daysRange, setDaysRange] = useState<7 | 14>(14)
-  const [visibleSeries, setVisibleSeries] = useState<{ urina: boolean; digestao: boolean }>({
-    urina: true,
-    digestao: true,
-  })
-
-  // Gráfico Urina & Digestão - Linhas suaves e pontos claros com eixos independentes
-  const chartData = useMemo(() => {
-    const todayObj = new Date()
-    if (isNaN(todayObj.getTime())) return []
-    todayObj.setHours(0, 0, 0, 0)
-
-    const totalDays = daysRange
-    const result = []
-
-    for (let i = totalDays - 1; i >= 0; i--) {
-      const dayDate = subDays(todayObj, i)
-      if (!isValid(dayDate) || isNaN(dayDate.getTime())) continue
-
-      const dayStr = format(dayDate, 'yyyy-MM-dd')
-      const label = format(dayDate, 'dd/MM', { locale: ptBR })
-
-      // Buscar registros do dia
-      const dayUrineLogs = (urineLogs || [])
-        .filter((l) => l.date === dayStr)
-        .sort((a, b) => b.timestamp.localeCompare(a.timestamp))
-      const latestDayUrine = dayUrineLogs[0]
-
-      const dayDigestionLogs = (digestionLogs || [])
-        .filter((l) => l.date === dayStr)
-        .sort((a, b) => b.timestamp.localeCompare(a.timestamp))
-      const latestDayDig = dayDigestionLogs[0]
-
-      const urineScale = latestDayUrine
-        ? URINE_COLORS.find((u) => u.type === latestDayUrine.colorType)
-        : null
-      const bristolScale = latestDayDig
-        ? BRISTOL_TYPES.find((b) => b.type === latestDayDig.bristolType)
-        : null
-
-      result.push({
-        day: label,
-        rawDate: dayStr,
-        urina: latestDayUrine ? latestDayUrine.colorType : null,
-        urinaLabel: urineScale?.label || null,
-        urinaColor: urineScale?.color || '#1CB0F6',
-        urinaCount: dayUrineLogs.length,
-        digestao: latestDayDig ? Number(latestDayDig.bristolType) : null,
-        digestaoLabel: bristolScale?.label || null,
-        digestaoColor: bristolScale?.color || '#FF9600',
-        digestaoCount: dayDigestionLogs.length,
-      })
-    }
-
-    return result
-  }, [urineLogs, digestionLogs, daysRange])
-
-  const hasExcretionData = useMemo(() => {
-    return chartData.some((d) => d.urina !== null || d.digestao !== null)
-  }, [chartData])
-
-  const toggleSeries = (key: 'urina' | 'digestao') => {
-    setVisibleSeries((prev) => {
-      // Evitar desmarcar ambos
-      if (prev[key] && !prev[key === 'urina' ? 'digestao' : 'urina']) {
-        return prev
-      }
-      return { ...prev, [key]: !prev[key] }
-    })
+  const handleSelectBristol = (type: BowelType) => {
+    setSelectedBristolType(type)
+    const today = new Date().toISOString().split('T')[0]
+    addDigestionLog(today, type, '')
+    setTimeout(() => {
+      setSelectedBristolType(null)
+      setBristolModalOpen(false)
+    }, 200)
   }
 
   return (
-    <div className="bg-card border-2 border-b-4 border-[#E5E5E5] dark:border-[#3B4A55] rounded-3xl p-5 shadow-sm flex flex-col gap-4">
-      {/* Top Header com Resumo do Dia Lado a Lado */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-2 border-b border-[#E5E5E5] dark:border-[#3B4A55]/60">
-        <div className="flex items-center gap-2.5">
-          <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-[#FFC800]/20 to-[#FF9600]/20 flex items-center justify-center text-xl shrink-0">
-            💧🚽
-          </div>
-          <div>
-            <h3 className="text-lg font-black tracking-tight leading-none">Urina & Digestão</h3>
-            <p className="text-xs font-bold text-muted-foreground mt-1">
-              Registro diário de excreções e hidratação
-            </p>
-          </div>
+    <div className="bg-card border-2 border-b-4 border-[#E5E5E5] dark:border-[#3B4A55] rounded-3xl p-6 shadow-sm flex flex-col justify-between gap-5">
+      {/* 1. Cabeçalho remodelado de forma limpa com ícone representativo, título e subtítulo */}
+      <div className="flex items-center gap-3">
+        <div className="w-12 h-12 rounded-2xl bg-[#FFC800]/15 dark:bg-[#FFC800]/20 flex items-center justify-center shrink-0 border border-[#FFC800]/30 shadow-xs">
+          <Droplets className="w-6 h-6 text-[#FF9600] dark:text-[#FFC800]" strokeWidth={2.5} />
         </div>
-
-        {/* Resumo compacto do dia com status de ambos */}
-        <div className="flex items-center gap-2">
-          {/* Status Urina */}
-          <button
-            type="button"
-            onClick={() => setActiveTab('urina')}
-            className={cn(
-              'flex items-center gap-1.5 px-3 py-1.5 rounded-2xl border-2 text-xs font-black transition-all select-none',
-              activeTab === 'urina'
-                ? 'border-[#FFC800] bg-[#FFC800]/15 text-[#B28200] dark:text-[#FFC800]'
-                : 'border-transparent bg-muted/40 hover:bg-muted/70 text-muted-foreground',
-            )}
-          >
-            <Droplet className="w-3.5 h-3.5 text-[#FFC800]" strokeWidth={2.5} />
-            <span>Urina:</span>
-            <span className="font-extrabold text-foreground">
-              {latestUrineItem ? latestUrineItem.label : '-'}
-            </span>
-          </button>
-
-          {/* Status Digestão */}
-          <button
-            type="button"
-            onClick={() => setActiveTab('digestao')}
-            className={cn(
-              'flex items-center gap-1.5 px-3 py-1.5 rounded-2xl border-2 text-xs font-black transition-all select-none',
-              activeTab === 'digestao'
-                ? 'border-[#FF9600] bg-[#FF9600]/15 text-[#CC6E00] dark:text-[#FF9600]'
-                : 'border-transparent bg-muted/40 hover:bg-muted/70 text-muted-foreground',
-            )}
-          >
-            <span className="text-xs">🚽</span>
-            <span>Digestão:</span>
-            <span className="font-extrabold text-foreground">
-              {latestBristolItem ? latestBristolItem.label : '-'}
-            </span>
-          </button>
+        <div className="min-w-0">
+          <h3 className="text-xl font-black tracking-tight text-foreground leading-tight">
+            Urina & Digestão
+          </h3>
+          <p className="text-xs font-bold text-muted-foreground mt-0.5">
+            Registro diário de excreções e hidratação
+          </p>
         </div>
       </div>
 
-      {/* Tabs Internas para controle de registro isolado */}
-      <Tabs
-        value={activeTab}
-        onValueChange={(v) => setActiveTab(v as 'urina' | 'digestao')}
-        className="w-full"
-      >
-        <div className="flex items-center justify-between mb-3">
-          <TabsList className="bg-muted/50 p-1 rounded-2xl h-10">
-            <TabsTrigger
-              value="urina"
-              className="rounded-xl font-black text-xs data-[state=active]:bg-card data-[state=active]:shadow-xs px-4 flex items-center gap-1.5"
-            >
-              <Droplet className="w-3.5 h-3.5 text-[#FFC800]" />
-              Urina ({todayUrineLogs.length})
-            </TabsTrigger>
-            <TabsTrigger
-              value="digestao"
-              className="rounded-xl font-black text-xs data-[state=active]:bg-card data-[state=active]:shadow-xs px-4 flex items-center gap-1.5"
-            >
-              <span>🚽</span>
-              Digestão ({todayDigestionLogs.length})
-            </TabsTrigger>
-          </TabsList>
-
-          {/* Botão de ajuda de acordo com a aba ativa */}
-          {activeTab === 'urina' ? (
-            <Dialog open={urineHelpOpen} onOpenChange={setUrineHelpOpen}>
-              <DialogTrigger asChild>
-                <button
-                  type="button"
-                  aria-label="Escala de Hidratação"
-                  className="w-8 h-8 rounded-full bg-muted/50 flex items-center justify-center hover:bg-muted transition-colors"
-                >
-                  <HelpCircle className="w-4 h-4 text-muted-foreground" strokeWidth={2.5} />
-                </button>
-              </DialogTrigger>
-              <DialogContent className="sm:max-w-[420px] rounded-3xl">
-                <DialogHeader>
-                  <DialogTitle className="text-xl font-extrabold flex items-center gap-2">
-                    <Droplet className="w-5 h-5 text-[#FFC800]" /> Escala de Hidratação
-                  </DialogTitle>
-                </DialogHeader>
-                <div className="space-y-3 mt-2 max-h-[60vh] overflow-y-auto">
-                  {URINE_COLORS.map((item) => (
-                    <div
-                      key={item.type}
-                      className="flex items-start gap-3 p-3 rounded-2xl bg-muted/40"
-                    >
-                      <span
-                        className="w-8 h-8 rounded-full shrink-0 mt-0.5 border border-black/10"
-                        style={{ backgroundColor: item.color }}
-                      />
-                      <div>
-                        <p className="text-sm font-extrabold">{item.label}</p>
-                        <p className="text-xs text-muted-foreground font-semibold">
-                          {item.description}
-                        </p>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </DialogContent>
-            </Dialog>
-          ) : (
-            <Dialog open={bristolHelpOpen} onOpenChange={setBristolHelpOpen}>
-              <DialogTrigger asChild>
-                <button
-                  type="button"
-                  aria-label="Escala de Bristol"
-                  className="w-8 h-8 rounded-full bg-muted/50 flex items-center justify-center hover:bg-muted transition-colors"
-                >
-                  <HelpCircle className="w-4 h-4 text-muted-foreground" strokeWidth={2.5} />
-                </button>
-              </DialogTrigger>
-              <DialogContent className="sm:max-w-[420px] rounded-3xl">
-                <DialogHeader>
-                  <DialogTitle className="text-xl font-extrabold flex items-center gap-2">
-                    <span>🚽</span> Escala de Bristol
-                  </DialogTitle>
-                </DialogHeader>
-                <div className="space-y-3 mt-2 max-h-[60vh] overflow-y-auto">
-                  {BRISTOL_TYPES.map((item) => (
-                    <div
-                      key={item.type}
-                      className="flex items-start gap-3 p-3 rounded-2xl bg-muted/40"
-                    >
-                      <span
-                        className="w-8 h-8 rounded-full shrink-0 mt-0.5"
-                        style={{ backgroundColor: item.color }}
-                      />
-                      <div>
-                        <p className="text-sm font-extrabold">{item.label}</p>
-                        <p className="text-xs text-muted-foreground font-semibold">
-                          {item.description}
-                        </p>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </DialogContent>
-            </Dialog>
+      {/* 2. Área de escolha de registro: Urina e Digestão lado a lado (Estilo Duolingo 3D) */}
+      <div className="grid grid-cols-2 gap-3">
+        {/* Botão Registrar Urina */}
+        <button
+          type="button"
+          onClick={() => setUrineModalOpen(true)}
+          className={cn(
+            'flex flex-col items-center justify-center gap-2 p-4 rounded-3xl',
+            'bg-[#FFFDF0] dark:bg-[#1E293B]/70 hover:bg-[#FFF9C4]/40 dark:hover:bg-[#334155]/60',
+            'border-2 border-[#FFC800] border-b-4 border-b-[#E5A800]',
+            'active:translate-y-1 active:border-b-2 transition-all duration-150',
+            'select-none cursor-pointer group text-center',
           )}
-        </div>
+        >
+          <div className="w-11 h-11 rounded-2xl bg-[#FFC800]/20 flex items-center justify-center group-hover:scale-105 transition-transform">
+            <Droplet className="w-6 h-6 text-[#E5A800] dark:text-[#FFC800] fill-current" />
+          </div>
+          <div>
+            <span className="block text-sm font-black text-foreground tracking-tight">Urina</span>
+            <span className="block text-[11px] font-bold text-muted-foreground mt-0.5">
+              Registrar cor
+            </span>
+          </div>
+        </button>
 
-        {/* ================= ABA URINA ================= */}
-        <TabsContent value="urina" className="mt-0 space-y-3">
-          <p className="text-xs font-bold text-muted-foreground">
-            Toque na tonalidade observada para registrar:
-          </p>
+        {/* Botão Registrar Digestão */}
+        <button
+          type="button"
+          onClick={() => setBristolModalOpen(true)}
+          className={cn(
+            'flex flex-col items-center justify-center gap-2 p-4 rounded-3xl',
+            'bg-[#FFFBF5] dark:bg-[#1E293B]/70 hover:bg-[#FFE0B2]/30 dark:hover:bg-[#334155]/60',
+            'border-2 border-[#FF9600] border-b-4 border-b-[#CC6E00]',
+            'active:translate-y-1 active:border-b-2 transition-all duration-150',
+            'select-none cursor-pointer group text-center',
+          )}
+        >
+          <div className="w-11 h-11 rounded-2xl bg-[#FF9600]/20 flex items-center justify-center group-hover:scale-105 transition-transform">
+            <span className="text-2xl leading-none">🚽</span>
+          </div>
+          <div>
+            <span className="block text-sm font-black text-foreground tracking-tight">
+              Digestão
+            </span>
+            <span className="block text-[11px] font-bold text-muted-foreground mt-0.5">
+              Escala de Bristol
+            </span>
+          </div>
+        </button>
+      </div>
 
-          <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-none">
+      {/* 3. Frase de encerramento do card (conforme especificação estrita do usuário) */}
+      <p className="text-xs font-semibold text-muted-foreground text-center pt-1">
+        Histórico detalhado na aba ao lado.
+      </p>
+
+      {/* ================= MODAL DE REGISTRO: URINA ================= */}
+      <Dialog open={urineModalOpen} onOpenChange={setUrineModalOpen}>
+        <DialogContent className="sm:max-w-[480px] rounded-3xl p-6 bg-card border-2 border-b-4 border-[#E5E5E5] dark:border-[#3B4A55]">
+          <DialogHeader className="space-y-1">
+            <DialogTitle className="text-xl font-black flex items-center gap-2 text-foreground">
+              <div className="w-8 h-8 rounded-xl bg-[#FFC800]/20 flex items-center justify-center">
+                <Droplet className="w-4 h-4 text-[#FFC800] fill-current" />
+              </div>
+              Registrar Tonalidade da Urina
+            </DialogTitle>
+            <p className="text-xs font-bold text-muted-foreground">
+              Selecione a tonalidade observada na escala de hidratação:
+            </p>
+          </DialogHeader>
+
+          {/* Grid reorganizada, uniforme, legível e no padrão Duolingo */}
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 mt-3 max-h-[65vh] overflow-y-auto pr-1">
             {URINE_COLORS.map((item) => {
-              const isSelected = latestUrine?.colorType === item.type
+              const isSelected = selectedUrineType === item.type
               return (
                 <button
                   key={item.type}
                   type="button"
                   onClick={() => handleSelectUrine(item.type)}
                   className={cn(
-                    'flex flex-col items-center gap-1.5 px-3 py-3 rounded-3xl border-2 border-b-4 transition-all duration-150 active:translate-y-1 active:border-b-0 min-w-[70px] hover:bg-muted/30 select-none shrink-0',
-                    isSelected && 'ring-2 ring-primary ring-offset-2',
+                    'flex flex-col items-center justify-center gap-2 p-3 rounded-2xl border-2 border-b-4 transition-all duration-150',
+                    'active:translate-y-1 active:border-b-2 hover:brightness-95 text-center select-none cursor-pointer relative',
+                    isSelected && 'ring-2 ring-[#FFC800] ring-offset-2 scale-95',
                   )}
-                  style={{ borderColor: item.color, borderBottomColor: item.color }}
+                  style={{
+                    backgroundColor: item.color,
+                    borderColor: item.borderColor,
+                    borderBottomColor: item.borderColor,
+                  }}
                 >
-                  <span
-                    className="w-7 h-7 rounded-full border border-black/10 shadow-xs"
+                  {/* Ícone de gota com a cor da amostra */}
+                  <div
+                    className="w-9 h-9 rounded-full flex items-center justify-center shadow-xs border border-black/10 shrink-0"
                     style={{ backgroundColor: item.color }}
-                  />
-                  <span className="text-[10px] font-extrabold text-muted-foreground whitespace-nowrap">
-                    {item.label}
-                  </span>
+                  >
+                    <Droplet
+                      className={cn(
+                        'w-5 h-5',
+                        item.type <= 2 ? 'text-[#F57F17]' : 'text-white drop-shadow-xs',
+                      )}
+                      fill="currentColor"
+                    />
+                  </div>
+
+                  <div className="min-w-0 w-full px-0.5">
+                    <span
+                      className={cn(
+                        'block text-xs font-black leading-tight',
+                        item.type <= 2 ? 'text-[#3E2723]' : 'text-white drop-shadow-xs',
+                      )}
+                    >
+                      {item.label}
+                    </span>
+                    <span
+                      className={cn(
+                        'block text-[10px] font-bold mt-0.5 truncate',
+                        item.type <= 2 ? 'text-[#5D4037]/80' : 'text-white/90',
+                      )}
+                      title={item.status}
+                    >
+                      {item.status}
+                    </span>
+                  </div>
+
+                  {isSelected && (
+                    <div className="absolute top-1.5 right-1.5 w-5 h-5 rounded-full bg-foreground text-background flex items-center justify-center">
+                      <Check className="w-3 h-3 stroke-[3]" />
+                    </div>
+                  )}
                 </button>
               )
             })}
           </div>
 
-          {/* Último registro de Urina */}
-          {latestUrine ? (
-            <div className="space-y-2 mt-1">
-              <div className="flex items-center justify-between bg-muted/40 rounded-2xl px-3.5 py-2.5">
-                <div className="flex items-center gap-2">
-                  <span
-                    className="w-4 h-4 rounded-full border border-black/10 shrink-0"
-                    style={{
-                      backgroundColor: latestUrineItem?.color,
-                    }}
-                  />
-                  <span className="text-xs font-black">Último: {latestUrineItem?.label}</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className="text-xs font-semibold text-muted-foreground">
-                    {new Date(latestUrine.timestamp).toLocaleTimeString('pt-BR', {
-                      hour: '2-digit',
-                      minute: '2-digit',
-                    })}
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => deleteUrineLog(latestUrine.id)}
-                    className="p-1 hover:bg-[#FF4B4B]/10 hover:text-[#FF4B4B] rounded-full transition-colors"
-                    title="Excluir último registro de urina"
-                  >
-                    <Trash2 className="w-3.5 h-3.5" strokeWidth={2.5} />
-                  </button>
-                </div>
+          {/* Dica informativa no rodapé do modal */}
+          <div className="mt-3 p-3 rounded-2xl bg-muted/40 border border-[#E5E5E5] dark:border-[#3B4A55] text-[11px] font-semibold text-muted-foreground flex items-center gap-2">
+            <span className="text-base">💡</span>
+            <span>Tons transparentes e amarelo-claro indicam boa hidratação.</span>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* ================= MODAL DE REGISTRO: DIGESTÃO (ESCALA DE BRISTOL) ================= */}
+      <Dialog open={bristolModalOpen} onOpenChange={setBristolModalOpen}>
+        <DialogContent className="sm:max-w-[500px] rounded-3xl p-6 bg-card border-2 border-b-4 border-[#E5E5E5] dark:border-[#3B4A55]">
+          <DialogHeader className="space-y-1">
+            <DialogTitle className="text-xl font-black flex items-center gap-2 text-foreground">
+              <div className="w-8 h-8 rounded-xl bg-[#FF9600]/20 flex items-center justify-center">
+                <span className="text-base leading-none">🚽</span>
               </div>
-              {todayUrineLogs.length > 1 && (
-                <p className="text-[11px] font-bold text-muted-foreground text-center">
-                  {todayUrineLogs.length} registros hoje. Histórico detalhado na aba ao lado.
-                </p>
-              )}
-            </div>
-          ) : (
-            <p className="text-xs font-semibold text-muted-foreground italic text-center py-2">
-              Nenhuma urina registrada hoje.
+              Registrar Digestão (Escala de Bristol)
+            </DialogTitle>
+            <p className="text-xs font-bold text-muted-foreground">
+              Selecione o formato mais próximo da sua evacuação:
             </p>
-          )}
-        </TabsContent>
+          </DialogHeader>
 
-        {/* ================= ABA DIGESTÃO ================= */}
-        <TabsContent value="digestao" className="mt-0 space-y-3">
-          <p className="text-xs font-bold text-muted-foreground">
-            Selecione o tipo da escala de Bristol para registrar:
-          </p>
-
-          <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-none">
+          {/* Lista vertical de cartões no padrão Duolingo (uniforme, legível e informativa) */}
+          <div className="space-y-2 mt-3 max-h-[65vh] overflow-y-auto pr-1">
             {BRISTOL_TYPES.map((item) => {
-              const isSelected = latestDigestion?.bristolType === item.type
+              const isSelected = selectedBristolType === item.type
               return (
                 <button
                   key={item.type}
                   type="button"
                   onClick={() => handleSelectBristol(item.type)}
                   className={cn(
-                    'flex flex-col items-center gap-1.5 px-3 py-3 rounded-3xl border-2 border-b-4 transition-all duration-150 active:translate-y-1 active:border-b-0 min-w-[70px] hover:bg-muted/30 select-none shrink-0',
-                    isSelected && 'ring-2 ring-primary ring-offset-2',
+                    'w-full flex items-center gap-3 p-3 rounded-2xl border-2 border-b-4 text-left transition-all duration-150',
+                    'active:translate-y-0.5 active:border-b-2 hover:bg-muted/40 select-none cursor-pointer relative',
+                    isSelected
+                      ? 'border-primary bg-primary/10'
+                      : 'border-[#E5E5E5] dark:border-[#3B4A55] bg-card',
                   )}
-                  style={{ borderColor: item.color, borderBottomColor: item.color }}
                 >
-                  <span
-                    className="w-7 h-7 rounded-full shadow-xs"
+                  {/* Badge circular do Tipo */}
+                  <div
+                    className="w-10 h-10 rounded-2xl flex items-center justify-center shrink-0 font-black text-xs text-white shadow-xs"
                     style={{ backgroundColor: item.color }}
-                  />
-                  <span className="text-[10px] font-extrabold text-muted-foreground whitespace-nowrap">
-                    {item.label}
-                  </span>
+                  >
+                    T{item.type}
+                  </div>
+
+                  {/* Descrição e Classificação */}
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-black text-foreground">{item.label}</span>
+                      <span
+                        className="text-[10px] font-extrabold px-2 py-0.5 rounded-lg text-white shrink-0"
+                        style={{ backgroundColor: item.color }}
+                      >
+                        {item.status}
+                      </span>
+                    </div>
+                    <p className="text-xs font-semibold text-muted-foreground mt-0.5 line-clamp-2">
+                      {item.description}
+                    </p>
+                  </div>
+
+                  {/* Indicador de Seleção */}
+                  {isSelected && (
+                    <div className="w-6 h-6 rounded-full bg-primary text-primary-foreground flex items-center justify-center shrink-0">
+                      <Check className="w-3.5 h-3.5 stroke-[3]" />
+                    </div>
+                  )}
                 </button>
               )
             })}
           </div>
 
-          {/* Último registro de Digestão */}
-          {latestDigestion ? (
-            <div className="space-y-2 mt-1">
-              <div className="flex items-center justify-between bg-muted/40 rounded-2xl px-3.5 py-2.5">
-                <div className="flex items-center gap-2">
-                  <span
-                    className="w-4 h-4 rounded-full shrink-0"
-                    style={{ backgroundColor: latestBristolItem?.color }}
-                  />
-                  <span className="text-xs font-black">Último: {latestBristolItem?.label}</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className="text-xs font-semibold text-muted-foreground">
-                    {new Date(latestDigestion.timestamp).toLocaleTimeString('pt-BR', {
-                      hour: '2-digit',
-                      minute: '2-digit',
-                    })}
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => deleteDigestionLog(latestDigestion.id)}
-                    className="p-1 hover:bg-[#FF4B4B]/10 hover:text-[#FF4B4B] rounded-full transition-colors"
-                    title="Excluir último registro de digestão"
-                  >
-                    <Trash2 className="w-3.5 h-3.5" strokeWidth={2.5} />
-                  </button>
-                </div>
-              </div>
-              {todayDigestionLogs.length > 1 && (
-                <p className="text-[11px] font-bold text-muted-foreground text-center">
-                  {todayDigestionLogs.length} registros hoje. Histórico detalhado na aba ao lado.
-                </p>
-              )}
-            </div>
-          ) : (
-            <p className="text-xs font-semibold text-muted-foreground italic text-center py-2">
-              Nenhuma digestão registrada hoje.
-            </p>
-          )}
-        </TabsContent>
-      </Tabs>
-
-      {/* Novo Design de Evolução de Excreções */}
-      <div className="mt-1 pt-4 border-t border-[#E5E5E5] dark:border-[#3B4A55]/60 space-y-3">
-        {/* Cabeçalho do Gráfico com Seletor de Período e Título */}
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <div className="flex items-center gap-2">
-            <div className="w-6 h-6 rounded-lg bg-primary/10 flex items-center justify-center text-primary">
-              <Activity className="w-3.5 h-3.5" />
-            </div>
-            <div>
-              <h4 className="text-xs font-black uppercase tracking-wider text-foreground">
-                Evolução Temporal
-              </h4>
-              <p className="text-[10px] font-bold text-muted-foreground">
-                Leitura separada por escalas independentes
-              </p>
-            </div>
+          {/* Dica informativa no rodapé do modal */}
+          <div className="mt-3 p-3 rounded-2xl bg-muted/40 border border-[#E5E5E5] dark:border-[#3B4A55] text-[11px] font-semibold text-muted-foreground flex items-center gap-2">
+            <span className="text-base">💡</span>
+            <span>Os Tipos 3 e 4 são considerados os formatos normais e ideais.</span>
           </div>
-
-          {/* Filtro 7D / 14D */}
-          <div className="flex items-center bg-muted/50 p-0.5 rounded-xl border border-[#E5E5E5] dark:border-[#3B4A55]">
-            <button
-              type="button"
-              onClick={() => setDaysRange(7)}
-              className={cn(
-                'px-2.5 py-1 text-[11px] font-extrabold rounded-lg transition-all',
-                daysRange === 7
-                  ? 'bg-card text-foreground shadow-xs'
-                  : 'text-muted-foreground hover:text-foreground',
-              )}
-            >
-              7 dias
-            </button>
-            <button
-              type="button"
-              onClick={() => setDaysRange(14)}
-              className={cn(
-                'px-2.5 py-1 text-[11px] font-extrabold rounded-lg transition-all',
-                daysRange === 14
-                  ? 'bg-card text-foreground shadow-xs'
-                  : 'text-muted-foreground hover:text-foreground',
-              )}
-            >
-              14 dias
-            </button>
-          </div>
-        </div>
-
-        {/* Legenda Interativa / Filtro de Métricas */}
-        <div className="flex flex-wrap items-center justify-between gap-2 px-1 pt-1">
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={() => toggleSeries('urina')}
-              className={cn(
-                'inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-xs font-extrabold border-2 border-b-3 transition-all select-none',
-                visibleSeries.urina
-                  ? 'border-[#1CB0F6] bg-[#1CB0F6]/10 text-[#0E8FCC] dark:text-[#1CB0F6]'
-                  : 'border-transparent bg-muted/40 text-muted-foreground/60 opacity-60 line-through',
-              )}
-              title="Clique para ligar/desligar Urina"
-            >
-              <span className="w-2.5 h-2.5 rounded-full bg-[#1CB0F6] shrink-0" />
-              <span>Urina (1–6)</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => toggleSeries('digestao')}
-              className={cn(
-                'inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-xs font-extrabold border-2 border-b-3 transition-all select-none',
-                visibleSeries.digestao
-                  ? 'border-[#FF9600] bg-[#FF9600]/10 text-[#CC6E00] dark:text-[#FF9600]'
-                  : 'border-transparent bg-muted/40 text-muted-foreground/60 opacity-60 line-through',
-              )}
-              title="Clique para ligar/desligar Digestão"
-            >
-              <span className="w-2.5 h-2.5 rounded-full bg-[#FF9600] shrink-0" />
-              <span>Bristol (1–7)</span>
-            </button>
-          </div>
-
-          <div className="hidden sm:flex items-center gap-1 text-[10px] font-bold text-muted-foreground">
-            <Info className="w-3 h-3 text-muted-foreground/70" />
-            <span>Passe o mouse ou toque nos pontos para detalhes</span>
-          </div>
-        </div>
-
-        {/* Área do Gráfico */}
-        {hasExcretionData ? (
-          <div className="h-60 w-full pt-2">
-            <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={chartData} margin={{ top: 12, right: 12, left: -16, bottom: 4 }}>
-                <CartesianGrid strokeDasharray="4 4" className="stroke-muted/30" vertical={false} />
-                <XAxis
-                  dataKey="day"
-                  tick={{ fontSize: 10, fontWeight: 700 }}
-                  axisLine={false}
-                  tickLine={false}
-                  dy={4}
-                />
-                {/* Eixo Y da Esquerda: Urina (1 a 6) */}
-                <YAxis
-                  yAxisId="left"
-                  domain={[1, 6]}
-                  ticks={[1, 2, 3, 4, 5, 6]}
-                  tick={{ fontSize: 10, fontWeight: 700, fill: '#1CB0F6' }}
-                  axisLine={false}
-                  tickLine={false}
-                  width={30}
-                  hide={!visibleSeries.urina}
-                />
-                {/* Eixo Y da Direita: Digestão / Bristol (1 a 7) */}
-                <YAxis
-                  yAxisId="right"
-                  orientation="right"
-                  domain={[1, 7]}
-                  ticks={[1, 2, 3, 4, 5, 6, 7]}
-                  tick={{ fontSize: 10, fontWeight: 700, fill: '#FF9600' }}
-                  axisLine={false}
-                  tickLine={false}
-                  width={24}
-                  hide={!visibleSeries.digestao}
-                />
-                <Tooltip
-                  content={<ExcretionsChartTooltip />}
-                  cursor={{ stroke: 'rgba(128,128,128,0.2)', strokeWidth: 1.5 }}
-                />
-                {visibleSeries.urina && (
-                  <Line
-                    yAxisId="left"
-                    type="monotone"
-                    dataKey="urina"
-                    name="Urina"
-                    stroke="#1CB0F6"
-                    strokeWidth={3}
-                    dot={{
-                      r: 4,
-                      strokeWidth: 2,
-                      fill: '#FFFFFF',
-                      stroke: '#1CB0F6',
-                    }}
-                    activeDot={{
-                      r: 7,
-                      strokeWidth: 3,
-                      fill: '#1CB0F6',
-                      stroke: '#FFFFFF',
-                    }}
-                    connectNulls
-                  />
-                )}
-                {visibleSeries.digestao && (
-                  <Line
-                    yAxisId="right"
-                    type="monotone"
-                    dataKey="digestao"
-                    name="Digestão"
-                    stroke="#FF9600"
-                    strokeWidth={3}
-                    dot={{
-                      r: 4,
-                      strokeWidth: 2,
-                      fill: '#FFFFFF',
-                      stroke: '#FF9600',
-                    }}
-                    activeDot={{
-                      r: 7,
-                      strokeWidth: 3,
-                      fill: '#FF9600',
-                      stroke: '#FFFFFF',
-                    }}
-                    connectNulls
-                  />
-                )}
-              </LineChart>
-            </ResponsiveContainer>
-          </div>
-        ) : (
-          <div className="h-44 flex flex-col items-center justify-center text-center bg-muted/20 rounded-3xl border-2 border-dashed border-[#E5E5E5] dark:border-[#3B4A55] p-5">
-            <div className="w-10 h-10 rounded-2xl bg-muted/50 flex items-center justify-center text-muted-foreground mb-2">
-              <Calendar className="w-5 h-5" />
-            </div>
-            <p className="text-sm font-extrabold text-foreground">
-              Nenhum registro nos últimos {daysRange} dias
-            </p>
-            <p className="text-xs text-muted-foreground font-semibold mt-1 max-w-xs">
-              Toque nos botões de coloração de urina ou escala de Bristol acima para fazer seu
-              primeiro registro de hoje.
-            </p>
-          </div>
-        )}
-      </div>
-    </div>
-  )
-}
-
-function ExcretionsChartTooltip({
-  active,
-  payload,
-  label,
-}: {
-  active?: boolean
-  payload?: Array<{ payload?: any }>
-  label?: string
-}) {
-  if (!active || !payload || !payload.length) return null
-
-  const itemData = payload[0]?.payload
-  if (!itemData) return null
-
-  return (
-    <div className="bg-card border-2 border-b-4 border-[#E5E5E5] dark:border-[#3B4A55] rounded-2xl p-3 shadow-xl text-xs space-y-2 min-w-[210px]">
-      <div className="flex items-center justify-between border-b border-muted pb-1.5">
-        <span className="font-black text-foreground">{label}</span>
-        <span className="text-[10px] font-bold text-muted-foreground">{itemData.rawDate}</span>
-      </div>
-
-      {itemData.urina !== null && itemData.urina !== undefined ? (
-        <div className="flex items-start justify-between gap-3 bg-[#1CB0F6]/10 p-2 rounded-xl">
-          <div className="flex items-center gap-1.5 font-extrabold text-[#0E8FCC] dark:text-[#1CB0F6]">
-            <Droplet className="w-3.5 h-3.5 fill-current" />
-            <span>Urina:</span>
-          </div>
-          <div className="text-right">
-            <div className="font-black text-foreground">
-              {itemData.urinaLabel} (Nível {itemData.urina})
-            </div>
-            <div className="text-[10px] text-muted-foreground font-semibold">
-              {itemData.urina <= 2
-                ? 'Hidratação ideal'
-                : itemData.urina <= 4
-                  ? 'Beba mais água'
-                  : 'Alerta desidratação'}
-            </div>
-          </div>
-        </div>
-      ) : (
-        <div className="text-[11px] text-muted-foreground/70 italic px-1">
-          Sem registro de urina neste dia
-        </div>
-      )}
-
-      {itemData.digestao !== null && itemData.digestao !== undefined ? (
-        <div className="flex items-start justify-between gap-3 bg-[#FF9600]/10 p-2 rounded-xl">
-          <div className="flex items-center gap-1.5 font-extrabold text-[#CC6E00] dark:text-[#FF9600]">
-            <span className="text-xs">🚽</span>
-            <span>Bristol:</span>
-          </div>
-          <div className="text-right">
-            <div className="font-black text-foreground">
-              {itemData.digestaoLabel} (Tipo {itemData.digestao})
-            </div>
-            <div className="text-[10px] text-muted-foreground font-semibold">
-              {itemData.digestao >= 3 && itemData.digestao <= 4
-                ? 'Consistência ideal'
-                : itemData.digestao < 3
-                  ? 'Constipação'
-                  : 'Diarreia/Aceleração'}
-            </div>
-          </div>
-        </div>
-      ) : (
-        <div className="text-[11px] text-muted-foreground/70 italic px-1">
-          Sem registro de Bristol neste dia
-        </div>
-      )}
-
-      {(itemData.urinaCount > 1 || itemData.digestaoCount > 1) && (
-        <div className="pt-1 border-t border-muted text-[10px] text-muted-foreground font-bold">
-          {itemData.urinaCount > 1 && `${itemData.urinaCount} registros de urina. `}
-          {itemData.digestaoCount > 1 && `${itemData.digestaoCount} de digestão.`}
-        </div>
-      )}
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
