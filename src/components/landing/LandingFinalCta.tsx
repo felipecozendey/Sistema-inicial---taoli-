@@ -16,12 +16,12 @@ export function LandingFinalCta() {
         </div>
 
         <h2 className="text-3xl sm:text-5xl font-black tracking-tight text-foreground">
-          Pronto para elevar seu ritmo diário?
+          {settings.final_cta_title || 'Pronto para elevar seu ritmo diário?'}
         </h2>
 
         <p className="text-muted-foreground text-sm sm:text-lg font-semibold max-w-xl mx-auto leading-relaxed">
-          Comece agora mesmo a centralizar suas tarefas, hábitos, saúde e estudos com o ecossistema
-          VibeCoding.
+          {settings.final_cta_subtitle ||
+            'Comece agora mesmo a centralizar suas tarefas, hábitos, saúde e estudos com o ecossistema VibeCoding.'}
         </p>
 
         <div className="flex flex-col sm:flex-row items-center justify-center gap-3 pt-2">

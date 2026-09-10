@@ -24,7 +24,12 @@ export interface SiteSettingsData {
   cta_secondary_label: string
   login_title: string
   login_subtitle: string
+  login_button_label?: string
+  login_footer_text?: string
+  final_cta_title?: string
+  final_cta_subtitle?: string
   footer_message: string
+  copyright_text?: string
   features: FeatureCardItem[]
   steps: HowItWorksStep[]
 }
@@ -47,7 +52,13 @@ export const DEFAULT_SITE_SETTINGS: SiteSettingsData = {
   cta_secondary_label: 'Criar conta',
   login_title: 'Bem-vindo de volta!',
   login_subtitle: 'Acesse sua conta para continuar evoluindo suas metas.',
+  login_button_label: 'Entrar',
+  login_footer_text: 'Dúvidas ou suporte? Entre em contato com o suporte da sua organização.',
+  final_cta_title: 'Pronto para elevar seu ritmo diário?',
+  final_cta_subtitle:
+    'Comece agora mesmo a centralizar suas tarefas, hábitos, saúde e estudos com o ecossistema VibeCoding.',
   footer_message: 'Desenvolvido com foco em alta performance e simplicidade.',
+  copyright_text: 'Todos os direitos reservados.',
   features: [
     {
       id: 'tasks',
@@ -131,6 +142,7 @@ interface SiteSettingsState {
   ) => Promise<boolean>
   toggleContentFlag: (key: keyof ContentFlagsData, enabled: boolean) => Promise<boolean>
   restoreDefaults: () => Promise<boolean>
+  restorePageDefaults: (page: 'landing' | 'login') => Promise<boolean>
 }
 
 export const useSiteSettingsStore = create<SiteSettingsState>((set, get) => ({
@@ -290,6 +302,78 @@ export const useSiteSettingsStore = create<SiteSettingsState>((set, get) => ({
       console.error('[useSiteSettingsStore] Erro ao restaurar defaults:', err)
       set({ settings: prevSettings, flags: prevFlags })
       toast.error(err.message || 'Erro ao restaurar padrões')
+      return false
+    }
+  },
+
+  restorePageDefaults: async (page: 'landing' | 'login') => {
+    const prevSettings = get().settings
+    const prevFlags = get().flags
+
+    let keysToReset: (keyof SiteSettingsData)[] = []
+    let flagsToReset: (keyof ContentFlagsData)[] = []
+
+    if (page === 'landing') {
+      keysToReset = [
+        'app_name',
+        'hero_title',
+        'hero_subtitle',
+        'cta_primary_label',
+        'cta_secondary_label',
+        'final_cta_title',
+        'final_cta_subtitle',
+        'footer_message',
+        'copyright_text',
+        'features',
+        'steps',
+      ]
+      flagsToReset = ['hero', 'features_section', 'how_it_works', 'final_cta', 'footer']
+    } else {
+      keysToReset = ['login_title', 'login_subtitle', 'login_button_label', 'login_footer_text']
+      flagsToReset = ['public_signup']
+    }
+
+    const nextSettings: SiteSettingsData = { ...prevSettings }
+    keysToReset.forEach((k) => {
+      ;(nextSettings as any)[k] = DEFAULT_SITE_SETTINGS[k]
+    })
+
+    const nextFlags: ContentFlagsData = { ...prevFlags }
+    flagsToReset.forEach((f) => {
+      ;(nextFlags as any)[f] = DEFAULT_CONTENT_FLAGS[f]
+    })
+
+    set({ settings: nextSettings, flags: nextFlags })
+
+    try {
+      const dbFrom = supabase.from as any
+      const settingEntries = keysToReset.map((k) => ({
+        key: k,
+        value: DEFAULT_SITE_SETTINGS[k] as any,
+        updated_at: new Date().toISOString(),
+      }))
+
+      const flagEntries = flagsToReset.map((f) => ({
+        key: f,
+        enabled: DEFAULT_CONTENT_FLAGS[f],
+        updated_at: new Date().toISOString(),
+      }))
+
+      const [resSettings, resFlags] = await Promise.all([
+        dbFrom('site_settings').upsert(settingEntries),
+        dbFrom('content_flags').upsert(flagEntries),
+      ])
+
+      if (resSettings.error) throw resSettings.error
+      if (resFlags.error) throw resFlags.error
+
+      toast.success(
+        `Padrões de ${page === 'landing' ? 'Landing Page' : 'Página de Login'} restaurados!`,
+      )
+      return true
+    } catch (err: any) {
+      set({ settings: prevSettings, flags: prevFlags })
+      toast.error(err.message || 'Erro ao restaurar padrões da página')
       return false
     }
   },

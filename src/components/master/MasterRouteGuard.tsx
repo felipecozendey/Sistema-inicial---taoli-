@@ -11,17 +11,25 @@ interface MasterRouteGuardProps {
 
 export function MasterRouteGuard({ children }: MasterRouteGuardProps) {
   const { isMaster, status, errorMessage, refetch } = useIsMaster()
-  const { signOut } = useAuth()
+  const { user, loading: authLoading, signOut } = useAuth()
   const navigate = useNavigate()
   const [retrying, setRetrying] = useState(false)
 
+  // Se o useAuth já terminou de carregar e não há usuário, redireciona logo para login
+  if (!authLoading && !user) {
+    return <Navigate to="/login?redirect=/master" replace />
+  }
+
   // 1. Estado Loading: spinner com estilo amigável Duolingo / âmbar master
-  if (status === 'loading') {
+  if (status === 'loading' || (authLoading && status === 'idle')) {
     return (
       <div className="min-h-[60vh] flex flex-col items-center justify-center p-6 text-center">
         <div className="w-12 h-12 rounded-full border-4 border-amber-500 border-t-transparent animate-spin mb-4 shadow-sm" />
         <p className="text-sm font-semibold text-muted-foreground animate-pulse">
           Verificando credenciais Master...
+        </p>
+        <p className="text-xs text-muted-foreground/70 mt-2">
+          Carregando permissões administrativas
         </p>
       </div>
     )

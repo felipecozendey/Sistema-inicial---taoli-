@@ -44,10 +44,11 @@ function SuspendedGuard({ children }: { children: React.ReactNode }) {
 
 function BootLoader() {
   const loadFlags = useFeatureFlagsStore((s) => s.loadFlags)
+  const { user } = useAuth()
 
   useEffect(() => {
-    loadFlags()
-  }, [loadFlags])
+    loadFlags(user?.id)
+  }, [loadFlags, user?.id])
 
   return null
 }

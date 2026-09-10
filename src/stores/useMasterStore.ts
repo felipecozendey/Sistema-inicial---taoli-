@@ -96,6 +96,39 @@ interface MasterState {
   suspendUser: (userId: string) => Promise<boolean>
   reactivateUser: (userId: string) => Promise<boolean>
   deleteUser: (userId: string) => Promise<boolean>
+  updateUserProfile: (
+    id: string,
+    data: {
+      display_name?: string
+      email?: string
+      role?: 'master' | 'user'
+      status?: 'active' | 'suspended'
+    },
+  ) => Promise<{ ok: boolean; error?: string }>
+  resetUserPassword: (
+    id: string,
+    password?: string,
+  ) => Promise<{ ok: boolean; password?: string; error?: string; has_email_provider?: boolean }>
+  sendPasswordEmail: (
+    id: string,
+    password: string,
+  ) => Promise<{ ok: boolean; error?: string; has_email_provider?: boolean }>
+  resendConfirmationEmail: (
+    id: string,
+  ) => Promise<{ ok: boolean; action_link?: string; error?: string; has_email_provider?: boolean }>
+  getUserDetails: (id: string) => Promise<{
+    ok: boolean
+    overrides?: Record<string, boolean>
+    audit_logs?: AdminAuditLog[]
+    has_email_provider?: boolean
+    error?: string
+  }>
+  setUserOverride: (
+    id: string,
+    featureKey: string,
+    enabled: boolean,
+  ) => Promise<{ ok: boolean; error?: string }>
+  checkEmailProvider: () => Promise<boolean>
 
   // Billings
   createBilling: (data: {
@@ -390,17 +423,213 @@ export const useMasterStore = create<MasterState>((set, get) => ({
         throw new Error(data?.error || error?.message || 'Erro ao excluir usuário')
       }
 
-      toast.success('Usuário e todos os seus dados foram excluídos com sucesso!')
+      toast.success(`Usuário ${target.email} excluído permanentemente`)
+      get().loadMasterData()
       return true
-    } catch (err) {
-      // Rollback
+    } catch (err: any) {
       set({ profiles: prevProfiles })
-      const message = err instanceof Error ? err.message : 'Falha ao excluir usuário'
+      const message = err?.message || 'Falha ao excluir usuário'
       toast.error(message)
       return false
     }
   },
 
+  updateUserProfile: async (id, data) => {
+    const prevProfiles = get().profiles
+    set({
+      profiles: prevProfiles.map((p) =>
+        p.id === id
+          ? {
+              ...p,
+              displayName: data.display_name !== undefined ? data.display_name : p.displayName,
+              email: data.email || p.email,
+              role: data.role || p.role,
+              status: data.status || p.status,
+            }
+          : p,
+      ),
+    })
+
+    try {
+      const { data: resData, error } = await supabase.functions.invoke('manage-users', {
+        body: {
+          action: 'update_user',
+          target_user_id: id,
+          ...data,
+        },
+      })
+
+      if (error || !resData?.ok) {
+        throw new Error(resData?.error || error?.message || 'Falha ao atualizar usuário')
+      }
+
+      toast.success('Perfil atualizado com sucesso!')
+      get().loadMasterData()
+      return { ok: true }
+    } catch (err: any) {
+      set({ profiles: prevProfiles })
+      toast.error(err.message || 'Erro ao atualizar usuário')
+      return { ok: false, error: err.message }
+    }
+  },
+
+  resetUserPassword: async (id, password) => {
+    try {
+      const { data: resData, error } = await supabase.functions.invoke('manage-users', {
+        body: {
+          action: 'reset_password',
+          target_user_id: id,
+          password: password || undefined,
+        },
+      })
+
+      if (error || !resData?.ok) {
+        throw new Error(resData?.error || error?.message || 'Falha ao redefinir senha')
+      }
+
+      toast.success('Senha redefinida com sucesso!')
+      return {
+        ok: true,
+        password: resData?.data?.password,
+        has_email_provider: resData?.data?.has_email_provider,
+      }
+    } catch (err: any) {
+      toast.error(err.message || 'Erro ao redefinir senha')
+      return { ok: false, error: err.message }
+    }
+  },
+
+  sendPasswordEmail: async (id, password) => {
+    try {
+      const { data: resData, error } = await supabase.functions.invoke('manage-users', {
+        body: {
+          action: 'send_password_email',
+          target_user_id: id,
+          password,
+        },
+      })
+
+      if (resData?.code === 'EMAIL_PROVIDER_NOT_CONFIGURED') {
+        return {
+          ok: false,
+          has_email_provider: false,
+          error: 'Envio de e-mail não configurado — copie a senha/link e envie manualmente.',
+        }
+      }
+
+      if (error || !resData?.ok) {
+        throw new Error(resData?.error || error?.message || 'Falha ao enviar e-mail')
+      }
+
+      toast.success('Senha enviada por e-mail!')
+      return { ok: true, has_email_provider: true }
+    } catch (err: any) {
+      toast.error(err.message || 'Erro ao enviar e-mail')
+      return { ok: false, error: err.message }
+    }
+  },
+
+  resendConfirmationEmail: async (id) => {
+    try {
+      const { data: resData, error } = await supabase.functions.invoke('manage-users', {
+        body: {
+          action: 'resend_confirmation',
+          target_user_id: id,
+        },
+      })
+
+      if (error || !resData?.ok) {
+        throw new Error(resData?.error || error?.message || 'Falha ao processar confirmação')
+      }
+
+      const hasEmail = resData?.data?.has_email_provider
+      const actionLink = resData?.data?.action_link
+
+      if (hasEmail) {
+        toast.success('Link de confirmação enviado!')
+      } else {
+        toast.info('Envio de e-mail não configurado — copie o link e envie manualmente.')
+      }
+
+      return {
+        ok: true,
+        action_link: actionLink,
+        has_email_provider: hasEmail,
+      }
+    } catch (err: any) {
+      toast.error(err.message || 'Erro ao reenviar confirmação')
+      return { ok: false, error: err.message }
+    }
+  },
+
+  getUserDetails: async (id) => {
+    try {
+      const { data: resData, error } = await supabase.functions.invoke('manage-users', {
+        body: {
+          action: 'get_user_details',
+          target_user_id: id,
+        },
+      })
+
+      if (error || !resData?.ok) {
+        throw new Error(resData?.error || error?.message || 'Falha ao carregar detalhes')
+      }
+
+      const overridesList: Array<{ feature_key: string; enabled: boolean }> =
+        resData?.data?.overrides || []
+      const overrideMap: Record<string, boolean> = {}
+      overridesList.forEach((o) => {
+        overrideMap[o.feature_key] = o.enabled
+      })
+
+      const rawLogs = resData?.data?.audit_logs || []
+      const mappedLogs = rawLogs.map(mapAuditLog)
+
+      return {
+        ok: true,
+        overrides: overrideMap,
+        audit_logs: mappedLogs,
+        has_email_provider: resData?.data?.has_email_provider,
+      }
+    } catch (err: any) {
+      toast.error(err.message || 'Erro ao buscar detalhes')
+      return { ok: false, error: err.message }
+    }
+  },
+
+  setUserOverride: async (id, featureKey, enabled) => {
+    try {
+      const { data: resData, error } = await supabase.functions.invoke('manage-users', {
+        body: {
+          action: 'set_user_override',
+          target_user_id: id,
+          feature_key: featureKey,
+          enabled,
+        },
+      })
+
+      if (error || !resData?.ok) {
+        throw new Error(resData?.error || error?.message || 'Falha ao salvar permissão')
+      }
+
+      toast.success('Permissão do usuário atualizada!')
+      return { ok: true }
+    } catch (err: any) {
+      toast.error(err.message || 'Erro ao atualizar permissão')
+      return { ok: false, error: err.message }
+    }
+  },
+
+  checkEmailProvider: async () => {
+    try {
+      const { data: resData } = await supabase.functions.invoke('manage-users', {
+        body: { action: 'check_email_provider' },
+      })
+      return Boolean(resData?.data?.has_email_provider)
+    } catch {
+      return false
+    }
+  },
   createBilling: async ({ userId, description, amount, dueDate }) => {
     const tempId = 'temp-' + Date.now()
     const targetProfile = get().profiles.find((p) => p.id === userId)
@@ -533,12 +762,13 @@ export function clearMasterProfileCache(): void {
   cacheTimestamp = 0
 }
 
-const TIMEOUT_MS = 10000
-const RETRY_DELAY_MS = 1500
+const TIMEOUT_MS = 6000
+const RETRY_DELAY_MS = 800
 
 function timeoutPromise<T>(ms: number, message: string): Promise<T> {
   return new Promise<T>((_, reject) => {
-    setTimeout(() => {
+    const id = setTimeout(() => {
+      clearTimeout(id)
       reject(new Error(message))
     }, ms)
   })
@@ -547,26 +777,23 @@ function timeoutPromise<T>(ms: number, message: string): Promise<T> {
 const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
 
 async function fetchValidatedMasterProfile(uid: string): Promise<Profile> {
-  // 1. Validar / renovar token via getUser()
-  const userPromise = (async () => {
-    const { data: userData, error: userError } = await supabase.auth.getUser()
-    if (userError || !userData?.user) {
-      throw new Error(userError?.message || 'Sessão inválida ou expirada.')
+  // 1. Validar sessão (tenta getSession primeiro que é síncrono/rápido de cache, cai em getUser)
+  let validUid = uid
+  try {
+    const { data: sessionData } = await supabase.auth.getSession()
+    if (sessionData?.session?.user) {
+      validUid = sessionData.session.user.id
     }
-    return userData.user
-  })()
+  } catch {
+    // segue com uid fornecido pelo hook
+  }
 
-  const validUser = await Promise.race([
-    userPromise,
-    timeoutPromise<never>(TIMEOUT_MS, 'Tempo limite esgotado ao validar a sessão.'),
-  ])
-
-  // 2. Buscar perfil na tabela profiles
+  // 2. Buscar perfil na tabela profiles com timeout protegido
   const profilePromise = (async () => {
     const { data, error } = await supabase
       .from('profiles')
       .select('*')
-      .eq('id', validUser.id || uid)
+      .eq('id', validUid)
       .maybeSingle()
 
     if (error) throw error
@@ -576,7 +803,7 @@ async function fetchValidatedMasterProfile(uid: string): Promise<Profile> {
 
   return await Promise.race([
     profilePromise,
-    timeoutPromise<never>(TIMEOUT_MS, 'Tempo limite esgotado ao buscar o perfil.'),
+    timeoutPromise<never>(TIMEOUT_MS, 'Tempo limite esgotado ao verificar permissões.'),
   ])
 }
 

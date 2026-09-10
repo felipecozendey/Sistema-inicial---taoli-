@@ -1,6 +1,7 @@
 import { useState, useMemo } from 'react'
 import { useMasterStore, Profile, CreateUserData } from '@/stores/useMasterStore'
 import { useAuth } from '@/hooks/use-auth'
+import { UserDetailsModal } from './UserDetailsModal'
 import { safeFormatDate } from '@/lib/date-utils'
 import {
   Search,
@@ -91,6 +92,7 @@ export function MasterUsersTab() {
   // Delete confirmation requires typing user email
   const [deleteEmailConfirm, setDeleteEmailConfirm] = useState('')
   const [actionLoading, setActionLoading] = useState(false)
+  const [selectedUserForDetails, setSelectedUserForDetails] = useState<Profile | null>(null)
 
   const filteredProfiles = useMemo(() => {
     return profiles.filter((p) => {
@@ -258,7 +260,11 @@ export function MasterUsersTab() {
                 {filteredProfiles.map((p) => {
                   const isCurrent = p.id === currentUser?.id
                   return (
-                    <tr key={p.id} className="hover:bg-muted/30 transition-colors">
+                    <tr
+                      key={p.id}
+                      onClick={() => setSelectedUserForDetails(p)}
+                      className="hover:bg-muted/50 transition-colors cursor-pointer"
+                    >
                       <td className="py-3.5 px-4">
                         <div className="flex items-center gap-3">
                           <div

@@ -24,7 +24,8 @@ export function LandingFooter() {
         </div>
 
         <div className="text-xs font-semibold text-muted-foreground">
-          © {currentYear} {settings.app_name || 'VibeCoding Tarefas'}. Todos os direitos reservados.
+          © {currentYear} {settings.app_name || 'VibeCoding Tarefas'}.{' '}
+          {settings.copyright_text || 'Todos os direitos reservados.'}
         </div>
       </div>
     </footer>

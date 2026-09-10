@@ -147,7 +147,11 @@ export function AuthScreen() {
             className="w-full text-base font-black shadow-md"
             disabled={loading}
           >
-            {loading ? 'Carregando...' : isSignUp ? 'Criar Conta' : 'Entrar'}
+            {loading
+              ? 'Carregando...'
+              : isSignUp
+                ? 'Criar Conta'
+                : settings.login_button_label || 'Entrar'}
           </GameButton>
         </form>
 
@@ -165,6 +169,12 @@ export function AuthScreen() {
             >
               {isSignUp ? 'Entrar' : 'Criar conta'}
             </button>
+          </p>
+        )}
+
+        {settings.login_footer_text && (
+          <p className="text-center text-[11px] text-muted-foreground/80 font-medium px-4 leading-relaxed">
+            {settings.login_footer_text}
           </p>
         )}
       </div>
