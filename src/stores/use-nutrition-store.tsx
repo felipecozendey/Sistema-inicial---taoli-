@@ -35,10 +35,10 @@ export type CustomFood = {
   fatG: number
   fibersG: number
   sodiumMg: number
-  allergens: string | null
-  tags: string[]
+  allergens?: string | null
+  tags?: string[]
+  isGlobal?: boolean
 }
-
 export type RecipeIngredient = {
   id: string
   foodId: string
@@ -603,18 +603,45 @@ export const useNutritionStore = create<NutritionState>()(
           data: { user },
         } = await supabase.auth.getUser()
         if (!user) return
-        const { data, error } = await supabase
-          .from('custom_foods')
-          .select('*')
-          .eq('user_id', user.id)
-          .order('created_at', { ascending: false })
 
-        if (error) {
+        const [customRes, globalRes] = await Promise.all([
+          supabase
+            .from('custom_foods')
+            .select('*')
+            .eq('user_id', user.id)
+            .order('created_at', { ascending: false }),
+          supabase
+            .from('global_foods')
+            .select('*')
+            .eq('is_active', true)
+            .order('name', { ascending: true }),
+        ])
+
+        if (customRes.error) {
           toast.error('Erro ao carregar alimentos personalizados.')
           return
         }
 
-        if (data) set({ customFoods: data.map(mapFood) })
+        const userFoods: CustomFood[] = (customRes.data || []).map(mapFood)
+
+        // Mapeia global_foods ativos com isGlobal: true ("Tabela oficial")
+        const officialFoods: CustomFood[] = (globalRes.data || []).map((row: any) => ({
+          id: row.id,
+          name: row.name,
+          baseUnit: row.base_unit || '100g',
+          calories: Number(row.calories || 0),
+          carbsG: Number(row.carbs_g || 0),
+          proteinG: Number(row.protein_g || 0),
+          fatG: Number(row.fat_g || 0),
+          fibersG: Number(row.fibers_g || 0),
+          sodiumMg: Number(row.sodium_mg || 0),
+          allergens: row.allergens || null,
+          tags: Array.isArray(row.tags) ? row.tags : [],
+          isGlobal: true,
+        }))
+
+        // Une alimentos do usuário + alimentos oficiais globais
+        set({ customFoods: [...userFoods, ...officialFoods] })
       },
 
       addCustomFood: async (food: Omit<CustomFood, 'id'>) => {

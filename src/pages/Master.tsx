@@ -5,19 +5,19 @@ import {
   ShieldCheck,
   Users,
   CreditCard,
-  DollarSign,
   Sliders,
   History,
   Activity,
   RefreshCw,
+  Server,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { MasterOverviewTab } from '@/components/master/MasterOverviewTab'
 import { MasterUsersTab } from '@/components/master/MasterUsersTab'
 import { MasterBillingsTab } from '@/components/master/MasterBillingsTab'
-import { MasterGlobalFinanceTab } from '@/components/master/MasterGlobalFinanceTab'
 import { MasterFeaturesTab } from '@/components/master/MasterFeaturesTab'
 import { SiteSettingsTab } from '@/components/master/site-settings-tab'
+import { MasterSystemTab } from '@/components/master/system/MasterSystemTab'
 import { MasterAuditTab } from '@/components/master/MasterAuditTab'
 
 export default function Master() {
@@ -42,7 +42,7 @@ export default function Master() {
             </h1>
           </div>
           <p className="text-muted-foreground text-xs sm:text-sm font-semibold mt-1">
-            Gestão centralizada de usuários, financeiro global, cobranças e módulos do sistema
+            Gestão centralizada de usuários, cobranças, catálogos e módulos do sistema
           </p>
         </div>
 
@@ -86,14 +86,6 @@ export default function Master() {
             </TabsTrigger>
 
             <TabsTrigger
-              value="finance"
-              className="rounded-xl px-3.5 py-2 text-xs font-black transition-all data-[state=active]:bg-[#58CC02] data-[state=active]:text-white data-[state=active]:shadow-sm flex items-center gap-1.5"
-            >
-              <DollarSign className="w-4 h-4" />
-              Financeiro Global
-            </TabsTrigger>
-
-            <TabsTrigger
               value="features"
               className="rounded-xl px-3.5 py-2 text-xs font-black transition-all data-[state=active]:bg-[#CE82FF] data-[state=active]:text-white data-[state=active]:shadow-sm flex items-center gap-1.5"
             >
@@ -107,6 +99,14 @@ export default function Master() {
             >
               <ShieldCheck className="w-4 h-4" />
               Site & Login
+            </TabsTrigger>
+
+            <TabsTrigger
+              value="system"
+              className="rounded-xl px-3.5 py-2 text-xs font-black transition-all data-[state=active]:bg-[#FF9600] data-[state=active]:text-white data-[state=active]:shadow-sm flex items-center gap-1.5"
+            >
+              <Server className="w-4 h-4" />
+              Sistema
             </TabsTrigger>
 
             <TabsTrigger
@@ -137,19 +137,19 @@ export default function Master() {
           <MasterBillingsTab />
         </TabsContent>
 
-        {/* Tab 4: Financeiro Global */}
-        <TabsContent value="finance" className="mt-6">
-          <MasterGlobalFinanceTab />
-        </TabsContent>
-
-        {/* Tab 5: Feature Flags */}
+        {/* Tab 4: Feature Flags */}
         <TabsContent value="features" className="mt-6">
           <MasterFeaturesTab />
         </TabsContent>
 
-        {/* Tab 6: Site & Login */}
+        {/* Tab 5: Site & Login */}
         <TabsContent value="site" className="mt-6">
           <SiteSettingsTab />
+        </TabsContent>
+
+        {/* Tab 6: Sistema */}
+        <TabsContent value="system" className="mt-6">
+          <MasterSystemTab />
         </TabsContent>
 
         {/* Tab 7: Auditoria */}

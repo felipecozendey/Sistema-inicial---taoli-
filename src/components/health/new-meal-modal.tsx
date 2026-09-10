@@ -407,7 +407,14 @@ export function NewMealModal({ open, onOpenChange, mealToEdit }: NewMealModalPro
                           }}
                           className="w-full text-left p-2 rounded-xl border border-[#E5E5E5] dark:border-[#3B4A55] bg-card hover:border-[#58CC02] transition-colors flex items-center justify-between text-xs"
                         >
-                          <span className="font-extrabold truncate">{f.name}</span>
+                          <div className="flex items-center gap-1.5 min-w-0 pr-2">
+                            <span className="font-extrabold truncate">{f.name}</span>
+                            {f.isGlobal && (
+                              <span className="text-[9px] font-bold px-1.5 py-0.2 rounded-full bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/30 shrink-0">
+                                Tabela oficial
+                              </span>
+                            )}
+                          </div>
                           <span className="text-muted-foreground shrink-0 font-bold">
                             {f.baseUnit} • {f.calories} kcal
                           </span>

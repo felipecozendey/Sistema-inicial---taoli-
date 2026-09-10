@@ -27,6 +27,7 @@ type FoodOption = {
   sodiumMg: number
   allergens: string | null
   isRecipe: boolean
+  isGlobal?: boolean
 }
 
 interface Props {
@@ -68,6 +69,7 @@ export function FoodEntryModal({ open, onOpenChange, planId }: Props) {
         sodiumMg: f.sodiumMg,
         allergens: f.allergens,
         isRecipe: false,
+        isGlobal: f.isGlobal,
       })),
       ...nutritionRecipes.map((r) => {
         const t = r.ingredients.reduce(
@@ -171,7 +173,14 @@ export function FoodEntryModal({ open, onOpenChange, planId }: Props) {
                     <div className="flex items-center gap-2">
                       {f.isRecipe && <ChefHat className="w-4 h-4 text-[#CE82FF] shrink-0" />}
                       <div>
-                        <p className="text-sm font-extrabold">{f.name}</p>
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <p className="text-sm font-extrabold">{f.name}</p>
+                          {f.isGlobal && (
+                            <span className="text-[10px] font-bold px-1.5 py-0.2 rounded-full bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/30">
+                              Tabela oficial
+                            </span>
+                          )}
+                        </div>
                         <p className="text-xs font-bold text-muted-foreground">
                           {f.baseUnit} · {f.calories} kcal{f.isRecipe ? ' · Receita' : ''}
                         </p>

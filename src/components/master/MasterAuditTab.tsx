@@ -89,6 +89,48 @@ export function MasterAuditTab() {
           icon: CreditCard,
           color: 'bg-purple-500/10 text-purple-600 border-purple-500/30',
         }
+      case 'create_food':
+        return {
+          label: 'Criou Alimento',
+          icon: Sliders,
+          color: 'bg-emerald-500/10 text-emerald-600 border-emerald-500/30',
+        }
+      case 'update_food':
+        return {
+          label: 'Atualizou Alimento',
+          icon: Sliders,
+          color: 'bg-blue-500/10 text-blue-600 border-blue-500/30',
+        }
+      case 'delete_food':
+        return {
+          label: 'Excluiu Alimento',
+          icon: Trash2,
+          color: 'bg-rose-500/10 text-rose-600 border-rose-500/30',
+        }
+      case 'import_foods':
+        return {
+          label: 'Importou TACO',
+          icon: Sliders,
+          color: 'bg-purple-500/10 text-purple-600 border-purple-500/30',
+        }
+      case 'create_exercise':
+        return {
+          label: 'Criou Exercício',
+          icon: Sliders,
+          color: 'bg-amber-500/10 text-amber-600 border-amber-500/30',
+        }
+      case 'update_exercise':
+        return {
+          label: 'Atualizou Exercício',
+          icon: Sliders,
+          color: 'bg-blue-500/10 text-blue-600 border-blue-500/30',
+        }
+      case 'delete_exercise':
+        return {
+          label: 'Excluiu Exercício',
+          icon: Trash2,
+          color: 'bg-rose-500/10 text-rose-600 border-rose-500/30',
+        }
       default:
         return {
           label: action,
@@ -141,6 +183,13 @@ export function MasterAuditTab() {
           <option value="set_role">Alterar Papel</option>
           <option value="toggle_feature">Alternar Feature Flag</option>
           <option value="create_billing">Cobrança</option>
+          <option value="create_food">Criar Alimento Oficial</option>
+          <option value="update_food">Atualizar Alimento Oficial</option>
+          <option value="delete_food">Excluir Alimento Oficial</option>
+          <option value="import_foods">Importação em Lote (TACO)</option>
+          <option value="create_exercise">Criar Exercício Global</option>
+          <option value="update_exercise">Atualizar Exercício Global</option>
+          <option value="delete_exercise">Excluir Exercício Global</option>
         </select>
       </div>
 

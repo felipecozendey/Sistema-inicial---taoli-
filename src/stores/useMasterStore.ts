@@ -79,29 +79,16 @@ export interface CreateUserResult {
   hasEmailProvider: boolean
 }
 
-export interface MasterGlobalFinanceRow {
-  userId: string
-  email: string
-  displayName: string | null
-  totalIncome: number
-  totalExpense: number
-  balance: number
-  totalInvested: number
-  transactionsCount: number
-}
-
 interface MasterState {
   profiles: Profile[]
   billings: Billing[]
   featureFlags: FeatureFlag[]
   auditLogs: AuditLogRecord[]
-  globalFinance: MasterGlobalFinanceRow[]
   loading: boolean
   error: string | null
 
   // Fetch
   loadMasterData: () => Promise<void>
-  loadGlobalFinance: () => Promise<void>
 
   // User management
   createUser: (data: CreateUserData) => Promise<CreateUserResult | null>
@@ -195,7 +182,6 @@ export const useMasterStore = create<MasterState>((set, get) => ({
   billings: [],
   featureFlags: [],
   auditLogs: [],
-  globalFinance: [],
   loading: false,
   error: null,
 
@@ -241,81 +227,10 @@ export const useMasterStore = create<MasterState>((set, get) => ({
         auditLogs: mappedLogs,
         loading: false,
       })
-
-      // Also trigger global finance in background
-      get().loadGlobalFinance()
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Erro ao carregar dados do painel Master'
       set({ error: message, loading: false })
       toast.error('Erro ao carregar dados do painel Master')
-    }
-  },
-
-  loadGlobalFinance: async () => {
-    try {
-      const { data: txData } = await supabase.from('transactions').select('user_id, type, amount')
-      const { data: invData } = await supabase
-        .from('investments')
-        .select('user_id, current_amount, invested_amount, initial_amount')
-
-      const profiles = get().profiles
-      const financeMap = new Map<string, MasterGlobalFinanceRow>()
-
-      profiles.forEach((p) => {
-        financeMap.set(p.id, {
-          userId: p.id,
-          email: p.email,
-          displayName: p.displayName,
-          totalIncome: 0,
-          totalExpense: 0,
-          balance: 0,
-          totalInvested: 0,
-          transactionsCount: 0,
-        })
-      })
-
-      if (txData) {
-        txData.forEach((tx) => {
-          const uid = tx.user_id
-          let row = financeMap.get(uid)
-          if (!row) {
-            row = {
-              userId: uid,
-              email: 'Desconhecido',
-              displayName: null,
-              totalIncome: 0,
-              totalExpense: 0,
-              balance: 0,
-              totalInvested: 0,
-              transactionsCount: 0,
-            }
-            financeMap.set(uid, row)
-          }
-          const amt = Number(tx.amount || 0)
-          row.transactionsCount += 1
-          if (tx.type === 'income') {
-            row.totalIncome += amt
-          } else if (tx.type === 'expense') {
-            row.totalExpense += amt
-          }
-          row.balance = row.totalIncome - row.totalExpense
-        })
-      }
-
-      if (invData) {
-        invData.forEach((inv) => {
-          const uid = inv.user_id
-          let row = financeMap.get(uid)
-          if (row) {
-            const val = Number(inv.current_amount ?? inv.invested_amount ?? inv.initial_amount ?? 0)
-            row.totalInvested += val
-          }
-        })
-      }
-
-      set({ globalFinance: Array.from(financeMap.values()) })
-    } catch {
-      // Falha silenciosa para dados secundários de finanças
     }
   },
 
@@ -464,7 +379,6 @@ export const useMasterStore = create<MasterState>((set, get) => ({
     set({
       profiles: prevProfiles.filter((p) => p.id !== userId),
       billings: get().billings.filter((b) => b.userId !== userId),
-      globalFinance: get().globalFinance.filter((g) => g.userId !== userId),
     })
 
     try {

@@ -5,6 +5,7 @@ import { WorkoutDashboard } from '@/components/health/workout-dashboard'
 import { WorkoutPlans } from '@/components/health/workout-plans'
 import { WorkoutHistoryView } from '@/components/health/workout-history-view'
 import { MyJiuTab } from '@/components/health/my-jiu-tab'
+import { GlobalExercisesCatalog } from '@/components/health/global-exercises-catalog'
 
 export function ExercisesTab() {
   const [mode, setMode] = useState('musculacao')
@@ -42,6 +43,9 @@ export function ExercisesTab() {
             <TabsTrigger value="fichas" className="rounded-xl font-bold">
               Minhas Fichas
             </TabsTrigger>
+            <TabsTrigger value="biblioteca" className="rounded-xl font-bold">
+              Biblioteca
+            </TabsTrigger>
             <TabsTrigger value="historico" className="rounded-xl font-bold">
               Histórico
             </TabsTrigger>
@@ -51,6 +55,9 @@ export function ExercisesTab() {
           </TabsContent>
           <TabsContent value="fichas" className="mt-6">
             <WorkoutPlans />
+          </TabsContent>
+          <TabsContent value="biblioteca" className="mt-6">
+            <GlobalExercisesCatalog />
           </TabsContent>
           <TabsContent value="historico" className="mt-6">
             <WorkoutHistoryView />

@@ -1,5 +1,6 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useAppStore } from '@/stores/useAppStore'
+import { supabase } from '@/lib/supabase/client'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
@@ -20,6 +21,29 @@ export function WorkoutPlanModal({
   const [exercises, setExercises] = useState<ExerciseItem[]>([
     { id: newExerciseId(), name: '', sets: 3, reps: '10-12', weightKg: 0 },
   ])
+  const [globalExercises, setGlobalExercises] = useState<
+    { id: string; name: string; muscleGroup: string }[]
+  >([])
+
+  useEffect(() => {
+    async function loadCatalog() {
+      const { data } = await supabase
+        .from('global_exercises')
+        .select('id, name, muscle_group')
+        .eq('is_active', true)
+        .order('name', { ascending: true })
+      if (data) {
+        setGlobalExercises(
+          data.map((r: any) => ({
+            id: r.id,
+            name: r.name,
+            muscleGroup: r.muscle_group,
+          })),
+        )
+      }
+    }
+    loadCatalog()
+  }, [])
 
   const addExercise = () => {
     setExercises((p) => [
@@ -77,7 +101,8 @@ export function WorkoutPlanModal({
                 <Input
                   value={ex.name}
                   onChange={(e) => updateExercise(ex.id, 'name', e.target.value)}
-                  placeholder="Exercício"
+                  placeholder="Exercício (ex: Supino reto)"
+                  list="global-exercises-datalist"
                   className="flex-1 min-w-0 rounded-xl bg-background font-semibold text-sm h-9"
                 />
                 <Input
@@ -115,6 +140,14 @@ export function WorkoutPlanModal({
           >
             <Plus className="w-4 h-4" strokeWidth={2.5} /> Adicionar Exercício
           </button>
+
+          <datalist id="global-exercises-datalist">
+            {globalExercises.map((ge) => (
+              <option key={ge.id} value={ge.name}>
+                {ge.muscleGroup}
+              </option>
+            ))}
+          </datalist>
 
           <div className="flex gap-3 text-xs font-bold text-muted-foreground px-2">
             <span className="w-4" />
