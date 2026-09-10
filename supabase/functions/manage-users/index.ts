@@ -112,10 +112,6 @@ Deno.serve(async (req: Request) => {
     const body: ManageUsersRequest = await req.json()
     const { action } = body
 
-    console.log(
-      `[manage-users] Ação solicitada: ${action} pelo Master ${callerUser.email} (${callerUser.id})`,
-    )
-
     // ACTION: CREATE USER
     if (action === 'create_user') {
       const email = body.email?.trim().toLowerCase()
@@ -173,7 +169,6 @@ Deno.serve(async (req: Request) => {
       )
 
       if (createError || !createdUserData.user) {
-        console.error('[manage-users] Erro ao criar usuário:', createError)
         return new Response(
           JSON.stringify({
             ok: false,
@@ -200,7 +195,7 @@ Deno.serve(async (req: Request) => {
         .single()
 
       if (profileUpsertError) {
-        console.error('[manage-users] Erro ao gravar perfil:', profileUpsertError)
+        // Falha no perfil será capturada pelo retorno
       }
 
       // If email provider exists and sendEmail requested, send email
@@ -230,11 +225,9 @@ Deno.serve(async (req: Request) => {
           })
           if (emailRes.ok) {
             emailSent = true
-          } else {
-            console.warn('[manage-users] Falha no disparo do e-mail Resend:', await emailRes.text())
           }
-        } catch (err) {
-          console.error('[manage-users] Erro de rede ao disparar Resend:', err)
+        } catch {
+          // Erro no disparo de e-mail silenciado sem vazar credenciais ou dados
         }
       }
 
@@ -310,7 +303,6 @@ Deno.serve(async (req: Request) => {
       const { error: deleteError } = await adminClient.auth.admin.deleteUser(targetUserId)
 
       if (deleteError) {
-        console.error('[manage-users] Erro ao deletar usuário:', deleteError)
         return new Response(
           JSON.stringify({ ok: false, error: deleteError.message || 'Falha ao excluir usuário.' }),
           { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
@@ -372,13 +364,9 @@ Deno.serve(async (req: Request) => {
 
       // Supabase ban duration: '876000h' (~100 years) or 'none' to unban
       const banDuration = isSuspend ? '876000h' : 'none'
-      const { error: banError } = await adminClient.auth.admin.updateUserById(targetUserId, {
+      await adminClient.auth.admin.updateUserById(targetUserId, {
         ban_duration: banDuration,
       })
-
-      if (banError) {
-        console.warn('[manage-users] Aviso ao atualizar ban_duration no Auth:', banError.message)
-      }
 
       const newStatus = isSuspend ? 'suspended' : 'active'
       const { error: profileUpdateError } = await adminClient
@@ -387,7 +375,6 @@ Deno.serve(async (req: Request) => {
         .eq('id', targetUserId)
 
       if (profileUpdateError) {
-        console.error('[manage-users] Erro ao atualizar status do perfil:', profileUpdateError)
         return new Response(
           JSON.stringify({ ok: false, error: 'Falha ao atualizar status do perfil.' }),
           { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
@@ -451,7 +438,6 @@ Deno.serve(async (req: Request) => {
         .eq('id', targetUserId)
 
       if (roleUpdateError) {
-        console.error('[manage-users] Erro ao atualizar papel:', roleUpdateError)
         return new Response(
           JSON.stringify({ ok: false, error: 'Falha ao atualizar papel do perfil.' }),
           { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
@@ -477,11 +463,11 @@ Deno.serve(async (req: Request) => {
       status: 400,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     })
-  } catch (err: any) {
-    console.error('[manage-users] Erro interno:', err)
-    return new Response(
-      JSON.stringify({ ok: false, error: err?.message || 'Erro interno no servidor.' }),
-      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
-    )
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Erro interno no servidor.'
+    return new Response(JSON.stringify({ ok: false, error: message }), {
+      status: 500,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    })
   }
 })

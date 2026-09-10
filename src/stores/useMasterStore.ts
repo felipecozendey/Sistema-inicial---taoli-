@@ -1,9 +1,15 @@
 import { create } from './create-store'
 import { supabase } from '@/lib/supabase/client'
 import { toast } from 'sonner'
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback, useRef } from 'react'
 import { useAuth } from '@/hooks/use-auth'
 import { useSiteSettingsStore } from './useSiteSettingsStore'
+import type { Tables } from '@/lib/supabase/types'
+
+export type ProfileRow = Tables<'profiles'>
+export type BillingRow = Tables<'billings'>
+export type FeatureFlagRow = Tables<'feature_flags'>
+export type AdminAuditLogRow = Tables<'admin_audit_logs'>
 
 export interface Profile {
   id: string
@@ -45,7 +51,7 @@ export interface AdminAuditLog {
   action: string
   targetUserId: string | null
   targetEmail: string | null
-  details: Record<string, any>
+  details: Record<string, unknown>
   createdAt: string
 }
 
@@ -119,33 +125,45 @@ interface MasterState {
 
 export type AuditLogRecord = AdminAuditLog
 
-function mapProfile(data: any): Profile {
+function mapProfile(
+  data:
+    | ProfileRow
+    | {
+        id: string
+        email: string
+        display_name?: string | null
+        role?: string
+        status?: string
+        created_at: string
+        updated_at: string
+      },
+): Profile {
   return {
     id: data.id,
     email: data.email,
     displayName: data.display_name ?? null,
-    role: data.role ?? 'user',
-    status: data.status ?? 'active',
+    role: data.role === 'master' ? 'master' : 'user',
+    status: data.status === 'suspended' ? 'suspended' : 'active',
     createdAt: data.created_at,
     updatedAt: data.updated_at,
   }
 }
 
-function mapBilling(data: any): Billing {
+function mapBilling(data: BillingRow): Billing {
   return {
     id: data.id,
     userId: data.user_id,
     description: data.description,
     amount: Number(data.amount || 0),
     dueDate: data.due_date,
-    status: data.status,
+    status: (data.status as Billing['status']) || 'pending',
     paidAt: data.paid_at ?? null,
     createdBy: data.created_by ?? null,
     createdAt: data.created_at,
   }
 }
 
-function mapFeatureFlag(data: any): FeatureFlag {
+function mapFeatureFlag(data: FeatureFlagRow): FeatureFlag {
   return {
     id: data.id,
     key: data.key,
@@ -156,7 +174,7 @@ function mapFeatureFlag(data: any): FeatureFlag {
   }
 }
 
-function mapAuditLog(data: any): AdminAuditLog {
+function mapAuditLog(data: AdminAuditLogRow): AdminAuditLog {
   return {
     id: data.id,
     actorId: data.actor_id ?? null,
@@ -164,7 +182,10 @@ function mapAuditLog(data: any): AdminAuditLog {
     action: data.action,
     targetUserId: data.target_user_id ?? null,
     targetEmail: data.target_email ?? null,
-    details: data.details || {},
+    details:
+      typeof data.details === 'object' && data.details !== null
+        ? (data.details as Record<string, unknown>)
+        : {},
     createdAt: data.created_at,
   }
 }
@@ -181,12 +202,15 @@ export const useMasterStore = create<MasterState>((set, get) => ({
   loadMasterData: async () => {
     set({ loading: true, error: null })
     try {
-      const dbFrom = supabase.from as any
       const [profilesRes, billingsRes, flagsRes, logsRes] = await Promise.all([
-        dbFrom('profiles').select('*').order('created_at', { ascending: false }),
-        dbFrom('billings').select('*').order('due_date', { ascending: false }),
-        dbFrom('feature_flags').select('*').order('label', { ascending: true }),
-        dbFrom('admin_audit_logs').select('*').order('created_at', { ascending: false }).limit(100),
+        supabase.from('profiles').select('*').order('created_at', { ascending: false }),
+        supabase.from('billings').select('*').order('due_date', { ascending: false }),
+        supabase.from('feature_flags').select('*').order('label', { ascending: true }),
+        supabase
+          .from('admin_audit_logs')
+          .select('*')
+          .order('created_at', { ascending: false })
+          .limit(100),
       ])
 
       // Also trigger loading of site_settings and content_flags for the Master panel
@@ -220,9 +244,9 @@ export const useMasterStore = create<MasterState>((set, get) => ({
 
       // Also trigger global finance in background
       get().loadGlobalFinance()
-    } catch (err: any) {
-      console.error('[useMasterStore] Erro ao carregar dados:', err)
-      set({ error: err.message, loading: false })
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Erro ao carregar dados do painel Master'
+      set({ error: message, loading: false })
       toast.error('Erro ao carregar dados do painel Master')
     }
   },
@@ -251,7 +275,7 @@ export const useMasterStore = create<MasterState>((set, get) => ({
       })
 
       if (txData) {
-        txData.forEach((tx: any) => {
+        txData.forEach((tx) => {
           const uid = tx.user_id
           let row = financeMap.get(uid)
           if (!row) {
@@ -279,7 +303,7 @@ export const useMasterStore = create<MasterState>((set, get) => ({
       }
 
       if (invData) {
-        invData.forEach((inv: any) => {
+        invData.forEach((inv) => {
           const uid = inv.user_id
           let row = financeMap.get(uid)
           if (row) {
@@ -290,8 +314,8 @@ export const useMasterStore = create<MasterState>((set, get) => ({
       }
 
       set({ globalFinance: Array.from(financeMap.values()) })
-    } catch (err) {
-      console.error('[useMasterStore] Erro ao carregar financeiro global:', err)
+    } catch {
+      // Falha silenciosa para dados secundários de finanças
     }
   },
 
@@ -344,9 +368,9 @@ export const useMasterStore = create<MasterState>((set, get) => ({
         emailSent: Boolean(resData.data.email_sent),
         hasEmailProvider: Boolean(resData.data.has_email_provider),
       }
-    } catch (err: any) {
-      console.error('[useMasterStore] Erro createUser:', err)
-      toast.error(err.message || 'Erro inesperado ao criar usuário')
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Erro inesperado ao criar usuário'
+      toast.error(message)
       return null
     }
   },
@@ -372,10 +396,11 @@ export const useMasterStore = create<MasterState>((set, get) => ({
 
       toast.success(`Papel do usuário alterado para ${newRole === 'master' ? 'Master' : 'Comum'}`)
       return true
-    } catch (err: any) {
+    } catch (err) {
       // Rollback
       set({ profiles: prevProfiles })
-      toast.error(err.message || 'Falha ao alterar papel do usuário')
+      const message = err instanceof Error ? err.message : 'Falha ao alterar papel do usuário'
+      toast.error(message)
       return false
     }
   },
@@ -397,9 +422,10 @@ export const useMasterStore = create<MasterState>((set, get) => ({
 
       toast.success('Usuário suspenso com sucesso!')
       return true
-    } catch (err: any) {
+    } catch (err) {
       set({ profiles: prevProfiles })
-      toast.error(err.message || 'Falha ao suspender usuário')
+      const message = err instanceof Error ? err.message : 'Falha ao suspender usuário'
+      toast.error(message)
       return false
     }
   },
@@ -421,9 +447,10 @@ export const useMasterStore = create<MasterState>((set, get) => ({
 
       toast.success('Usuário reativado com sucesso!')
       return true
-    } catch (err: any) {
+    } catch (err) {
       set({ profiles: prevProfiles })
-      toast.error(err.message || 'Falha ao reativar usuário')
+      const message = err instanceof Error ? err.message : 'Falha ao reativar usuário'
+      toast.error(message)
       return false
     }
   },
@@ -451,10 +478,11 @@ export const useMasterStore = create<MasterState>((set, get) => ({
 
       toast.success('Usuário e todos os seus dados foram excluídos com sucesso!')
       return true
-    } catch (err: any) {
+    } catch (err) {
       // Rollback
       set({ profiles: prevProfiles })
-      toast.error(err.message || 'Falha ao excluir usuário')
+      const message = err instanceof Error ? err.message : 'Falha ao excluir usuário'
+      toast.error(message)
       return false
     }
   },
@@ -480,8 +508,8 @@ export const useMasterStore = create<MasterState>((set, get) => ({
     set((state) => ({ billings: [optimisticBilling, ...state.billings] }))
 
     try {
-      const dbFrom = supabase.from as any
-      const { data, error } = await dbFrom('billings')
+      const { data, error } = await supabase
+        .from('billings')
         .insert({
           user_id: userId,
           description,
@@ -505,10 +533,11 @@ export const useMasterStore = create<MasterState>((set, get) => ({
 
       toast.success('Cobrança gerada com sucesso!')
       return true
-    } catch (err: any) {
+    } catch (err) {
       // Rollback
       set((state) => ({ billings: state.billings.filter((b) => b.id !== tempId) }))
-      toast.error(err.message || 'Erro ao gerar cobrança')
+      const message = err instanceof Error ? err.message : 'Erro ao gerar cobrança'
+      toast.error(message)
       return false
     }
   },
@@ -526,17 +555,18 @@ export const useMasterStore = create<MasterState>((set, get) => ({
     })
 
     try {
-      const dbFrom = supabase.from as any
-      const { error } = await dbFrom('billings')
+      const { error } = await supabase
+        .from('billings')
         .update({ status: 'paid', paid_at: nowIso })
         .eq('id', id)
 
       if (error) throw error
       toast.success('Cobrança marcada como paga!')
       return true
-    } catch (err: any) {
+    } catch (err) {
       set({ billings: prevBillings })
-      toast.error(err.message || 'Erro ao atualizar cobrança')
+      const message = err instanceof Error ? err.message : 'Erro ao atualizar cobrança'
+      toast.error(message)
       return false
     }
   },
@@ -548,8 +578,7 @@ export const useMasterStore = create<MasterState>((set, get) => ({
     })
 
     try {
-      const dbRpc = supabase.rpc as any
-      const { error } = await dbRpc('set_feature_flag', {
+      const { error } = await supabase.rpc('set_feature_flag', {
         p_key: key,
         p_enabled: enabled,
       })
@@ -557,61 +586,201 @@ export const useMasterStore = create<MasterState>((set, get) => ({
       if (error) throw error
       toast.success(`Módulo ${enabled ? 'ativado' : 'desativado'} com sucesso!`)
       return true
-    } catch (err: any) {
+    } catch (err) {
       set({ featureFlags: prevFlags })
-      toast.error(err.message || 'Erro ao alternar feature flag')
+      const message = err instanceof Error ? err.message : 'Erro ao alternar feature flag'
+      toast.error(message)
       return false
     }
   },
 }))
 
-// Hook useIsMaster: reads current user's profile role with neutral initial state to prevent flash
-export function useIsMaster(): {
+export type MasterAuthStatus = 'idle' | 'loading' | 'ready' | 'error'
+
+export interface UseIsMasterResult {
   isMaster: boolean
   isSuspended: boolean
   loading: boolean
+  status: MasterAuthStatus
+  errorMessage: string | null
   userProfile: Profile | null
-} {
+  refetch: () => Promise<void>
+}
+
+// In-memory session cache for master status check to avoid re-fetching on every re-render/nav
+let cachedUserId: string | null = null
+let cachedProfile: Profile | null = null
+let cacheTimestamp = 0
+const CACHE_TTL_MS = 60000 // 1 minute in memory cache
+
+export function clearMasterProfileCache(): void {
+  cachedUserId = null
+  cachedProfile = null
+  cacheTimestamp = 0
+}
+
+const TIMEOUT_MS = 10000
+const RETRY_DELAY_MS = 1500
+
+function timeoutPromise<T>(ms: number, message: string): Promise<T> {
+  return new Promise<T>((_, reject) => {
+    setTimeout(() => {
+      reject(new Error(message))
+    }, ms)
+  })
+}
+
+const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
+
+async function fetchValidatedMasterProfile(uid: string): Promise<Profile> {
+  // 1. Validar / renovar token via getUser()
+  const userPromise = (async () => {
+    const { data: userData, error: userError } = await supabase.auth.getUser()
+    if (userError || !userData?.user) {
+      throw new Error(userError?.message || 'Sessão inválida ou expirada.')
+    }
+    return userData.user
+  })()
+
+  const validUser = await Promise.race([
+    userPromise,
+    timeoutPromise<never>(TIMEOUT_MS, 'Tempo limite esgotado ao validar a sessão.'),
+  ])
+
+  // 2. Buscar perfil na tabela profiles
+  const profilePromise = (async () => {
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('id', validUser.id || uid)
+      .maybeSingle()
+
+    if (error) throw error
+    if (!data) throw new Error('Perfil não encontrado no sistema.')
+    return mapProfile(data)
+  })()
+
+  return await Promise.race([
+    profilePromise,
+    timeoutPromise<never>(TIMEOUT_MS, 'Tempo limite esgotado ao buscar o perfil.'),
+  ])
+}
+
+// Hook useIsMaster: reads current user's profile role with neutral initial state to prevent flash
+export function useIsMaster(): UseIsMasterResult {
   const { user } = useAuth()
-  const [profile, setProfile] = useState<Profile | null>(null)
-  const [loading, setLoading] = useState<boolean>(true)
+  const [profile, setProfile] = useState<Profile | null>(() => {
+    if (
+      user &&
+      cachedUserId === user.id &&
+      cachedProfile &&
+      Date.now() - cacheTimestamp < CACHE_TTL_MS
+    ) {
+      return cachedProfile
+    }
+    return null
+  })
+  const [status, setStatus] = useState<MasterAuthStatus>(() => {
+    if (!user) return 'idle'
+    if (cachedUserId === user.id && cachedProfile && Date.now() - cacheTimestamp < CACHE_TTL_MS) {
+      return 'ready'
+    }
+    return 'loading'
+  })
+  const [errorMessage, setErrorMessage] = useState<string | null>(null)
+
+  const activeFetchId = useRef(0)
+
+  const loadProfile = useCallback(
+    async (forceRefresh = false) => {
+      const fetchId = ++activeFetchId.current
+
+      if (!user) {
+        clearMasterProfileCache()
+        setProfile(null)
+        setStatus('idle')
+        setErrorMessage(null)
+        return
+      }
+
+      // Check cache
+      const now = Date.now()
+      if (
+        !forceRefresh &&
+        cachedUserId === user.id &&
+        cachedProfile &&
+        now - cacheTimestamp < CACHE_TTL_MS
+      ) {
+        setProfile(cachedProfile)
+        setStatus('ready')
+        setErrorMessage(null)
+        return
+      }
+
+      setStatus('loading')
+      setErrorMessage(null)
+
+      let lastError: Error | null = null
+
+      // Attempt 1 + 1 retry (max 2 attempts)
+      for (let attempt = 1; attempt <= 2; attempt++) {
+        if (activeFetchId.current !== fetchId) return
+
+        try {
+          const loaded = await fetchValidatedMasterProfile(user.id)
+          if (activeFetchId.current !== fetchId) return
+
+          cachedUserId = user.id
+          cachedProfile = loaded
+          cacheTimestamp = Date.now()
+
+          setProfile(loaded)
+          setStatus('ready')
+          setErrorMessage(null)
+          return
+        } catch (err) {
+          lastError = err instanceof Error ? err : new Error(String(err))
+
+          // If attempt 1 fails, wait before retry
+          if (attempt === 1) {
+            await wait(RETRY_DELAY_MS)
+          }
+        }
+      }
+
+      if (activeFetchId.current !== fetchId) return
+
+      // Definitive error after retry
+      clearMasterProfileCache()
+      setStatus('error')
+      setErrorMessage(
+        lastError?.message ||
+          'Falha na comunicação com o servidor. Verifique sua conexão e tente novamente.',
+      )
+    },
+    [user],
+  )
 
   useEffect(() => {
-    if (!user) {
-      setProfile(null)
-      setLoading(false)
-      return
-    }
+    loadProfile()
+  }, [loadProfile])
 
-    let isMounted = true
+  const refetch = useCallback(async () => {
+    await loadProfile(true)
+  }, [loadProfile])
 
-    const fetchProfile = async () => {
-      const dbFrom = supabase.from as any
-      const { data, error } = await dbFrom('profiles').select('*').eq('id', user.id).maybeSingle()
-
-      if (!isMounted) return
-
-      if (error) {
-        console.warn('[useIsMaster] Erro ao buscar perfil:', error.message)
-      }
-
-      if (data) {
-        setProfile(mapProfile(data))
-      }
-      setLoading(false)
-    }
-
-    fetchProfile()
-
-    return () => {
-      isMounted = false
-    }
-  }, [user])
+  const isLoading = status === 'loading'
+  // When ready, check role; never assume false silently if status is error
+  const isMaster = status === 'ready' && profile?.role === 'master'
+  const isSuspended = status === 'ready' && profile?.status === 'suspended'
 
   return {
-    isMaster: profile?.role === 'master',
-    isSuspended: profile?.status === 'suspended',
-    loading,
+    isMaster,
+    isSuspended,
+    loading: isLoading,
+    status,
+    errorMessage,
     userProfile: profile,
+    refetch,
   }
 }

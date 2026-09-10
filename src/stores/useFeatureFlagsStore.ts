@@ -27,20 +27,19 @@ export const useFeatureFlagsStore = create<FeatureFlagsState>((set, get) => ({
   loadFlags: async () => {
     try {
       set({ loading: true })
-      const { data, error } = await (supabase.from as any)('feature_flags').select('key, enabled')
+      const { data, error } = await supabase.from('feature_flags').select('key, enabled')
       if (error) throw error
 
       if (data && data.length > 0) {
         const flagMap: Record<string, boolean> = { ...DEFAULT_FLAGS }
-        data.forEach((row: any) => {
+        data.forEach((row) => {
           flagMap[row.key] = Boolean(row.enabled)
         })
         set({ flags: flagMap, loading: false, initialized: true })
       } else {
         set({ loading: false, initialized: true })
       }
-    } catch (err) {
-      console.warn('[useFeatureFlagsStore] Erro ao carregar feature flags:', err)
+    } catch {
       set({ loading: false, initialized: true })
     }
   },
