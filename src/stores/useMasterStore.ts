@@ -3,6 +3,7 @@ import { supabase } from '@/lib/supabase/client'
 import { toast } from 'sonner'
 import { useEffect, useState } from 'react'
 import { useAuth } from '@/hooks/use-auth'
+import { useSiteSettingsStore } from './useSiteSettingsStore'
 
 export interface Profile {
   id: string
@@ -187,6 +188,9 @@ export const useMasterStore = create<MasterState>((set, get) => ({
         dbFrom('feature_flags').select('*').order('label', { ascending: true }),
         dbFrom('admin_audit_logs').select('*').order('created_at', { ascending: false }).limit(100),
       ])
+
+      // Also trigger loading of site_settings and content_flags for the Master panel
+      useSiteSettingsStore.getState().loadSiteData()
 
       if (profilesRes.error) throw profilesRes.error
       if (billingsRes.error) throw billingsRes.error

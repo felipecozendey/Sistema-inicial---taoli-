@@ -1,7 +1,19 @@
+import { useState } from 'react'
 import { useAppStore } from '@/stores/useAppStore'
 import { EditProfileDialog } from '@/components/profile/edit-profile-dialog'
 import { getTodayHabits, calculateStreak } from '@/lib/habit-utils'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
+import { useAuth } from '@/hooks/use-auth'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
 import {
   User as UserIcon,
   Instagram,
@@ -12,6 +24,7 @@ import {
   Globe,
   Flame,
   ChevronRight,
+  LogOut,
 } from 'lucide-react'
 
 const PLATFORM_ICONS: Record<string, any> = {
@@ -25,6 +38,22 @@ const PLATFORM_ICONS: Record<string, any> = {
 
 export default function Profile() {
   const { user, tasks, habits } = useAppStore()
+  const { signOut } = useAuth()
+  const navigate = useNavigate()
+  const [logoutDialogOpen, setLogoutDialogOpen] = useState(false)
+  const [isLoggingOut, setIsLoggingOut] = useState(false)
+
+  const handleLogout = async () => {
+    setIsLoggingOut(true)
+    try {
+      await signOut()
+      navigate('/', { replace: true })
+    } finally {
+      setIsLoggingOut(false)
+      setLogoutDialogOpen(false)
+    }
+  }
+
   const today = new Date().toISOString().split('T')[0]
   const todayTasks = tasks.filter((t) => t.dueDate === today)
   const completedTasks = todayTasks.filter((t) => t.completed)
@@ -113,6 +142,46 @@ export default function Profile() {
       >
         Ir para Configurações
       </Link>
+
+      {/* Botão Deslogar do Sistema - Duolingo 3D Vermelho (#FF4B4B) com ícone LogOut */}
+      <div className="pt-2">
+        <button
+          type="button"
+          onClick={() => setLogoutDialogOpen(true)}
+          className="w-full flex items-center justify-center gap-2 py-3.5 px-6 rounded-3xl bg-[#FF4B4B] hover:bg-[#FF4B4B]/90 active:translate-y-1 active:border-b-0 border-b-4 border-[#CC3C3C] text-white font-black text-sm transition-all duration-100 shadow-sm cursor-pointer select-none"
+        >
+          <LogOut className="w-4 h-4" />
+          <span>Deslogar do Sistema</span>
+        </button>
+      </div>
+
+      <AlertDialog open={logoutDialogOpen} onOpenChange={setLogoutDialogOpen}>
+        <AlertDialogContent className="rounded-3xl border-2 max-w-sm">
+          <AlertDialogHeader>
+            <div className="w-12 h-12 rounded-2xl bg-[#FF4B4B]/15 text-[#FF4B4B] flex items-center justify-center mx-auto mb-2">
+              <LogOut className="w-6 h-6" />
+            </div>
+            <AlertDialogTitle className="text-center font-black text-xl">
+              Tem certeza que quer sair?
+            </AlertDialogTitle>
+            <AlertDialogDescription className="text-center text-xs font-semibold text-muted-foreground">
+              Sua sessão atual será encerrada e você retornará à página inicial.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="flex-col sm:flex-row gap-2 mt-2">
+            <AlertDialogCancel className="rounded-2xl border-2 font-bold flex-1">
+              Continuar no app
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleLogout}
+              disabled={isLoggingOut}
+              className="rounded-2xl font-black bg-[#FF4B4B] hover:bg-[#FF4B4B]/90 border-b-4 border-[#CC3C3C] text-white flex-1"
+            >
+              {isLoggingOut ? 'Saindo...' : 'Sim, deslogar'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }
