@@ -22,6 +22,7 @@ export function MasterFoodsSubTab() {
   const { globalFoods, updateFood, deleteFood } = useSystemStore()
 
   const [search, setSearch] = useState('')
+  const [selectedSource, setSelectedSource] = useState<string>('all')
   const [selectedCategory, setSelectedCategory] = useState<string>('all')
   const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'inactive'>('all')
 
@@ -29,6 +30,15 @@ export function MasterFoodsSubTab() {
   const [importModalOpen, setImportModalOpen] = useState(false)
   const [editingFood, setEditingFood] = useState<GlobalFood | null>(null)
   const [deletingFood, setDeletingFood] = useState<GlobalFood | null>(null)
+
+  const sourcesWithCount = useMemo(() => {
+    const counts: Record<string, number> = {}
+    globalFoods.forEach((f) => {
+      const src = (f.sourceTable || 'TACO').trim().toUpperCase()
+      counts[src] = (counts[src] || 0) + 1
+    })
+    return counts
+  }, [globalFoods])
 
   const categories = useMemo(() => {
     const set = new Set<string>()
@@ -40,9 +50,13 @@ export function MasterFoodsSubTab() {
 
   const filteredFoods = useMemo(() => {
     return globalFoods.filter((food) => {
+      const foodSource = (food.sourceTable || 'TACO').trim().toUpperCase()
+      const matchSource = selectedSource === 'all' || foodSource === selectedSource
+
       const matchSearch =
         food.name.toLowerCase().includes(search.toLowerCase()) ||
         food.category.toLowerCase().includes(search.toLowerCase()) ||
+        foodSource.toLowerCase().includes(search.toLowerCase()) ||
         (food.tags && food.tags.some((t) => t.toLowerCase().includes(search.toLowerCase())))
 
       const matchCategory = selectedCategory === 'all' || food.category === selectedCategory
@@ -52,9 +66,9 @@ export function MasterFoodsSubTab() {
         (statusFilter === 'active' && food.isActive) ||
         (statusFilter === 'inactive' && !food.isActive)
 
-      return matchSearch && matchCategory && matchStatus
+      return matchSource && matchSearch && matchCategory && matchStatus
     })
-  }, [globalFoods, search, selectedCategory, statusFilter])
+  }, [globalFoods, search, selectedSource, selectedCategory, statusFilter])
 
   const handleToggleStatus = async (food: GlobalFood) => {
     await updateFood(food.id, { isActive: !food.isActive })
@@ -68,15 +82,50 @@ export function MasterFoodsSubTab() {
 
   return (
     <div className="space-y-4">
+      {/* Chips com contagem por Tabela de Origem */}
+      <div className="flex items-center gap-2 overflow-x-auto pb-1 text-xs">
+        <span className="font-bold text-muted-foreground shrink-0 text-[11px] uppercase tracking-wider">
+          Origem:
+        </span>
+        <button
+          type="button"
+          onClick={() => setSelectedSource('all')}
+          className={`px-3 py-1.5 rounded-2xl font-bold transition-all text-xs shrink-0 border-2 ${
+            selectedSource === 'all'
+              ? 'bg-[#58CC02] text-white border-[#46A602] shadow-sm'
+              : 'bg-card text-muted-foreground hover:bg-muted border-border'
+          }`}
+        >
+          Todas ({globalFoods.length})
+        </button>
+        {Object.entries(sourcesWithCount).map(([src, count]) => {
+          const isSel = selectedSource === src
+          return (
+            <button
+              key={src}
+              type="button"
+              onClick={() => setSelectedSource(src)}
+              className={`px-3 py-1.5 rounded-2xl font-bold transition-all text-xs shrink-0 border-2 ${
+                isSel
+                  ? 'bg-amber-500 text-white border-amber-600 shadow-sm'
+                  : 'bg-card text-muted-foreground hover:bg-muted border-border'
+              }`}
+            >
+              {src} <span className="opacity-80">({count})</span>
+            </button>
+          )
+        })}
+      </div>
+
       {/* Top action bar */}
       <div className="flex flex-col sm:flex-row gap-3 items-stretch sm:items-center justify-between">
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
           <div className="relative flex-1 sm:w-80">
             <Search className="w-4 h-4 text-muted-foreground absolute left-3.5 top-1/2 -translate-y-1/2" />
             <Input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Buscar por nome, categoria ou tag..."
+              placeholder="Buscar por nome, origem, categoria..."
               className="pl-9 rounded-2xl border-2 h-11 text-xs font-bold"
             />
           </div>
@@ -86,7 +135,7 @@ export function MasterFoodsSubTab() {
             onChange={(e) => setSelectedCategory(e.target.value)}
             className="h-11 px-3 rounded-2xl border-2 bg-card text-xs font-bold text-foreground focus:outline-none focus:ring-2 focus:ring-[#58CC02]"
           >
-            <option value="all">Todas Categorias ({globalFoods.length})</option>
+            <option value="all">Todas Categorias</option>
             {categories.map((c) => (
               <option key={c} value={c}>
                 {c}
@@ -112,7 +161,7 @@ export function MasterFoodsSubTab() {
             className="rounded-2xl h-11 px-4 font-bold border-2 border-b-4 hover:bg-muted active:scale-95 transition-all text-xs flex items-center gap-1.5"
           >
             <FileSpreadsheet className="w-4 h-4 text-[#1CB0F6]" />
-            <span>Importar Tabela (TACO)</span>
+            <span>Importador Multi-Tabelas</span>
           </Button>
 
           <Button
@@ -174,9 +223,9 @@ export function MasterFoodsSubTab() {
                       </Badge>
                       <Badge
                         variant="outline"
-                        className="text-[10px] font-bold rounded-full border-blue-500/30 text-blue-600 bg-blue-500/10"
+                        className="text-[10px] font-bold rounded-full border-amber-500/40 text-amber-600 dark:text-amber-400 bg-amber-500/10 font-mono"
                       >
-                        Tabela Oficial
+                        {food.sourceTable || 'TACO'}
                       </Badge>
                     </div>
                     <p className="text-xs text-muted-foreground font-semibold mt-0.5">

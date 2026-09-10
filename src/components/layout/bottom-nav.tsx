@@ -23,7 +23,7 @@ interface BottomNavItem {
 export function BottomNav() {
   const location = useLocation()
   const { isMaster } = useIsMaster()
-  const flags = useFeatureFlagsStore((s) => s.flags)
+  const isEnabled = useFeatureFlagsStore((s) => s.isEnabled)
 
   const items: BottomNavItem[] = [
     { icon: LayoutDashboard, label: 'Início', path: '/dashboard' },
@@ -38,9 +38,8 @@ export function BottomNav() {
 
   const visibleItems = items.filter((item) => {
     if (!item.featureKey) return true
-    return flags[item.featureKey] !== false
+    return isEnabled(item.featureKey)
   })
-
   return (
     <nav className="md:hidden fixed bottom-0 left-0 right-0 h-16 bg-card border-t flex items-center justify-around px-1 pb-safe z-40 print:hidden overflow-x-auto">
       {visibleItems.map((item) => {

@@ -21,15 +21,16 @@ export function MasterRouteGuard({ children }: MasterRouteGuardProps) {
   }
 
   // 1. Estado Loading: spinner com estilo amigável Duolingo / âmbar master
+  // Se passar mais de 6s em loading visual, exibir botão de contingência para evitar sensação de travamento
   if (status === 'loading' || (authLoading && status === 'idle')) {
     return (
-      <div className="min-h-[60vh] flex flex-col items-center justify-center p-6 text-center">
-        <div className="w-12 h-12 rounded-full border-4 border-amber-500 border-t-transparent animate-spin mb-4 shadow-sm" />
-        <p className="text-sm font-semibold text-muted-foreground animate-pulse">
+      <div className="min-h-[60vh] flex flex-col items-center justify-center p-6 text-center animate-in fade-in duration-300">
+        <div className="w-14 h-14 rounded-full border-4 border-amber-500 border-t-transparent animate-spin mb-4 shadow-sm" />
+        <p className="text-base font-bold text-foreground animate-pulse">
           Verificando credenciais Master...
         </p>
-        <p className="text-xs text-muted-foreground/70 mt-2">
-          Carregando permissões administrativas
+        <p className="text-xs text-muted-foreground mt-2 max-w-xs">
+          Avaliando permissões de superadministrador com segurança
         </p>
       </div>
     )

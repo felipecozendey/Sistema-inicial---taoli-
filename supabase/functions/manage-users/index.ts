@@ -623,12 +623,30 @@ Deno.serve(async (req: Request) => {
       }
 
       // Generate confirmation / magic link via Supabase admin
-      const { data: linkData, error: linkErr } = await adminClient.auth.admin.generateLink({
+      let actionLink: string | null = null
+      let linkErr: any = null
+
+      const magicRes = await adminClient.auth.admin.generateLink({
         type: 'magiclink',
         email: targetProfile.email,
       })
 
-      if (linkErr) {
+      if (magicRes.data?.properties?.action_link) {
+        actionLink = magicRes.data.properties.action_link
+      } else {
+        linkErr = magicRes.error
+        // Fallback to recovery link if magiclink fails
+        const recoveryRes = await adminClient.auth.admin.generateLink({
+          type: 'recovery',
+          email: targetProfile.email,
+        })
+        if (recoveryRes.data?.properties?.action_link) {
+          actionLink = recoveryRes.data.properties.action_link
+          linkErr = null
+        }
+      }
+
+      if (linkErr && !actionLink) {
         return new Response(
           JSON.stringify({
             ok: false,
@@ -637,8 +655,6 @@ Deno.serve(async (req: Request) => {
           { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
         )
       }
-
-      const actionLink = linkData?.properties?.action_link || null
 
       let emailSent = false
       if (resendApiKey && actionLink) {

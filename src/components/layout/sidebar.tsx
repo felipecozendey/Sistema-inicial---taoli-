@@ -35,11 +35,11 @@ const navItems: NavItem[] = [
 export function Sidebar() {
   const location = useLocation()
   const { isMaster } = useIsMaster()
-  const flags = useFeatureFlagsStore((s) => s.flags)
+  const isEnabled = useFeatureFlagsStore((s) => s.isEnabled)
 
   const visibleNavItems = navItems.filter((item) => {
     if (!item.featureKey) return true
-    return flags[item.featureKey] !== false
+    return isEnabled(item.featureKey)
   })
 
   return (

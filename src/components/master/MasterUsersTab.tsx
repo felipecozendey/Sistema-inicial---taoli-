@@ -383,12 +383,25 @@ export function MasterUsersTab() {
                               </DropdownMenuItem>
                             )}
 
+                            {/* Manage User (Details / Permissions / Password) */}
+                            <DropdownMenuItem
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                setSelectedUserForDetails(p)
+                              }}
+                              className="rounded-xl font-bold text-xs py-2 cursor-pointer text-foreground"
+                            >
+                              <User className="w-4 h-4 mr-2 text-[#58CC02]" />
+                              Gerenciar Usuário
+                            </DropdownMenuItem>
+
                             <DropdownMenuSeparator />
 
                             {/* Delete User */}
                             <DropdownMenuItem
                               disabled={isCurrent}
-                              onClick={() => {
+                              onClick={(e) => {
+                                e.stopPropagation()
                                 setDeleteEmailConfirm('')
                                 setConfirmDialog({
                                   isOpen: true,
@@ -412,6 +425,16 @@ export function MasterUsersTab() {
           </div>
         )}
       </div>
+
+      {/* MODAL: GERENCIAMENTO COMPLETO DO USUÁRIO (Perfil, Senha, Permissões, Auditoria) */}
+      <UserDetailsModal
+        user={selectedUserForDetails}
+        open={Boolean(selectedUserForDetails)}
+        onOpenChange={(isOpen) => {
+          if (!isOpen) setSelectedUserForDetails(null)
+        }}
+        currentUserId={currentUser?.id}
+      />
 
       {/* MODAL: CRIAR USUÁRIO */}
       <Dialog open={createModalOpen} onOpenChange={setCreateModalOpen}>

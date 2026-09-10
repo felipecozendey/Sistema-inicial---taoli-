@@ -40,6 +40,7 @@ export function MasterFoodModal({ open, onOpenChange, foodToEdit }: Props) {
 
   const [name, setName] = useState('')
   const [category, setCategory] = useState('Geral')
+  const [sourceTable, setSourceTable] = useState('TACO')
   const [baseUnit, setBaseUnit] = useState('100g')
   const [calories, setCalories] = useState('')
   const [carbsG, setCarbsG] = useState('')
@@ -58,6 +59,7 @@ export function MasterFoodModal({ open, onOpenChange, foodToEdit }: Props) {
       if (foodToEdit) {
         setName(foodToEdit.name)
         setCategory(foodToEdit.category || 'Geral')
+        setSourceTable(foodToEdit.sourceTable || 'TACO')
         setBaseUnit(foodToEdit.baseUnit || '100g')
         setCalories(String(foodToEdit.calories))
         setCarbsG(String(foodToEdit.carbsG))
@@ -71,6 +73,7 @@ export function MasterFoodModal({ open, onOpenChange, foodToEdit }: Props) {
       } else {
         setName('')
         setCategory('Cereais')
+        setSourceTable('TACO')
         setBaseUnit('100g')
         setCalories('0')
         setCarbsG('0')
@@ -103,6 +106,7 @@ export function MasterFoodModal({ open, onOpenChange, foodToEdit }: Props) {
     const payload: NewGlobalFoodInput = {
       name: name.trim(),
       category: category.trim() || 'Geral',
+      sourceTable: (sourceTable.trim() || 'TACO').toUpperCase(),
       baseUnit: baseUnit.trim() || '100g',
       calories: parseNum(calories),
       carbsG: parseNum(carbsG),
@@ -160,7 +164,32 @@ export function MasterFoodModal({ open, onOpenChange, foodToEdit }: Props) {
             />
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div className="space-y-1.5">
+              <Label className="text-xs font-extrabold">Tabela de Origem *</Label>
+              <div className="space-y-1">
+                <Input
+                  value={sourceTable}
+                  onChange={(e) => setSourceTable(e.target.value.toUpperCase())}
+                  placeholder="Ex: TACO, USDA, IBGE"
+                  className="rounded-2xl border-2 font-bold uppercase font-mono text-xs"
+                  required
+                />
+                <div className="flex flex-wrap gap-1">
+                  {['TACO', 'USDA', 'IBGE'].map((sug) => (
+                    <button
+                      key={sug}
+                      type="button"
+                      onClick={() => setSourceTable(sug)}
+                      className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-muted hover:bg-muted-foreground/20 text-muted-foreground"
+                    >
+                      {sug}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+
             <div className="space-y-1.5">
               <Label className="text-xs font-extrabold">Categoria</Label>
               <Input

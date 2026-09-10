@@ -6,6 +6,7 @@ export interface GlobalFood {
   id: string
   name: string
   category: string
+  sourceTable: string
   baseUnit: string
   calories: number
   carbsG: number
@@ -88,6 +89,7 @@ function mapFoodFromDb(row: Record<string, any>): GlobalFood {
     id: row.id,
     name: row.name,
     category: row.category || 'Geral',
+    sourceTable: (row.source_table || 'TACO').trim().toUpperCase(),
     baseUnit: row.base_unit || '100g',
     calories: Number(row.calories || 0),
     carbsG: Number(row.carbs_g || 0),
@@ -162,11 +164,13 @@ export const useSystemStore = create<SystemState>((set, get) => ({
     set({ globalFoods: [optimisticFood, ...previousFoods] })
 
     try {
+      const sourceTableClean = (input.sourceTable || 'TACO').trim().toUpperCase()
       const { data, error } = await supabase
         .from('global_foods')
         .insert({
           name: input.name,
           category: input.category,
+          source_table: sourceTableClean,
           base_unit: input.baseUnit,
           calories: input.calories,
           carbs_g: input.carbsG,
@@ -219,6 +223,8 @@ export const useSystemStore = create<SystemState>((set, get) => ({
       const dbPayload: Record<string, any> = {}
       if (updates.name !== undefined) dbPayload.name = updates.name
       if (updates.category !== undefined) dbPayload.category = updates.category
+      if (updates.sourceTable !== undefined)
+        dbPayload.source_table = updates.sourceTable.trim().toUpperCase()
       if (updates.baseUnit !== undefined) dbPayload.base_unit = updates.baseUnit
       if (updates.calories !== undefined) dbPayload.calories = updates.calories
       if (updates.carbsG !== undefined) dbPayload.carbs_g = updates.carbsG
@@ -284,20 +290,24 @@ export const useSystemStore = create<SystemState>((set, get) => ({
       let insertedCount = 0
       let updatedCount = 0
 
+      // Pair composite key: name + source_table (e.g. "arroz integral|TACO")
       const existingMap = new Map<string, GlobalFood>()
       previousFoods.forEach((f) => {
-        existingMap.set(f.name.trim().toLowerCase(), f)
+        const pairKey = `${f.name.trim().toLowerCase()}|${(f.sourceTable || 'TACO').trim().toUpperCase()}`
+        existingMap.set(pairKey, f)
       })
 
       const toInsert: any[] = []
       const toUpdate: { id: string; payload: any }[] = []
 
       foods.forEach((item) => {
-        const key = item.name.trim().toLowerCase()
-        const match = existingMap.get(key)
+        const sourceTableClean = (item.sourceTable || 'TACO').trim().toUpperCase()
+        const pairKey = `${item.name.trim().toLowerCase()}|${sourceTableClean}`
+        const match = existingMap.get(pairKey)
         const row = {
           name: item.name.trim(),
           category: item.category || 'Geral',
+          source_table: sourceTableClean,
           base_unit: item.baseUnit || '100g',
           calories: item.calories,
           carbs_g: item.carbsG,

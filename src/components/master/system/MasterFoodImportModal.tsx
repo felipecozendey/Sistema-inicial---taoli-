@@ -7,6 +7,7 @@ import {
   DialogDescription,
 } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Label } from '@/components/ui/label'
@@ -37,6 +38,7 @@ Ovo de galinha cozido;Ovos;100g;146;0.6;13.3;9.5;0;146`
 export function MasterFoodImportModal({ open, onOpenChange }: Props) {
   const { bulkImportFoods } = useSystemStore()
   const [csvText, setCsvText] = useState('')
+  const [sourceTableName, setSourceTableName] = useState('TACO')
   const [replaceExisting, setReplaceExisting] = useState(true)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [previewStep, setPreviewStep] = useState(false)
@@ -119,6 +121,7 @@ export function MasterFoodImportModal({ open, onOpenChange }: Props) {
         food: {
           name,
           category,
+          sourceTable: (sourceTableName.trim() || 'TACO').toUpperCase(),
           baseUnit,
           calories,
           carbsG,
@@ -127,14 +130,14 @@ export function MasterFoodImportModal({ open, onOpenChange }: Props) {
           fibersG,
           sodiumMg,
           allergens: null,
-          tags: ['taco', 'importado'],
+          tags: [sourceTableName.toLowerCase().trim() || 'taco', 'importado'],
           isActive: true,
         },
       })
     }
 
     return rows
-  }, [csvText])
+  }, [csvText, sourceTableName])
 
   const validRows = useMemo(
     () => parsedResults.filter((r) => r.valid && r.food).map((r) => r.food!),
@@ -210,10 +213,42 @@ export function MasterFoodImportModal({ open, onOpenChange }: Props) {
               </button>
             </div>
 
+            {/* Campo: Nome da tabela de origem */}
+            <div className="space-y-1.5 p-3 rounded-2xl bg-amber-500/10 border-2 border-amber-500/30">
+              <div className="flex items-center justify-between">
+                <Label className="text-xs font-black text-amber-800 dark:text-amber-300">
+                  Nome da Tabela de Origem *
+                </Label>
+                <div className="flex gap-1">
+                  {['TACO', 'USDA', 'IBGE', 'SUÍÇA'].map((preset) => (
+                    <button
+                      key={preset}
+                      type="button"
+                      onClick={() => setSourceTableName(preset)}
+                      className="px-2 py-0.5 rounded-lg text-[10px] font-bold bg-amber-500/20 text-amber-700 dark:text-amber-300 hover:bg-amber-500/30 transition-colors"
+                    >
+                      {preset}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <Input
+                value={sourceTableName}
+                onChange={(e) => setSourceTableName(e.target.value.toUpperCase())}
+                placeholder="Ex: TACO, USDA, IBGE"
+                className="rounded-xl border-2 font-mono font-black uppercase text-sm bg-card"
+                required
+              />
+              <p className="text-[11px] text-muted-foreground font-semibold">
+                Todos os alimentos importados serão identificados com esta origem para organização
+                multi-tabelas.
+              </p>
+            </div>
+
             <Textarea
               value={csvText}
               onChange={(e) => setCsvText(e.target.value)}
-              placeholder="Cole aqui o conteúdo copiado de sua planilha Excel, CSV ou tabela TACO..."
+              placeholder="Cole aqui o conteúdo copiado de sua planilha Excel, CSV ou tabela (TACO, USDA, IBGE)..."
               rows={9}
               className="font-mono text-xs rounded-2xl border-2 p-3 bg-card"
             />
@@ -229,7 +264,7 @@ export function MasterFoodImportModal({ open, onOpenChange }: Props) {
                 htmlFor="replace-foods"
                 className="text-xs font-bold leading-none cursor-pointer"
               >
-                Substituir alimentos existentes com o mesmo nome (Upsert)
+                Substituir alimentos existentes com o mesmo nome + origem (Upsert)
               </Label>
             </div>
 
@@ -280,6 +315,7 @@ export function MasterFoodImportModal({ open, onOpenChange }: Props) {
                 <thead>
                   <tr className="border-b bg-muted/60 font-black text-[11px] text-muted-foreground uppercase">
                     <th className="p-2.5">#</th>
+                    <th className="p-2.5">Origem</th>
                     <th className="p-2.5">Nome</th>
                     <th className="p-2.5">Categoria</th>
                     <th className="p-2.5 text-right">kcal</th>
@@ -292,6 +328,9 @@ export function MasterFoodImportModal({ open, onOpenChange }: Props) {
                   {validRows.slice(0, 15).map((food, i) => (
                     <tr key={i} className="hover:bg-muted/30">
                       <td className="p-2.5 font-mono text-muted-foreground">{i + 1}</td>
+                      <td className="p-2.5 font-mono font-bold text-amber-600 dark:text-amber-400 text-[10px]">
+                        {food.sourceTable}
+                      </td>
                       <td className="p-2.5 font-bold truncate max-w-[160px]">{food.name}</td>
                       <td className="p-2.5 text-muted-foreground">{food.category}</td>
                       <td className="p-2.5 text-right font-extrabold text-[#FF4B4B]">
