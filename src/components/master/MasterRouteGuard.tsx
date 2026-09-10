@@ -1,81 +1,84 @@
-import React, { useEffect, useState } from 'react';
-import { Navigate, Outlet } from 'react-router-dom';
-import { useAuth } from '@/hooks/use-auth';
-import { supabase } from '@/lib/supabase/client';
-import { Loader2, AlertCircle, RefreshCw } from 'lucide-react';
-import { Button } from '@/components/ui/button';
+import React, { useEffect, useState } from 'react'
+import { Navigate, Outlet } from 'react-router-dom'
+import { useAuth } from '@/hooks/use-auth'
+import { supabase } from '@/lib/supabase/client'
+import { Loader2, AlertCircle, RefreshCw } from 'lucide-react'
+import { Button } from '@/components/ui/button'
 
-export const MasterRouteGuard: React.FC = () => {
-  const { user, loading: authLoading } = useAuth();
-  const [isMaster, setIsMaster] = useState<boolean | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [timedOut, setTimedOut] = useState(false);
-  const [retryCount, setRetryCount] = useState(0);
+interface MasterRouteGuardProps {
+  children?: React.ReactNode
+}
+
+export const MasterRouteGuard: React.FC<MasterRouteGuardProps> = ({ children }) => {
+  const { user, loading: authLoading } = useAuth()
+  const [isMaster, setIsMaster] = useState<boolean | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [timedOut, setTimedOut] = useState(false)
+  const [retryCount, setRetryCount] = useState(0)
 
   useEffect(() => {
-    let isMounted = true;
-    let timer: NodeJS.Timeout;
+    let isMounted = true
+    let timer: any
 
     const checkMasterRole = async () => {
-      setLoading(true);
-      setTimedOut(false);
+      setLoading(true)
+      setTimedOut(false)
 
       timer = setTimeout(() => {
         if (isMounted) {
-          setTimedOut(true);
-          setLoading(false);
+          setTimedOut(true)
+          setLoading(false)
         }
-      }, 7000);
+      }, 7000)
 
       try {
         if (!user) {
           if (isMounted) {
-            setIsMaster(false);
-            setLoading(false);
+            setIsMaster(false)
+            setLoading(false)
           }
-          clearTimeout(timer);
-          return;
+          clearTimeout(timer)
+          return
         }
 
-        // Direct RPC or profile check
         const { data, error } = await supabase
           .from('profiles')
           .select('role')
           .eq('id', user.id)
-          .single();
+          .single()
 
         if (error) {
-          console.error('Error checking master role:', error);
+          console.error('Error checking master role:', error)
           if (isMounted) {
-            setIsMaster(false);
-            setLoading(false);
+            setIsMaster(false)
+            setLoading(false)
           }
         } else {
           if (isMounted) {
-            setIsMaster(data?.role === 'master');
-            setLoading(false);
+            setIsMaster(data?.role === 'master')
+            setLoading(false)
           }
         }
       } catch (err) {
-        console.error('Master check failed:', err);
+        console.error('Master check failed:', err)
         if (isMounted) {
-          setIsMaster(false);
-          setLoading(false);
+          setIsMaster(false)
+          setLoading(false)
         }
       } finally {
-        clearTimeout(timer);
+        clearTimeout(timer)
       }
-    };
+    }
 
     if (!authLoading) {
-      checkMasterRole();
+      checkMasterRole()
     }
 
     return () => {
-      isMounted = false;
-      clearTimeout(timer);
-    };
-  }, [user, authLoading, retryCount]);
+      isMounted = false
+      clearTimeout(timer)
+    }
+  }, [user, authLoading, retryCount])
 
   if (authLoading || loading) {
     return (
@@ -85,7 +88,7 @@ export const MasterRouteGuard: React.FC = () => {
           Verificando permissões de acesso...
         </p>
       </div>
-    );
+    )
   }
 
   if (timedOut) {
@@ -96,24 +99,25 @@ export const MasterRouteGuard: React.FC = () => {
         </div>
         <h3 className="text-xl font-bold">Tempo de verificação esgotado</h3>
         <p className="text-sm text-muted-foreground">
-          A validação do acesso master demorou mais que o esperado. Verifique sua conexão e tente novamente.
+          A validação do acesso master demorou mais que o esperado. Verifique sua conexão e tente
+          novamente.
         </p>
-        <Button 
-          onClick={() => setRetryCount(prev => prev + 1)}
+        <Button
+          onClick={() => setRetryCount((prev) => prev + 1)}
           className="bg-[#58CC02] hover:bg-[#46a302] text-white border-b-4 border-[#46a302] active:border-b-0 rounded-2xl gap-2 mt-2"
         >
           <RefreshCw className="w-4 h-4" />
           Tentar novamente
         </Button>
       </div>
-    );
+    )
   }
 
   if (!user || !isMaster) {
-    return <Navigate to="/" replace />;
+    return <Navigate to="/" replace />
   }
 
-  return <Outlet />;
-};
+  return children ? <>{children}</> : <Outlet />
+}
 
-export default MasterRouteGuard;
+export default MasterRouteGuard
