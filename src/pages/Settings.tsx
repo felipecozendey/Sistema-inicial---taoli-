@@ -1,7 +1,6 @@
 import { useState } from 'react'
 import { useTheme } from 'next-themes'
 import { useColorTheme } from '@/components/ThemeProvider'
-import { TagManager } from '@/components/tags/tag-manager'
 import { Moon, Sun, Monitor, Check, UserCircle, AlertTriangle } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Link } from 'react-router-dom'
@@ -116,7 +115,7 @@ export default function Settings() {
         </div>
       </Link>
 
-      <TagManager />
+
 
       <section className="bg-card rounded-3xl p-6 md:p-8 shadow-sm border-2 border-[#FF4B4B]/30 space-y-6">
         <div className="flex items-center gap-3">

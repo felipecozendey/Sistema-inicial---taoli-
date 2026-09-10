@@ -40,7 +40,7 @@ interface UserDetailsModalProps {
 }
 
 const AVAILABLE_PERMISSIONS = [
-  { key: 'tasks', label: 'Tarefas', description: 'Gestão de tarefas, listas e prazos' },
+  { key: 'tasks', label: 'Hábitos e Tarefas', description: 'Gestão de hábitos, tarefas, listas e prazos' },
   { key: 'habits', label: 'Hábitos', description: 'Rastreamento de hábitos diários e sequências' },
   {
     key: 'health',

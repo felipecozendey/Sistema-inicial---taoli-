@@ -27,7 +27,7 @@ export function BottomNav() {
 
   const items: BottomNavItem[] = [
     { icon: LayoutDashboard, label: 'Início', path: '/dashboard' },
-    { icon: CheckSquare, label: 'Tarefas', path: '/tasks', featureKey: 'tasks' },
+    { icon: CheckSquare, label: 'Hábitos e Tarefas', path: '/tasks', featureKey: 'tasks' },
     { icon: HeartPulse, label: 'Saúde', path: '/health', featureKey: 'health' },
     { icon: GraduationCap, label: 'Estudos', path: '/studies', featureKey: 'studies' },
     { icon: Wallet, label: 'Finanças', path: '/finance', featureKey: 'finance' },

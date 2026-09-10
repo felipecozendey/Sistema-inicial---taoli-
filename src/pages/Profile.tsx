@@ -62,7 +62,7 @@ export default function Profile() {
   const maxStreak = Math.max(0, ...habits.map((h) => calculateStreak(h.completions)))
 
   const stats = [
-    { label: 'Tarefas Hoje', value: `${completedTasks.length}/${todayTasks.length}` },
+    { label: 'Hábitos e Tarefas Hoje', value: `${completedTasks.length}/${todayTasks.length}` },
     { label: 'Hábitos Hoje', value: `${completedHabits.length}/${todayHabits.length}` },
     { label: 'Sequência', value: `${maxStreak} dias` },
   ]
