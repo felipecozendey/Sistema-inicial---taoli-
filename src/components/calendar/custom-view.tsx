@@ -10,7 +10,7 @@ type CustomFilterType = 'all' | 'tasks' | 'habits' | 'streaks'
 
 const FILTERS: { value: CustomFilterType; label: string }[] = [
   { value: 'all', label: 'Tudo' },
-  { value: 'tasks', label: 'Tarefas' },
+  { value: 'tasks', label: 'Hábitos e Tarefas' },
   { value: 'habits', label: 'Hábitos' },
   { value: 'streaks', label: 'Sequências' },
 ]

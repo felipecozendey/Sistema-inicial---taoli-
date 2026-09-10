@@ -1,62 +1,71 @@
-import React, { useEffect, useState } from 'react';
-import { useGardenStore, GardenPlant } from '@/stores/useGardenStore';
-import { useTaskSettingsStore } from '@/stores/useTaskSettingsStore';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { Progress } from '@/components/ui/progress';
-import { 
-  Sprout, 
-  Flame, 
-  Trophy, 
-  Sparkles, 
-  Droplet, 
-  PlusCircle, 
-  CheckCircle2, 
+import React, { useEffect, useState } from 'react'
+import { useGardenStore, GardenPlant } from '@/stores/useGardenStore'
+import { useTaskSettingsStore } from '@/stores/useTaskSettingsStore'
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
+import { Button } from '@/components/ui/button'
+import { Badge } from '@/components/ui/badge'
+import { Progress } from '@/components/ui/progress'
+import {
+  Sprout,
+  Flame,
+  Trophy,
+  Sparkles,
+  Droplet,
+  PlusCircle,
+  CheckCircle2,
   Info,
-  Flower2
-} from 'lucide-react';
+  Flower2,
+} from 'lucide-react'
 
 export const GardenView: React.FC = () => {
-  const { 
-    state, 
-    plants, 
-    isLoading, 
-    fetchGarden, 
-    waterPlant, 
-    harvestPlant, 
-    unlockNextPlot 
-  } = useGardenStore();
-  const { settings, fetchSettings } = useTaskSettingsStore();
-  const [selectedPlant, setSelectedPlant] = useState<GardenPlant | null>(null);
+  const { state, plants, isLoading, fetchGarden, waterPlant, harvestPlant, unlockNextPlot } =
+    useGardenStore()
+  const { settings, fetchSettings } = useTaskSettingsStore()
+  const [selectedPlant, setSelectedPlant] = useState<GardenPlant | null>(null)
 
   useEffect(() => {
-    fetchGarden();
-    fetchSettings();
-  }, [fetchGarden, fetchSettings]);
+    fetchGarden()
+    fetchSettings()
+  }, [fetchGarden, fetchSettings])
 
-  const ptsPerLevel = settings.points_per_level || 100;
-  const currentLevelProgress = (state.points % ptsPerLevel) / ptsPerLevel * 100;
-  const nextLevelPoints = ((state.level) * ptsPerLevel) - state.points;
+  const ptsPerLevel = settings.points_per_level || 100
+  const currentLevelProgress = ((state.points % ptsPerLevel) / ptsPerLevel) * 100
+  const nextLevelPoints = state.level * ptsPerLevel - state.points
 
   const getStageInfo = (stage: number) => {
     switch (stage) {
       case 0:
-        return { name: 'Semente', emoji: '🌰', iconBg: 'bg-amber-100 dark:bg-amber-950/60 text-amber-600' };
+        return {
+          name: 'Semente',
+          emoji: '🌰',
+          iconBg: 'bg-amber-100 dark:bg-amber-950/60 text-amber-600',
+        }
       case 1:
-        return { name: 'Broto', emoji: '🌱', iconBg: 'bg-lime-100 dark:bg-lime-950/60 text-lime-600' };
+        return {
+          name: 'Broto',
+          emoji: '🌱',
+          iconBg: 'bg-lime-100 dark:bg-lime-950/60 text-lime-600',
+        }
       case 2:
-        return { name: 'Crescendo', emoji: '🌿', iconBg: 'bg-emerald-100 dark:bg-emerald-950/60 text-emerald-600' };
+        return {
+          name: 'Crescendo',
+          emoji: '🌿',
+          iconBg: 'bg-emerald-100 dark:bg-emerald-950/60 text-emerald-600',
+        }
       case 3:
       default:
-        return { name: 'Florida', emoji: '🌸', iconBg: 'bg-rose-100 dark:bg-rose-950/60 text-rose-500' };
+        return {
+          name: 'Florida',
+          emoji: '🌸',
+          iconBg: 'bg-rose-100 dark:bg-rose-950/60 text-rose-500',
+        }
     }
-  };
+  }
 
   const plots = Array.from({ length: state.plot_count }, (_, i) => {
-    const plant = plants.find(p => p.plot_index === i);
-    return { index: i, plant };
-  });
+    const plant = plants.find((p) => p.plot_index === i)
+    return { index: i, plant }
+  })
 
   return (
     <div className="space-y-6 animate-in fade-in-50 duration-300">
@@ -95,7 +104,9 @@ export const GardenView: React.FC = () => {
               <Flame className="w-5 h-5 text-orange-500" />
               <div>
                 <p className="text-[10px] uppercase font-bold text-muted-foreground">Ofensiva</p>
-                <p className="text-lg font-black text-foreground leading-none">{state.streak_days} dias</p>
+                <p className="text-lg font-black text-foreground leading-none">
+                  {state.streak_days} dias
+                </p>
               </div>
             </div>
 
@@ -104,7 +115,9 @@ export const GardenView: React.FC = () => {
               <Sprout className="w-5 h-5 text-[#58CC02]" />
               <div>
                 <p className="text-[10px] uppercase font-bold text-muted-foreground">Canteiros</p>
-                <p className="text-lg font-black text-foreground leading-none">{plants.length}/{state.plot_count}</p>
+                <p className="text-lg font-black text-foreground leading-none">
+                  {plants.length}/{state.plot_count}
+                </p>
               </div>
             </div>
           </div>
@@ -121,7 +134,10 @@ export const GardenView: React.FC = () => {
               {Math.max(0, nextLevelPoints)} pts restantes
             </span>
           </div>
-          <Progress value={currentLevelProgress} className="h-3 rounded-full bg-muted/60 [&>div]:bg-[#58CC02]" />
+          <Progress
+            value={currentLevelProgress}
+            className="h-3 rounded-full bg-muted/60 [&>div]:bg-[#58CC02]"
+          />
         </div>
       </div>
 
@@ -132,7 +148,9 @@ export const GardenView: React.FC = () => {
             <Info className="w-5 h-5 text-amber-700 dark:text-amber-300" />
           </div>
           <div>
-            <span className="font-bold">Como funciona a gamificação:</span> Concluir tarefas dá +{settings.points_per_task} pts e planta mudas. Concluir hábitos dá +{settings.points_per_habit} pts e acelera o crescimento até a flor desabrochar!
+            <span className="font-bold">Como funciona a gamificação:</span> Concluir tarefas dá +
+            {settings.points_per_task} pts e planta mudas. Concluir hábitos dá +
+            {settings.points_per_habit} pts e acelera o crescimento até a flor desabrochar!
           </div>
         </div>
 
@@ -151,8 +169,8 @@ export const GardenView: React.FC = () => {
         {plots.map(({ index, plant }) => {
           if (!plant) {
             return (
-              <Card 
-                key={index} 
+              <Card
+                key={index}
                 className="group relative rounded-3xl border-2 border-dashed border-border/80 hover:border-[#58CC02]/60 hover:bg-[#58CC02]/5 transition-all duration-200 flex flex-col items-center justify-center min-h-[170px] p-4 text-center cursor-pointer"
               >
                 <div className="w-12 h-12 rounded-2xl bg-muted/60 group-hover:bg-[#58CC02]/20 flex items-center justify-center text-muted-foreground group-hover:text-[#58CC02] transition-colors mb-2">
@@ -168,13 +186,13 @@ export const GardenView: React.FC = () => {
                   Conclua tarefas 🌱
                 </span>
               </Card>
-            );
+            )
           }
 
-          const stage = getStageInfo(plant.stage);
+          const stage = getStageInfo(plant.stage)
 
           return (
-            <Card 
+            <Card
               key={plant.id}
               onClick={() => setSelectedPlant(plant)}
               className="relative overflow-hidden rounded-3xl border-2 border-border hover:border-[#58CC02] transition-all duration-200 flex flex-col items-center justify-between min-h-[170px] p-4 text-center cursor-pointer shadow-sm hover:shadow group bg-card"
@@ -184,7 +202,10 @@ export const GardenView: React.FC = () => {
                 <span className="text-[10px] font-bold text-muted-foreground">
                   #{plant.plot_index + 1}
                 </span>
-                <Badge variant="outline" className={`text-[10px] px-1.5 py-0 rounded-md font-bold ${stage.iconBg}`}>
+                <Badge
+                  variant="outline"
+                  className={`text-[10px] px-1.5 py-0 rounded-md font-bold ${stage.iconBg}`}
+                >
                   {stage.name}
                 </Badge>
               </div>
@@ -203,8 +224,8 @@ export const GardenView: React.FC = () => {
                   <Button
                     size="sm"
                     onClick={(e) => {
-                      e.stopPropagation();
-                      waterPlant(plant.plot_index);
+                      e.stopPropagation()
+                      waterPlant(plant.plot_index)
                     }}
                     className="w-full h-8 text-[11px] font-bold rounded-xl bg-sky-500 hover:bg-sky-600 text-white border-b-2 border-sky-700 active:border-b-0 gap-1 px-2"
                   >
@@ -215,8 +236,8 @@ export const GardenView: React.FC = () => {
                   <Button
                     size="sm"
                     onClick={(e) => {
-                      e.stopPropagation();
-                      harvestPlant(plant.plot_index);
+                      e.stopPropagation()
+                      harvestPlant(plant.plot_index)
                     }}
                     className="w-full h-8 text-[11px] font-bold rounded-xl bg-[#58CC02] hover:bg-[#46a302] text-white border-b-2 border-[#46a302] active:border-b-0 gap-1 px-2"
                   >
@@ -226,11 +247,11 @@ export const GardenView: React.FC = () => {
                 )}
               </div>
             </Card>
-          );
+          )
         })}
       </div>
     </div>
-  );
-};
+  )
+}
 
-export default GardenView;
+export default GardenView

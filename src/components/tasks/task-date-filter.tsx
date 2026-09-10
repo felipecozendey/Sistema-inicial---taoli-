@@ -1,13 +1,13 @@
 import { useState } from 'react'
 import { format, isSameDay } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
-import { Calendar as CalendarIcon, X } from 'lucide-react'
+import { Calendar as CalendarIcon, Clock, Hourglass, X } from 'lucide-react'
 import { Calendar } from '@/components/ui/calendar'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { cn } from '@/lib/utils'
 import type { DateRange } from 'react-day-picker'
 
-export type TimeFilterMode = 'today' | 'week' | 'month' | 'custom'
+export type TimeFilterMode = 'today' | 'week' | 'month' | 'scheduled' | 'deadline' | 'custom'
 
 interface TaskDateFilterProps {
   mode: TimeFilterMode
@@ -79,6 +79,36 @@ export function TaskDateFilter({
       >
         <span>🗓️</span>
         <span>Este Mês</span>
+      </button>
+
+      {/* Botão Agendado para - Duolingo Teal/Cyan */}
+      <button
+        type="button"
+        onClick={() => onModeChange('scheduled')}
+        className={cn(
+          'px-5 py-2.5 rounded-3xl font-extrabold text-sm transition-all duration-150 flex items-center gap-1.5 select-none',
+          mode === 'scheduled'
+            ? 'bg-[#00CD9C] hover:bg-[#00B88C] text-white border-b-4 border-[#009E77] shadow-sm active:translate-y-1 active:border-b-0'
+            : 'bg-card text-muted-foreground border-2 border-b-4 border-[#E5E5E5] dark:border-[#3B4A55] hover:border-[#00CD9C]/50 hover:text-foreground active:translate-y-0.5 active:border-b-2',
+        )}
+      >
+        <Clock className="w-4 h-4" strokeWidth={2.5} />
+        <span>Agendado para</span>
+      </button>
+
+      {/* Botão Prazo limite - Duolingo Coral/Laranja */}
+      <button
+        type="button"
+        onClick={() => onModeChange('deadline')}
+        className={cn(
+          'px-5 py-2.5 rounded-3xl font-extrabold text-sm transition-all duration-150 flex items-center gap-1.5 select-none',
+          mode === 'deadline'
+            ? 'bg-[#FF4B4B] hover:bg-[#E03A3A] text-white border-b-4 border-[#C92A2A] shadow-sm active:translate-y-1 active:border-b-0'
+            : 'bg-card text-muted-foreground border-2 border-b-4 border-[#E5E5E5] dark:border-[#3B4A55] hover:border-[#FF4B4B]/50 hover:text-foreground active:translate-y-0.5 active:border-b-2',
+        )}
+      >
+        <Hourglass className="w-4 h-4" strokeWidth={2.5} />
+        <span>Prazo limite</span>
       </button>
 
       {/* Popover / DateRangePicker para Período Personalizado / Escolher Dia */}

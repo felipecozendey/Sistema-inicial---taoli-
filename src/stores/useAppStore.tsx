@@ -1182,8 +1182,32 @@ export const AppStoreProvider = ({ children }: { children: ReactNode }) => {
       },
     ])
   }
-  const toggleTask = (id: string) =>
-    setTasks((p) => p.map((t) => (t.id === id ? { ...t, completed: !t.completed } : t)))
+  const toggleTask = (id: string) => {
+    let completedNow = false
+    let taskTitle = ''
+    setTasks((p) =>
+      p.map((t) => {
+        if (t.id === id) {
+          completedNow = !t.completed
+          taskTitle = t.title
+          return { ...t, completed: completedNow }
+        }
+        return t
+      }),
+    )
+
+    // Gamificação do Jardim: se a tarefa acabou de ser concluída
+    if (completedNow) {
+      import('@/stores/useGardenStore').then(({ useGardenStore }) => {
+        useGardenStore
+          .getState()
+          .onTaskCompleted(id, taskTitle)
+          .catch((err) => {
+            console.warn('Erro ao disparar pontos de tarefa do jardim:', err)
+          })
+      })
+    }
+  }
   const deleteTask = (id: string) => setTasks((p) => p.filter((t) => t.id !== id))
   const updateTask = (id: string, updates: Partial<NewTask>) =>
     setTasks((p) =>
@@ -1217,17 +1241,34 @@ export const AppStoreProvider = ({ children }: { children: ReactNode }) => {
     )
   const addHabit = (h: NewHabit) =>
     setHabits((p) => [...p, { ...h, id: genId(), completions: [], escudos: 2, frozenDates: [] }])
-  const toggleHabitCompletion = (id: string, date: string) =>
+  const toggleHabitCompletion = (id: string, date: string) => {
+    let completedNow = false
+    let habitTitle = ''
     setHabits((p) =>
       p.map((h) => {
         if (h.id !== id) return h
         const has = h.completions.includes(date)
+        completedNow = !has
+        habitTitle = h.title
         return {
           ...h,
           completions: has ? h.completions.filter((d) => d !== date) : [...h.completions, date],
         }
       }),
     )
+
+    // Gamificação do Jardim: se o hábito acabou de ser concluído
+    if (completedNow) {
+      import('@/stores/useGardenStore').then(({ useGardenStore }) => {
+        useGardenStore
+          .getState()
+          .onHabitCompleted(id, habitTitle)
+          .catch((err) => {
+            console.warn('Erro ao disparar pontos de hábito do jardim:', err)
+          })
+      })
+    }
+  }
   const deleteHabit = (id: string) => setHabits((p) => p.filter((h) => h.id !== id))
   const updateHabit = (id: string, updates: Partial<NewHabit>) =>
     setHabits((p) => p.map((h) => (h.id === id ? { ...h, ...updates } : h)))

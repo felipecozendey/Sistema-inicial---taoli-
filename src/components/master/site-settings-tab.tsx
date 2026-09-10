@@ -48,7 +48,7 @@ import {
 } from '@/components/ui/alert-dialog'
 
 const AVAILABLE_ICONS = [
-  { id: 'CheckSquare', label: 'Tarefas' },
+  { id: 'CheckSquare', label: 'Hábitos e Tarefas' },
   { id: 'HeartPulse', label: 'Saúde' },
   { id: 'GraduationCap', label: 'Estudos' },
   { id: 'Wallet', label: 'Finanças' },

@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react'
 import { useSystemStore } from '@/stores/useSystemStore'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { Utensils, Dumbbell, RefreshCw, Server } from 'lucide-react'
+import { Utensils, Dumbbell, RefreshCw, Server, CheckSquare } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { MasterFoodsSubTab } from './MasterFoodsSubTab'
 import { MasterExercisesSubTab } from './MasterExercisesSubTab'
+import { MasterTaskSettingsSubTab } from './MasterTaskSettingsSubTab'
 
 export function MasterSystemTab() {
   const { loadSystemData, loading, globalFoods, globalExercises } = useSystemStore()
@@ -69,6 +70,14 @@ export function MasterSystemTab() {
                 {globalExercises.length}
               </span>
             </TabsTrigger>
+
+            <TabsTrigger
+              value="tasks-habits"
+              className="rounded-xl px-4 py-2 text-xs font-black transition-all data-[state=active]:bg-[#1CB0F6] data-[state=active]:text-white data-[state=active]:shadow-sm flex items-center gap-2"
+            >
+              <CheckSquare className="w-4 h-4" />
+              <span>Hábitos e Tarefas</span>
+            </TabsTrigger>
           </TabsList>
         </div>
 
@@ -80,6 +89,11 @@ export function MasterSystemTab() {
         {/* Sub-aba 2: Exercícios */}
         <TabsContent value="exercises" className="mt-4">
           <MasterExercisesSubTab />
+        </TabsContent>
+
+        {/* Sub-aba 3: Hábitos e Tarefas */}
+        <TabsContent value="tasks-habits" className="mt-4">
+          <MasterTaskSettingsSubTab />
         </TabsContent>
       </Tabs>
     </div>

@@ -18,26 +18,27 @@ export const MasterRouteGuard: React.FC<MasterRouteGuardProps> = ({ children }) 
 
   useEffect(() => {
     let isMounted = true
-    let timer: any
+    let timer: ReturnType<typeof setTimeout> | null = null
+
+    setLoading(true)
+    setTimedOut(false)
+
+    // Timeout máximo de segurança (5 segundos) para nunca prender o usuário em spinner eterno
+    timer = setTimeout(() => {
+      if (isMounted) {
+        setTimedOut(true)
+        setLoading(false)
+      }
+    }, 5000)
 
     const checkMasterRole = async () => {
-      setLoading(true)
-      setTimedOut(false)
-
-      timer = setTimeout(() => {
-        if (isMounted) {
-          setTimedOut(true)
-          setLoading(false)
-        }
-      }, 7000)
-
       try {
         if (!user) {
           if (isMounted) {
             setIsMaster(false)
             setLoading(false)
           }
-          clearTimeout(timer)
+          if (timer) clearTimeout(timer)
           return
         }
 
@@ -66,7 +67,7 @@ export const MasterRouteGuard: React.FC<MasterRouteGuardProps> = ({ children }) 
           setLoading(false)
         }
       } finally {
-        clearTimeout(timer)
+        if (timer) clearTimeout(timer)
       }
     }
 
@@ -76,39 +77,43 @@ export const MasterRouteGuard: React.FC<MasterRouteGuardProps> = ({ children }) 
 
     return () => {
       isMounted = false
-      clearTimeout(timer)
+      if (timer) clearTimeout(timer)
     }
   }, [user, authLoading, retryCount])
+
+  // Se excedeu o tempo, exibir tela de erro com ação clara de retry
+  if (timedOut) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4 p-6 text-center max-w-md mx-auto animate-fade-in">
+        <div className="w-16 h-16 rounded-3xl bg-amber-100 dark:bg-amber-950 flex items-center justify-center text-amber-600 dark:text-amber-400 border-2 border-amber-300 dark:border-amber-800 shadow-sm">
+          <AlertCircle className="w-8 h-8" strokeWidth={2.5} />
+        </div>
+        <h3 className="text-xl font-black text-foreground">Tempo de verificação esgotado</h3>
+        <p className="text-sm font-semibold text-muted-foreground">
+          A validação do acesso master demorou mais que o esperado ou sua conexão oscilou.
+        </p>
+        <Button
+          onClick={() => {
+            setTimedOut(false)
+            setLoading(true)
+            setRetryCount((prev) => prev + 1)
+          }}
+          className="bg-[#58CC02] hover:bg-[#46a302] text-white border-b-4 border-[#46a302] active:border-b-0 active:translate-y-1 rounded-2xl font-black text-sm gap-2 mt-2 px-6 h-12 shadow-sm"
+        >
+          <RefreshCw className="w-4 h-4" strokeWidth={2.5} />
+          Tentar novamente
+        </Button>
+      </div>
+    )
+  }
 
   if (authLoading || loading) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4">
         <Loader2 className="w-10 h-10 animate-spin text-[#58CC02]" />
-        <p className="text-sm text-muted-foreground font-medium animate-pulse">
+        <p className="text-sm text-muted-foreground font-black animate-pulse">
           Verificando permissões de acesso...
         </p>
-      </div>
-    )
-  }
-
-  if (timedOut) {
-    return (
-      <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4 p-6 text-center max-w-md mx-auto">
-        <div className="w-14 h-14 rounded-full bg-amber-100 dark:bg-amber-950 flex items-center justify-center text-amber-600 dark:text-amber-400">
-          <AlertCircle className="w-8 h-8" />
-        </div>
-        <h3 className="text-xl font-bold">Tempo de verificação esgotado</h3>
-        <p className="text-sm text-muted-foreground">
-          A validação do acesso master demorou mais que o esperado. Verifique sua conexão e tente
-          novamente.
-        </p>
-        <Button
-          onClick={() => setRetryCount((prev) => prev + 1)}
-          className="bg-[#58CC02] hover:bg-[#46a302] text-white border-b-4 border-[#46a302] active:border-b-0 rounded-2xl gap-2 mt-2"
-        >
-          <RefreshCw className="w-4 h-4" />
-          Tentar novamente
-        </Button>
       </div>
     )
   }
