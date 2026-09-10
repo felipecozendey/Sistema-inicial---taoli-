@@ -30,7 +30,7 @@ import {
   CheckCircle2,
   ExternalLink,
 } from 'lucide-react'
-import { toast } from '@/hooks/use-toast'
+import { toast } from 'sonner'
 
 interface UserDetailsModalProps {
   user: Profile | null
