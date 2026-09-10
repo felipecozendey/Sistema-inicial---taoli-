@@ -1,91 +1,135 @@
-import { ReactNode, useState } from 'react'
+import React, { useEffect, useState } from 'react'
 import { Navigate, useNavigate } from 'react-router-dom'
-import { AlertTriangle, RefreshCw, LogOut } from 'lucide-react'
-import { useIsMaster } from '@/stores/useMasterStore'
 import { useAuth } from '@/hooks/use-auth'
+import { useMasterStore } from '@/stores/useMasterStore'
+import { ShieldAlert, RefreshCw, LogOut, ArrowLeft } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 
 interface MasterRouteGuardProps {
-  children: ReactNode
+  children: React.ReactNode
 }
 
-export function MasterRouteGuard({ children }: MasterRouteGuardProps) {
-  const { isMaster, status, errorMessage, refetch } = useIsMaster()
+export const MasterRouteGuard: React.FC<MasterRouteGuardProps> = ({ children }) => {
   const { user, loading: authLoading, signOut } = useAuth()
+  const { status, isMaster, error, checkMasterStatus, reset } = useMasterStore()
   const navigate = useNavigate()
-  const [retrying, setRetrying] = useState(false)
 
-  // Se o useAuth já terminou de carregar e não há usuário, redireciona logo para login
-  if (!authLoading && !user) {
-    return <Navigate to="/login?redirect=/master" replace />
+  // Contingência de timeout local para NUNCA manter spinner eterno
+  const [timedOut, setTimedOut] = useState(false)
+
+  useEffect(() => {
+    if (user?.id) {
+      checkMasterStatus(user.id)
+    }
+  }, [user?.id, checkMasterStatus])
+
+  useEffect(() => {
+    if (status === 'loading' || (authLoading && status === 'idle')) {
+      const timer = setTimeout(() => {
+        setTimedOut(true)
+      }, 5000)
+      return () => clearTimeout(timer)
+    } else {
+      setTimedOut(false)
+    }
+  }, [status, authLoading])
+
+  const handleRetry = () => {
+    setTimedOut(false)
+    reset()
+    if (user?.id) {
+      checkMasterStatus(user.id)
+    }
   }
 
-  // 1. Estado Loading: spinner com estilo amigável Duolingo / âmbar master
-  // Se passar mais de 6s em loading visual, exibir botão de contingência para evitar sensação de travamento
-  if (status === 'loading' || (authLoading && status === 'idle')) {
+  // Se não está autenticado e auth terminou
+  if (!authLoading && !user) {
+    return <Navigate to="/login" replace />
+  }
+
+  // Se excedeu o tempo limite tentando validar
+  if (timedOut) {
     return (
-      <div className="min-h-[60vh] flex flex-col items-center justify-center p-6 text-center animate-in fade-in duration-300">
-        <div className="w-14 h-14 rounded-full border-4 border-amber-500 border-t-transparent animate-spin mb-4 shadow-sm" />
-        <p className="text-base font-bold text-foreground animate-pulse">
-          Verificando credenciais Master...
-        </p>
-        <p className="text-xs text-muted-foreground mt-2 max-w-xs">
-          Avaliando permissões de superadministrador com segurança
-        </p>
+      <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col items-center justify-center p-6">
+        <div className="w-full max-w-md bg-slate-900 border border-slate-800 rounded-3xl p-8 text-center shadow-xl space-y-6">
+          <div className="w-16 h-16 mx-auto rounded-full bg-amber-500/10 flex items-center justify-center text-amber-400">
+            <ShieldAlert className="w-8 h-8" />
+          </div>
+          <div>
+            <h1 className="text-xl font-bold text-white mb-2">Tempo de verificação esgotado</h1>
+            <p className="text-sm text-slate-400">
+              A verificação de privilégios de Master demorou mais que o esperado. Verifique sua
+              conexão e tente novamente.
+            </p>
+          </div>
+          <div className="flex flex-col gap-3">
+            <Button
+              onClick={handleRetry}
+              className="w-full bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold rounded-2xl h-12 flex items-center justify-center gap-2 border-b-4 border-amber-600 active:border-b-0"
+            >
+              <RefreshCw className="w-4 h-4" />
+              Tentar novamente
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => navigate('/tasks')}
+              className="w-full border-slate-700 text-slate-300 hover:bg-slate-800 rounded-2xl h-12 flex items-center justify-center gap-2"
+            >
+              <ArrowLeft className="w-4 h-4" />
+              Voltar ao Início
+            </Button>
+          </div>
+        </div>
       </div>
     )
   }
 
-  // 2. Estado Erro: feedback visual amigável Duolingo com botões 3D
-  if (status === 'error') {
-    const handleRetry = async () => {
-      setRetrying(true)
-      try {
-        await refetch()
-      } finally {
-        setRetrying(false)
-      }
-    }
-
-    const handleSignOut = async () => {
-      await signOut()
-      navigate('/', { replace: true })
-    }
-
+  // Carregando status ou auth
+  if (authLoading || status === 'loading' || status === 'idle') {
     return (
-      <div className="min-h-[70vh] flex items-center justify-center p-4">
-        <div className="max-w-md w-full bg-card border-2 border-amber-500/30 rounded-3xl p-6 sm:p-8 text-center shadow-xl relative overflow-hidden">
-          <div className="w-20 h-20 rounded-full bg-amber-100 dark:bg-amber-950/60 text-amber-600 dark:text-amber-400 mx-auto flex items-center justify-center mb-6 shadow-inner">
-            <AlertTriangle className="w-10 h-10 animate-bounce" />
+      <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col items-center justify-center p-6">
+        <div className="w-full max-w-md bg-slate-900 border border-slate-800 rounded-3xl p-8 text-center shadow-xl space-y-6">
+          <div className="w-16 h-16 mx-auto rounded-full bg-amber-500/10 flex items-center justify-center text-amber-400 animate-pulse">
+            <RefreshCw className="w-8 h-8 animate-spin" />
           </div>
+          <div>
+            <h1 className="text-lg font-bold text-white mb-2">Verificando credenciais Master</h1>
+            <p className="text-xs text-slate-400">
+              Validando permissões de acesso com segurança...
+            </p>
+          </div>
+        </div>
+      </div>
+    )
+  }
 
-          <h1 className="text-xl sm:text-2xl font-extrabold text-foreground tracking-tight mb-2">
-            Não conseguimos verificar seu acesso
-          </h1>
-
-          <p className="text-muted-foreground text-sm leading-relaxed mb-6">
-            Pode haver uma oscilação na conexão com a internet ou sua sessão precisa ser renovada.
-            {errorMessage ? (
-              <span className="block mt-2 text-xs text-amber-700/80 dark:text-amber-300/80 bg-amber-500/10 rounded-xl p-2 font-mono">
-                {errorMessage}
-              </span>
-            ) : null}
-          </p>
-
-          <div className="space-y-3">
+  // Se não é master
+  if (status === 'forbidden' || !isMaster) {
+    return (
+      <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col items-center justify-center p-6">
+        <div className="w-full max-w-md bg-slate-900 border border-red-500/20 rounded-3xl p-8 text-center shadow-xl space-y-6">
+          <div className="w-16 h-16 mx-auto rounded-full bg-red-500/10 flex items-center justify-center text-red-400">
+            <ShieldAlert className="w-8 h-8" />
+          </div>
+          <div>
+            <h1 className="text-xl font-bold text-white mb-2">Acesso Restrito</h1>
+            <p className="text-sm text-slate-400">
+              Esta área é restrita exclusivamente a administradores Master do sistema.
+            </p>
+            {error && <p className="text-xs text-red-400 mt-2">{error}</p>}
+          </div>
+          <div className="flex flex-col gap-3">
             <Button
-              onClick={handleRetry}
-              disabled={retrying}
-              className="w-full rounded-2xl h-12 font-bold bg-amber-500 hover:bg-amber-600 text-white border-b-4 border-amber-700 active:border-b-0 active:translate-y-1 transition-all flex items-center justify-center gap-2 shadow-md"
+              onClick={() => navigate('/tasks')}
+              className="w-full bg-slate-800 hover:bg-slate-700 text-white font-bold rounded-2xl h-12 flex items-center justify-center gap-2"
             >
-              <RefreshCw className={`w-4 h-4 ${retrying ? 'animate-spin' : ''}`} />
-              {retrying ? 'Verificando...' : 'Tentar novamente'}
+              <ArrowLeft className="w-4 h-4" />
+              Voltar ao Início
             </Button>
-
             <Button
-              onClick={handleSignOut}
               variant="outline"
-              className="w-full rounded-2xl h-12 font-bold border-2 border-muted hover:bg-muted active:border-b-0 active:translate-y-1 transition-all text-muted-foreground hover:text-foreground flex items-center justify-center gap-2"
+              onClick={() => signOut()}
+              className="w-full border-slate-700 text-slate-400 hover:bg-slate-800 rounded-2xl h-12 flex items-center justify-center gap-2"
             >
               <LogOut className="w-4 h-4" />
               Sair da conta
@@ -96,11 +140,5 @@ export function MasterRouteGuard({ children }: MasterRouteGuardProps) {
     )
   }
 
-  // 3. Estado Ready + não master: redirecionar silenciosamente para o dashboard
-  if (!isMaster) {
-    return <Navigate to="/dashboard" replace />
-  }
-
-  // 4. Estado Ready + master: renderizar página normalmente
   return <>{children}</>
 }

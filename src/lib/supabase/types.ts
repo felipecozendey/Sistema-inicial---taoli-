@@ -705,6 +705,78 @@ export type Database = {
           },
         ]
       }
+      garden_plants: {
+        Row: {
+          created_at: string
+          id: string
+          planted_at: string
+          plot_index: number
+          species: string
+          stage: number
+          task_id: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          planted_at?: string
+          plot_index: number
+          species: string
+          stage?: number
+          task_id?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          planted_at?: string
+          plot_index?: number
+          species?: string
+          stage?: number
+          task_id?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      garden_state: {
+        Row: {
+          created_at: string
+          id: string
+          last_action_at: string | null
+          level: number
+          plot_count: number
+          points: number
+          streak_days: number
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          last_action_at?: string | null
+          level?: number
+          plot_count?: number
+          points?: number
+          streak_days?: number
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          last_action_at?: string | null
+          level?: number
+          plot_count?: number
+          points?: number
+          streak_days?: number
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       global_exercises: {
         Row: {
           created_at: string
@@ -1688,6 +1760,45 @@ export type Database = {
           key?: string
           updated_at?: string | null
           value?: Json
+        }
+        Relationships: []
+      }
+      task_system_settings: {
+        Row: {
+          bonus_streak: number
+          id: string
+          points_per_habit: number
+          points_per_level: number
+          points_per_task: number
+          show_garden: boolean
+          show_week_day_tabs: boolean
+          unlock_plot_cost: number
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          bonus_streak?: number
+          id?: string
+          points_per_habit?: number
+          points_per_level?: number
+          points_per_task?: number
+          show_garden?: boolean
+          show_week_day_tabs?: boolean
+          unlock_plot_cost?: number
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          bonus_streak?: number
+          id?: string
+          points_per_habit?: number
+          points_per_level?: number
+          points_per_task?: number
+          show_garden?: boolean
+          show_week_day_tabs?: boolean
+          unlock_plot_cost?: number
+          updated_at?: string
+          updated_by?: string | null
         }
         Relationships: []
       }
