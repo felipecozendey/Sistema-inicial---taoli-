@@ -43,24 +43,27 @@ export default function TasksAndHabits() {
   return (
     <div className="max-w-4xl mx-auto space-y-6 animate-fade-in-up pb-10">
       {/* Cabeçalho da Página */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <h2 className="text-3xl font-extrabold tracking-tight">Tarefas e Hábitos</h2>
-          <p className="text-sm font-semibold text-muted-foreground mt-0.5">
+      <div className="flex items-center justify-between gap-3">
+        <div className="min-w-0">
+          <h2 className="text-2xl sm:text-3xl font-extrabold tracking-tight truncate">
+            Tarefas e Hábitos
+          </h2>
+          <p className="text-xs sm:text-sm font-semibold text-muted-foreground mt-0.5 line-clamp-1">
             Organize suas pendências, construa hábitos consistentes e cultive seu jardim.
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 shrink-0">
           {/* Botão de Configurações Duolingo 3D */}
           <Dialog open={settingsModalOpen} onOpenChange={setSettingsModalOpen}>
             <DialogTrigger asChild>
               <button
                 type="button"
-                className="h-11 px-3.5 rounded-2xl bg-card border-2 border-b-4 border-[#E5E5E5] dark:border-[#3B4A55] text-muted-foreground hover:text-foreground hover:bg-muted active:border-b-2 active:translate-y-0.5 transition-all flex items-center gap-2 font-bold text-xs shadow-sm"
-                title="Configurações de Hábitos e Tarefas"
+                className="h-9 sm:h-10 px-2.5 sm:px-3 rounded-2xl bg-card border-2 border-b-4 border-[#E5E5E5] dark:border-[#3B4A55] text-muted-foreground hover:text-foreground hover:bg-muted active:border-b-2 active:translate-y-0.5 transition-all flex items-center gap-1.5 font-bold text-xs shadow-sm"
+                title="Configurações de Tags e Hábitos"
+                aria-label="Configurações de Tags e Hábitos"
               >
                 <SettingsIcon className="w-4 h-4 text-[#1CB0F6]" strokeWidth={2.5} />
-                <span className="hidden sm:inline">Tags & Configurações</span>
+                <span className="hidden sm:inline">Tags & Config</span>
               </button>
             </DialogTrigger>
             <DialogContent className="sm:max-w-[550px] p-0 rounded-3xl overflow-hidden border-2 border-b-4 border-[#E5E5E5] dark:border-[#3B4A55]">
@@ -130,35 +133,43 @@ export default function TasksAndHabits() {
           </TabsList>
         </div>
 
-        {/* Barra de Filtro de Tags / Categorias e Prazo Limite */}
-        <div className="flex gap-2 overflow-x-auto pb-2 pt-1 scrollbar-hide items-center">
+        {/* Barra de Filtro de Tags / Categorias e Prazo Limite Compacta e Rolável */}
+        <div className="flex items-center gap-1.5 overflow-x-auto pb-1 pt-0.5 scrollbar-hide max-w-full">
           {activeTab === 'tasks' && (
             <button
               type="button"
               onClick={() => setNearDeadlineOnly((v) => !v)}
+              title="Filtrar por tarefas próximas ao prazo"
+              aria-label="Prazo Limite"
               className={cn(
-                'px-4 py-2 rounded-3xl text-xs font-black whitespace-nowrap transition-all duration-150 flex items-center gap-1.5 select-none',
+                'shrink-0 px-3 py-1.5 rounded-2xl text-[11px] font-black whitespace-nowrap transition-all duration-150 flex items-center gap-1 select-none',
                 nearDeadlineOnly
                   ? 'bg-[#FF4B4B] text-white border-b-4 border-[#CC3C3C] shadow-sm active:translate-y-1 active:border-b-0'
                   : 'bg-card text-muted-foreground border-2 border-b-4 border-[#E5E5E5] dark:border-[#3B4A55] hover:bg-muted active:translate-y-0.5 active:border-b-2',
               )}
             >
-              <Clock className="w-3.5 h-3.5" strokeWidth={2.5} />
+              <Clock className="w-3 h-3" strokeWidth={2.5} />
               <span>Prazo Limite</span>
             </button>
+          )}
+
+          {activeTab === 'tasks' && (
+            <div className="shrink-0 w-px h-4 bg-border/70 my-auto mx-0.5" />
           )}
 
           <button
             type="button"
             onClick={() => setSelectedTags([])}
+            title="Mostrar todas as categorias"
+            aria-label="Todas"
             className={cn(
-              'px-4 py-2 rounded-3xl text-xs font-black whitespace-nowrap transition-all duration-150 select-none',
+              'shrink-0 px-3 py-1.5 rounded-2xl text-[11px] font-black whitespace-nowrap transition-all duration-150 select-none',
               selectedTags.length === 0
                 ? 'bg-foreground text-background border-b-4 border-foreground/70 shadow-sm active:translate-y-1 active:border-b-0'
                 : 'bg-card text-muted-foreground border-2 border-b-4 border-[#E5E5E5] dark:border-[#3B4A55] hover:bg-muted active:translate-y-0.5 active:border-b-2',
             )}
           >
-            Todas Categorias
+            Todas
           </button>
 
           {tags.map((cat) => {
@@ -168,8 +179,10 @@ export default function TasksAndHabits() {
                 key={cat.id}
                 type="button"
                 onClick={() => toggleTag(cat.id)}
+                title={`Categoria: ${cat.name}`}
+                aria-label={`Filtrar por ${cat.name}`}
                 className={cn(
-                  'px-4 py-2 rounded-3xl text-xs font-black whitespace-nowrap transition-all duration-150 border-2 border-b-4 select-none',
+                  'shrink-0 px-3 py-1.5 rounded-2xl text-[11px] font-black whitespace-nowrap transition-all duration-150 border-2 border-b-4 select-none',
                   isSelected
                     ? 'shadow-sm active:translate-y-1 active:border-b-0'
                     : 'active:translate-y-0.5 active:border-b-2',

@@ -28,8 +28,15 @@ export function UnifiedCreateButton() {
     <>
       <Dialog open={selectOpen} onOpenChange={setSelectOpen}>
         <DialogTrigger asChild>
-          <GameButton variant="primary" size="md" className="gap-2">
-            <Plus className="w-5 h-5" strokeWidth={2.5} /> Criar Novo
+          <GameButton
+            variant="primary"
+            size="sm"
+            aria-label="Criar novo"
+            title="Criar novo"
+            className="h-9 sm:h-10 px-2.5 sm:px-3.5 py-1.5 sm:py-2 rounded-2xl flex items-center justify-center gap-1.5 font-black text-xs sm:text-sm shrink-0"
+          >
+            <Plus className="w-4 h-4 sm:w-4 sm:h-4" strokeWidth={3} />
+            <span className="hidden sm:inline">Novo</span>
           </GameButton>
         </DialogTrigger>
         <DialogContent className="sm:max-w-[400px] rounded-3xl">

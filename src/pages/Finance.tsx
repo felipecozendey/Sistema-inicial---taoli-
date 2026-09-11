@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
 import { TransactionModal } from '@/components/finance/transaction-modal'
 import { DashboardTab } from '@/components/finance/dashboard-tab'
 import { TransactionsTab } from '@/components/finance/transactions-tab'
@@ -25,38 +24,41 @@ export default function FinancePage() {
   }, [fetchAllFinanceData])
 
   return (
-    <div className="max-w-4xl mx-auto space-y-6 animate-fade-in-up pb-24">
+    <div className="max-w-4xl mx-auto space-y-4 animate-fade-in-up pb-24">
       <header>
-        <h2 className="text-3xl font-extrabold tracking-tight">💰 Finanças</h2>
-        <p className="text-muted-foreground mt-1 font-semibold">
+        <h2 className="text-2xl sm:text-3xl font-extrabold tracking-tight">💰 Finanças</h2>
+        <p className="text-muted-foreground mt-0.5 text-xs sm:text-sm font-semibold line-clamp-1 sm:line-clamp-none">
           Controle seu dinheiro, parcelamentos e investimentos com clareza e gamificação.
         </p>
       </header>
 
-      <div className="rounded-3xl p-4 bg-card border space-y-3">
-        <div className="flex items-center gap-2">
-          <CalendarRange className="w-5 h-5 text-[#1CB0F6]" />
-          <span className="font-extrabold text-sm">Filtro de Período</span>
+      {/* Barra compacta de filtro de período */}
+      <div className="flex items-center gap-2 p-2 px-3 rounded-2xl bg-card border-2 border-b-4 border-[#E5E5E5] dark:border-[#3B4A55] shadow-xs">
+        <div
+          className="flex items-center gap-1.5 text-muted-foreground shrink-0"
+          title="Filtro de período"
+        >
+          <CalendarRange className="w-4 h-4 text-[#1CB0F6]" strokeWidth={2.5} />
+          <span className="hidden sm:inline text-xs font-black text-foreground">Período:</span>
         </div>
-        <div className="grid grid-cols-2 gap-3 max-w-md mx-auto">
-          <div className="space-y-1">
-            <Label className="text-xs font-bold text-muted-foreground">Data Inicial</Label>
-            <Input
-              type="date"
-              value={startDate}
-              onChange={(e) => setFinanceDateRange({ startDate: e.target.value })}
-              className="rounded-xl font-bold"
-            />
-          </div>
-          <div className="space-y-1">
-            <Label className="text-xs font-bold text-muted-foreground">Data Final</Label>
-            <Input
-              type="date"
-              value={endDate}
-              onChange={(e) => setFinanceDateRange({ endDate: e.target.value })}
-              className="rounded-xl font-bold"
-            />
-          </div>
+        <div className="flex items-center gap-1.5 sm:gap-2 flex-1 min-w-0">
+          <Input
+            type="date"
+            value={startDate}
+            onChange={(e) => setFinanceDateRange({ startDate: e.target.value })}
+            aria-label="Data Inicial"
+            title="Data Inicial"
+            className="h-9 w-1/2 min-w-0 rounded-xl font-bold text-xs px-2 sm:px-3 bg-muted/40 border-2"
+          />
+          <span className="text-xs text-muted-foreground font-black shrink-0">→</span>
+          <Input
+            type="date"
+            value={endDate}
+            onChange={(e) => setFinanceDateRange({ endDate: e.target.value })}
+            aria-label="Data Final"
+            title="Data Final"
+            className="h-9 w-1/2 min-w-0 rounded-xl font-bold text-xs px-2 sm:px-3 bg-muted/40 border-2"
+          />
         </div>
       </div>
 

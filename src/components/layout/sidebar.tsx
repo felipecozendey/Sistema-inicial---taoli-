@@ -43,13 +43,13 @@ export function Sidebar() {
   })
 
   return (
-    <aside className="hidden md:flex flex-col w-64 h-screen fixed left-0 top-0 border-r bg-card px-4 py-6 z-40 print:hidden">
-      <div className="flex items-center gap-3 px-2 mb-10 text-primary">
+    <aside className="hidden md:flex flex-col w-64 h-screen fixed left-0 top-0 border-r bg-card px-4 py-6 z-40 print:hidden overflow-hidden">
+      <div className="flex items-center gap-3 px-2 mb-8 text-primary shrink-0">
         <Sparkles className="w-8 h-8" strokeWidth={1.5} />
         <span className="font-bold text-xl tracking-tight text-foreground">Zenith</span>
       </div>
 
-      <nav className="flex-1 space-y-2">
+      <nav className="flex-1 space-y-2 overflow-y-auto pr-1 scrollbar-hide">
         {visibleNavItems.map((item) => {
           const isActive = location.pathname === item.path
           return (
@@ -65,17 +65,17 @@ export function Sidebar() {
             >
               <item.icon
                 className={cn(
-                  'w-5 h-5',
+                  'w-5 h-5 shrink-0',
                   isActive ? 'text-primary' : 'text-muted-foreground group-hover:text-foreground',
                 )}
               />
-              {item.label}
+              <span className="truncate">{item.label}</span>
             </Link>
           )
         })}
       </nav>
 
-      <div className="mt-auto pt-4 border-t space-y-2">
+      <div className="mt-auto pt-4 border-t space-y-2 shrink-0">
         {isMaster && (
           <Link
             to="/master"
@@ -86,8 +86,8 @@ export function Sidebar() {
                 : 'text-amber-600/90 dark:text-amber-400/90 hover:bg-amber-500/10 hover:text-amber-600',
             )}
           >
-            <ShieldCheck className="w-5 h-5 text-amber-500" />
-            <span>Masterização</span>
+            <ShieldCheck className="w-5 h-5 text-amber-500 shrink-0" />
+            <span className="truncate">Masterização</span>
           </Link>
         )}
 
@@ -100,8 +100,8 @@ export function Sidebar() {
               : 'text-muted-foreground hover:bg-muted hover:text-foreground',
           )}
         >
-          <Settings className="w-5 h-5" />
-          Configurações
+          <Settings className="w-5 h-5 shrink-0" />
+          <span className="truncate">Configurações</span>
         </Link>
       </div>
     </aside>
