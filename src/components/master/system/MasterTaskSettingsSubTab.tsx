@@ -30,7 +30,6 @@ export function MasterTaskSettingsSubTab() {
     points_per_habit: settings.points_per_habit,
     bonus_streak: settings.bonus_streak,
     points_per_level: settings.points_per_level,
-    unlock_plot_cost: settings.unlock_plot_cost,
     show_garden: settings.show_garden,
     show_week_day_tabs: settings.show_week_day_tabs,
   })
@@ -48,7 +47,6 @@ export function MasterTaskSettingsSubTab() {
       points_per_habit: settings.points_per_habit ?? DEFAULT_TASK_SETTINGS.points_per_habit,
       bonus_streak: settings.bonus_streak ?? DEFAULT_TASK_SETTINGS.bonus_streak,
       points_per_level: settings.points_per_level ?? DEFAULT_TASK_SETTINGS.points_per_level,
-      unlock_plot_cost: settings.unlock_plot_cost ?? DEFAULT_TASK_SETTINGS.unlock_plot_cost,
       show_garden: settings.show_garden ?? DEFAULT_TASK_SETTINGS.show_garden,
       show_week_day_tabs: settings.show_week_day_tabs ?? DEFAULT_TASK_SETTINGS.show_week_day_tabs,
     })
@@ -104,7 +102,6 @@ export function MasterTaskSettingsSubTab() {
           points_per_habit: DEFAULT_TASK_SETTINGS.points_per_habit,
           bonus_streak: DEFAULT_TASK_SETTINGS.bonus_streak,
           points_per_level: DEFAULT_TASK_SETTINGS.points_per_level,
-          unlock_plot_cost: DEFAULT_TASK_SETTINGS.unlock_plot_cost,
           show_garden: DEFAULT_TASK_SETTINGS.show_garden,
           show_week_day_tabs: DEFAULT_TASK_SETTINGS.show_week_day_tabs,
         })
@@ -229,7 +226,7 @@ export function MasterTaskSettingsSubTab() {
               Economia do Jardim & Níveis
             </CardTitle>
             <CardDescription className="text-xs font-semibold">
-              Regras de progressão de nível e custos de desbloqueio de canteiros.
+              Regras de progressão de nível na Fazendinha Pixel.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -246,23 +243,6 @@ export function MasterTaskSettingsSubTab() {
                 max={5000}
                 value={formData.points_per_level}
                 onChange={(e) => handleNumberChange('points_per_level', e.target.value)}
-                className="rounded-2xl font-bold h-11 border-2"
-              />
-            </div>
-
-            <div className="space-y-1.5">
-              <Label className="text-xs font-black flex items-center justify-between">
-                <span>Custo para Desbloquear Canteiro</span>
-                <span className="text-[11px] text-muted-foreground font-bold">
-                  Padrão: {DEFAULT_TASK_SETTINGS.unlock_plot_cost} pts
-                </span>
-              </Label>
-              <Input
-                type="number"
-                min={0}
-                max={5000}
-                value={formData.unlock_plot_cost}
-                onChange={(e) => handleNumberChange('unlock_plot_cost', e.target.value)}
                 className="rounded-2xl font-bold h-11 border-2"
               />
             </div>
