@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useAppStore, BowelType } from '@/stores/useAppStore'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Droplet, Droplets, Check } from 'lucide-react'
+import { BristolIcon } from '@/components/health/bristol-icon'
 import { cn } from '@/lib/utils'
 
 // Escala de Bristol para Digestão
@@ -343,21 +344,33 @@ export function ExcretionsWidget() {
                 <button
                   key={item.type}
                   type="button"
+                  aria-label={`${item.label} — ${item.description}`}
                   onClick={() => handleSelectBristol(item.type)}
                   className={cn(
                     'w-full flex items-center gap-3 p-3 rounded-2xl border-2 border-b-4 text-left transition-all duration-150',
-                    'active:translate-y-0.5 active:border-b-2 hover:bg-muted/40 select-none cursor-pointer relative',
+                    'active:translate-y-0.5 active:border-b-2 hover:bg-muted/40 select-none cursor-pointer relative group',
                     isSelected
-                      ? 'border-primary bg-primary/10'
+                      ? 'border-primary bg-primary/10 ring-2 ring-primary/30'
                       : 'border-[#E5E5E5] dark:border-[#3B4A55] bg-card',
                   )}
                 >
-                  {/* Badge circular do Tipo */}
-                  <div
-                    className="w-10 h-10 rounded-2xl flex items-center justify-center shrink-0 font-black text-xs text-white shadow-xs"
-                    style={{ backgroundColor: item.color }}
-                  >
-                    T{item.type}
+                  {/* Contêiner do Ícone Ilustrado + Indicador discreto do número */}
+                  <div className="relative flex flex-col items-center justify-center shrink-0">
+                    <div
+                      className={cn(
+                        'w-14 h-14 rounded-2xl flex items-center justify-center p-1.5 transition-transform group-hover:scale-105',
+                        'bg-amber-100/40 dark:bg-amber-950/20 border border-amber-900/10 dark:border-amber-500/10 shadow-xs',
+                      )}
+                    >
+                      <BristolIcon type={item.type} size={44} />
+                    </div>
+                    {/* Badge discreto com a cor e número da escala */}
+                    <span
+                      className="inline-flex items-center justify-center px-1.5 py-0.2 min-w-[20px] rounded-full text-[10px] font-black text-white shadow-xs -mt-2 z-10 border border-white dark:border-slate-800"
+                      style={{ backgroundColor: item.color }}
+                    >
+                      {item.type}
+                    </span>
                   </div>
 
                   {/* Descrição e Classificação */}
