@@ -72,6 +72,7 @@ export function UserDetailsModal({
 }: UserDetailsModalProps) {
   const {
     updateUserProfile,
+    setProfessional,
     resetUserPassword,
     sendPasswordEmail,
     resendConfirmationEmail,
@@ -88,7 +89,9 @@ export function UserDetailsModal({
   const [email, setEmail] = useState('')
   const [role, setRole] = useState<'master' | 'user'>('user')
   const [status, setStatus] = useState<'active' | 'suspended'>('active')
+  const [isProfessional, setIsProfessional] = useState(false)
   const [savingProfile, setSavingProfile] = useState(false)
+  const [togglingProf, setTogglingProf] = useState(false)
 
   // Password state
   const [customPassword, setCustomPassword] = useState('')
@@ -114,6 +117,7 @@ export function UserDetailsModal({
       setEmail(user.email)
       setRole(user.role)
       setStatus(user.status)
+      setIsProfessional(Boolean(user.is_professional))
       setGeneratedPassword(null)
       setCustomPassword('')
       setLastActionLink(null)
@@ -232,6 +236,11 @@ export function UserDetailsModal({
                       MASTER
                     </Badge>
                   )}
+                  {user.is_professional && (
+                    <Badge className="bg-[#1CB0F6] hover:bg-[#1CB0F6] text-white font-extrabold text-[10px] px-2 py-0.5 rounded-full border-b-2 border-[#1899d6]">
+                      PRO
+                    </Badge>
+                  )}
                   {user.status === 'suspended' && (
                     <Badge
                       variant="destructive"
@@ -239,7 +248,7 @@ export function UserDetailsModal({
                     >
                       SUSPENSO
                     </Badge>
-                  )}
+                  )}{' '}
                 </DialogTitle>
                 <DialogDescription className="text-xs font-semibold text-muted-foreground mt-0.5">
                   {user.email} • ID: <code className="text-[10px]">{user.id.slice(0, 8)}...</code>
@@ -360,6 +369,38 @@ export function UserDetailsModal({
                         </p>
                       )}
                     </div>
+                  </div>
+
+                  {/* Toggle Perfil Profissional (Master pode ativar em si mesmo) */}
+                  <div className="p-3.5 rounded-2xl bg-[#1CB0F6]/10 border-2 border-[#1CB0F6]/30 flex items-center justify-between gap-3">
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="font-black text-xs text-foreground">
+                          Perfil Profissional (Consultório)
+                        </span>
+                        {isProfessional && (
+                          <Badge className="bg-[#1CB0F6] text-white text-[9px] font-black uppercase">
+                            Ativo
+                          </Badge>
+                        )}
+                      </div>
+                      <p className="text-[11px] text-muted-foreground mt-0.5 leading-snug">
+                        Permite acessar o Painel Pro (/professional) para gerenciar pacientes,
+                        agenda de consultas e anotações clínicas com consentimento explícito.
+                      </p>
+                    </div>
+
+                    <Switch
+                      checked={isProfessional}
+                      disabled={togglingProf}
+                      onCheckedChange={async (val) => {
+                        setTogglingProf(true)
+                        const ok = await setProfessional(user.id, val)
+                        if (ok) setIsProfessional(val)
+                        setTogglingProf(false)
+                      }}
+                      className="data-[state=checked]:bg-[#1CB0F6]"
+                    />
                   </div>
                 </div>
 

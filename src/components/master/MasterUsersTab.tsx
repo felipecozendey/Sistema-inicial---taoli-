@@ -51,13 +51,20 @@ import {
 import { toast } from 'sonner'
 
 export function MasterUsersTab() {
-  const { profiles, createUser, setRole, suspendUser, reactivateUser, deleteUser } =
-    useMasterStore()
+  const {
+    profiles,
+    createUser,
+    setRole,
+    setProfessional,
+    suspendUser,
+    reactivateUser,
+    deleteUser,
+  } = useMasterStore()
   const { user: currentUser } = useAuth()
 
   // Filters
   const [search, setSearch] = useState('')
-  const [roleFilter, setRoleFilter] = useState<'all' | 'master' | 'user'>('all')
+  const [roleFilter, setRoleFilter] = useState<'all' | 'master' | 'user' | 'professional'>('all')
   const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'suspended'>('all')
 
   // Create User Modal
@@ -81,7 +88,7 @@ export function MasterUsersTab() {
   // Confirm Action Dialogs
   const [confirmDialog, setConfirmDialog] = useState<{
     isOpen: boolean
-    type: 'role' | 'suspend' | 'reactivate' | 'delete'
+    type: 'role' | 'professional' | 'suspend' | 'reactivate' | 'delete'
     target: Profile | null
   }>({
     isOpen: false,
@@ -99,7 +106,12 @@ export function MasterUsersTab() {
       const matchSearch =
         p.email.toLowerCase().includes(search.toLowerCase()) ||
         (p.displayName && p.displayName.toLowerCase().includes(search.toLowerCase()))
-      const matchRole = roleFilter === 'all' || p.role === roleFilter
+      let matchRole = true
+      if (roleFilter === 'professional') {
+        matchRole = Boolean(p.is_professional)
+      } else if (roleFilter !== 'all') {
+        matchRole = p.role === roleFilter
+      }
       const matchStatus = statusFilter === 'all' || p.status === statusFilter
       return matchSearch && matchRole && matchStatus
     })
@@ -169,6 +181,9 @@ export function MasterUsersTab() {
     if (type === 'role') {
       const nextRole = target.role === 'master' ? 'user' : 'master'
       await setRole(target.id, nextRole)
+    } else if (type === 'professional') {
+      const nextProf = !target.is_professional
+      await setProfessional(target.id, nextProf)
     } else if (type === 'suspend') {
       await suspendUser(target.id)
     } else if (type === 'reactivate') {
@@ -210,6 +225,7 @@ export function MasterUsersTab() {
           >
             <option value="all">Todos os Papéis</option>
             <option value="master">👑 Master</option>
+            <option value="professional">🩺 Profissionais</option>
             <option value="user">👤 Usuário Comum</option>
           </select>
 
@@ -293,15 +309,22 @@ export function MasterUsersTab() {
                       </td>
 
                       <td className="py-3.5 px-4">
-                        {p.role === 'master' ? (
-                          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-black bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/30">
-                            <ShieldCheck className="w-3.5 h-3.5" /> Master
-                          </span>
-                        ) : (
-                          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold bg-muted text-muted-foreground border">
-                            <User className="w-3.5 h-3.5" /> Comum
-                          </span>
-                        )}
+                        <div className="flex flex-wrap items-center gap-1.5">
+                          {p.role === 'master' ? (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-black bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/30">
+                              <ShieldCheck className="w-3.5 h-3.5" /> Master
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-bold bg-muted text-muted-foreground border">
+                              <User className="w-3.5 h-3.5" /> Comum
+                            </span>
+                          )}
+                          {p.is_professional && (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-black bg-[#1CB0F6]/15 text-[#1CB0F6] border border-[#1CB0F6]/30">
+                              Pro
+                            </span>
+                          )}
+                        </div>
                       </td>
 
                       <td className="py-3.5 px-4">
@@ -349,6 +372,23 @@ export function MasterUsersTab() {
                             >
                               <ShieldCheck className="w-4 h-4 mr-2 text-amber-500" />
                               {p.role === 'master' ? 'Rebaixar para Comum' : 'Promover a Master'}
+                            </DropdownMenuItem>
+
+                            {/* Conceder / Revogar Perfil Profissional (Master pode aplicar em si mesmo) */}
+                            <DropdownMenuItem
+                              onClick={() =>
+                                setConfirmDialog({
+                                  isOpen: true,
+                                  type: 'professional',
+                                  target: p,
+                                })
+                              }
+                              className="rounded-xl font-bold text-xs py-2 cursor-pointer text-[#1CB0F6]"
+                            >
+                              <User className="w-4 h-4 mr-2 text-[#1CB0F6]" />
+                              {p.is_professional
+                                ? 'Revogar perfil Profissional'
+                                : 'Conceder perfil Profissional'}
                             </DropdownMenuItem>
 
                             {/* Suspend / Reactivate */}
@@ -642,6 +682,10 @@ export function MasterUsersTab() {
                 (confirmDialog.target?.role === 'master'
                   ? 'Rebaixar Master para Comum?'
                   : 'Promover a Usuário Master?')}
+              {confirmDialog.type === 'professional' &&
+                (confirmDialog.target?.is_professional
+                  ? 'Revogar perfil Profissional?'
+                  : 'Conceder perfil Profissional?')}
               {confirmDialog.type === 'suspend' && 'Suspender Acesso do Usuário?'}
               {confirmDialog.type === 'reactivate' && 'Reativar Acesso do Usuário?'}
               {confirmDialog.type === 'delete' && 'Excluir Usuário Permanentemente?'}
@@ -652,6 +696,13 @@ export function MasterUsersTab() {
                   {confirmDialog.target?.role === 'master'
                     ? `O usuário ${confirmDialog.target?.email} perderá acesso a todas as telas administrativas e de controle.`
                     : `O usuário ${confirmDialog.target?.email} terá controle total do sistema, podendo gerenciar usuários e visualizar dados globais.`}
+                </p>
+              )}
+              {confirmDialog.type === 'professional' && (
+                <p>
+                  {confirmDialog.target?.is_professional
+                    ? `O usuário ${confirmDialog.target?.email} deixará de ter acesso ao Painel Pro (/professional). Todos os vínculos ativos com pacientes serão encerrados.`
+                    : `O usuário ${confirmDialog.target?.email} terá acesso ao Painel Pro (/professional) para gerenciar pacientes, consultas e anotações clínicas com consentimento explícito dos pacientes.`}
                 </p>
               )}
               {confirmDialog.type === 'suspend' && (

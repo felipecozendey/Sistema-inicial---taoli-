@@ -12,6 +12,7 @@ import {
 import { cn } from '@/lib/utils'
 import { useIsMaster } from '@/stores/useMasterStore'
 import { useFeatureFlagsStore } from '@/stores/useFeatureFlagsStore'
+import { StethoscopeIcon } from '@/components/professional/StethoscopeIcon'
 
 interface BottomNavItem {
   icon: any
@@ -23,7 +24,7 @@ interface BottomNavItem {
 
 export function BottomNav() {
   const location = useLocation()
-  const { isMaster } = useIsMaster()
+  const { isMaster, isProfessional } = useIsMaster()
   const isEnabled = useFeatureFlagsStore((s) => s.isEnabled)
 
   const items: BottomNavItem[] = [
@@ -57,6 +58,16 @@ export function BottomNav() {
       featureKey: 'finance',
     },
     { icon: UserCircle, label: 'Perfil', shortLabel: 'Perfil', path: '/profile' },
+    ...(isProfessional
+      ? [
+          {
+            icon: StethoscopeIcon,
+            label: 'Painel Pro',
+            shortLabel: 'Pro',
+            path: '/professional',
+          },
+        ]
+      : []),
     ...(isMaster
       ? [{ icon: ShieldCheck, label: 'Master', shortLabel: 'Master', path: '/master' }]
       : []),
@@ -74,6 +85,7 @@ export function BottomNav() {
           location.pathname.startsWith(item.path) &&
           (item.path !== '/dashboard' || location.pathname === '/dashboard')
         const isMasterTab = item.path === '/master'
+        const isProTab = item.path === '/professional'
         return (
           <Link
             key={item.path}
@@ -85,10 +97,14 @@ export function BottomNav() {
               isActive
                 ? isMasterTab
                   ? 'text-amber-500 font-black'
-                  : 'text-primary font-black'
+                  : isProTab
+                    ? 'text-[#1CB0F6] font-black'
+                    : 'text-primary font-black'
                 : isMasterTab
                   ? 'text-amber-600/70 dark:text-amber-400/70'
-                  : 'text-muted-foreground',
+                  : isProTab
+                    ? 'text-[#1CB0F6]/80'
+                    : 'text-muted-foreground',
             )}
           >
             <item.icon
@@ -96,6 +112,7 @@ export function BottomNav() {
                 'w-5 h-5 shrink-0 transition-transform',
                 isActive && 'scale-110',
                 isMasterTab && 'text-amber-500',
+                isProTab && 'text-[#1CB0F6]',
               )}
               strokeWidth={isActive ? 2.5 : 2}
             />

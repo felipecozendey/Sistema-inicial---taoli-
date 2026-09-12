@@ -1,9 +1,14 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useAppStore } from '@/stores/useAppStore'
 import { EditProfileDialog } from '@/components/profile/edit-profile-dialog'
 import { getTodayHabits, calculateStreak } from '@/lib/habit-utils'
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '@/hooks/use-auth'
+import { useIsMaster } from '@/stores/useMasterStore'
+import { useProfessionalStore } from '@/stores/useProfessionalStore'
+import { StethoscopeIcon } from '@/components/professional/StethoscopeIcon'
+import { Button } from '@/components/ui/button'
+import { Badge } from '@/components/ui/badge'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -40,6 +45,19 @@ export default function Profile() {
   const { user, tasks, habits } = useAppStore()
   const { signOut } = useAuth()
   const navigate = useNavigate()
+  const { isMaster, isProfessional } = useIsMaster()
+  const {
+    incomingInvites,
+    myProfessionals,
+    loadPatientConsentData,
+    respondPatientInvite,
+    endPatientLink,
+  } = useProfessionalStore()
+
+  useEffect(() => {
+    loadPatientConsentData()
+  }, [loadPatientConsentData])
+
   const [logoutDialogOpen, setLogoutDialogOpen] = useState(false)
   const [isLoggingOut, setIsLoggingOut] = useState(false)
 
@@ -89,10 +107,23 @@ export default function Profile() {
           {user.bio && (
             <p className="text-muted-foreground mt-2 font-semibold leading-relaxed">{user.bio}</p>
           )}
-          <div className="flex gap-3 mt-4">
+          <div className="flex flex-wrap items-center gap-2 mt-4">
             <div className="flex items-center gap-1 text-[#374151] bg-[#FFC800] px-3 py-1 rounded-full text-sm font-extrabold shadow-sm">
               <Flame className="w-4 h-4" /> {maxStreak} dias
             </div>
+
+            {/* Badges de papel */}
+            {isMaster && (
+              <Badge className="bg-amber-500 hover:bg-amber-500 text-white font-black text-xs px-3 py-1 rounded-full border-b-2 border-amber-700 flex items-center gap-1">
+                <span>👑</span> Master
+              </Badge>
+            )}
+
+            {isProfessional && (
+              <Badge className="bg-[#1CB0F6] hover:bg-[#1CB0F6] text-white font-black text-xs px-3 py-1 rounded-full border-b-2 border-[#1899d6] flex items-center gap-1">
+                <StethoscopeIcon size={14} /> Profissional
+              </Badge>
+            )}
           </div>
           <div className="grid grid-cols-3 gap-3 mt-6">
             {stats.map((s) => (
@@ -105,6 +136,120 @@ export default function Profile() {
             ))}
           </div>
         </div>
+      </div>
+
+      {/* SEÇÃO: CONVITES DE PROFISSIONAIS (CONSENTIMENTO) */}
+      <div className="bg-card rounded-3xl border shadow-sm p-5 space-y-4">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2.5">
+            <div className="w-10 h-10 rounded-2xl bg-[#1CB0F6]/15 text-[#1CB0F6] flex items-center justify-center">
+              <StethoscopeIcon size={20} />
+            </div>
+            <div>
+              <h2 className="text-base font-black text-foreground">Convites de Profissionais</h2>
+              <p className="text-xs text-muted-foreground">
+                Profissionais de saúde solicitando acesso de acompanhamento ao seu prontuário
+              </p>
+            </div>
+          </div>
+
+          {incomingInvites.length > 0 && (
+            <Badge className="bg-amber-400 text-amber-950 font-black text-xs rounded-full">
+              {incomingInvites.length} pendente(s)
+            </Badge>
+          )}
+        </div>
+
+        {incomingInvites.length === 0 ? (
+          <p className="text-xs text-muted-foreground italic py-2">
+            Nenhum convite pendente no momento.
+          </p>
+        ) : (
+          <div className="space-y-2.5 pt-1">
+            {incomingInvites.map((invite) => (
+              <div
+                key={invite.id}
+                className="p-4 rounded-2xl border-2 bg-muted/20 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3"
+              >
+                <div className="space-y-0.5">
+                  <div className="font-black text-sm text-foreground">
+                    {invite.professional_name}
+                  </div>
+                  <div className="text-xs font-semibold text-[#1CB0F6]">
+                    {invite.professional_profession}
+                    {invite.professional_register ? ` • ${invite.professional_register}` : ''}
+                  </div>
+                  <p className="text-[11px] text-muted-foreground pt-1">
+                    Solicitou acesso de leitura às suas medições, exames e metas corporais.
+                  </p>
+                </div>
+
+                <div className="flex items-center gap-2 self-end sm:self-center shrink-0">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => respondPatientInvite(invite.id, false)}
+                    className="rounded-xl h-9 text-xs font-bold text-rose-600 border-rose-300 dark:border-rose-900 hover:bg-rose-50 dark:hover:bg-rose-950"
+                  >
+                    Recusar
+                  </Button>
+                  <Button
+                    size="sm"
+                    onClick={() => respondPatientInvite(invite.id, true)}
+                    className="rounded-xl h-9 text-xs font-black bg-[#58CC02] hover:bg-[#46a302] text-white border-b-2 border-[#46a302] active:border-b-0 active:translate-y-0.5"
+                  >
+                    Aceitar Convite
+                  </Button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* SEÇÃO: MEUS PROFISSIONAIS */}
+      <div className="bg-card rounded-3xl border shadow-sm p-5 space-y-3">
+        <h2 className="text-base font-black text-foreground">Meus Profissionais Vinculados</h2>
+        <p className="text-xs text-muted-foreground">
+          Profissionais com autorização ativa para visualizar seu progresso de saúde. Você pode
+          encerrar o vínculo a qualquer momento.
+        </p>
+
+        {myProfessionals.length === 0 ? (
+          <p className="text-xs text-muted-foreground italic py-2">
+            Nenhum profissional vinculado atualmente.
+          </p>
+        ) : (
+          <div className="space-y-2 pt-1">
+            {myProfessionals.map((link) => (
+              <div
+                key={link.id}
+                className="p-3.5 rounded-2xl border bg-muted/10 flex items-center justify-between gap-3 text-xs"
+              >
+                <div>
+                  <div className="font-bold text-foreground">{link.professional_name}</div>
+                  <div className="text-[11px] text-muted-foreground">
+                    {link.professional_profession}
+                    {link.professional_register ? ` • ${link.professional_register}` : ''}
+                  </div>
+                </div>
+
+                {link.status === 'active' ? (
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => endPatientLink(link.id)}
+                    className="h-8 text-xs font-bold text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950 rounded-xl"
+                  >
+                    Encerrar vínculo
+                  </Button>
+                ) : (
+                  <span className="text-[11px] text-muted-foreground font-semibold">Encerrado</span>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       {user.socialLinks.length > 0 && (

@@ -14,6 +14,7 @@ import {
 import { cn } from '@/lib/utils'
 import { useIsMaster } from '@/stores/useMasterStore'
 import { useFeatureFlagsStore } from '@/stores/useFeatureFlagsStore'
+import { StethoscopeIcon } from '@/components/professional/StethoscopeIcon'
 
 interface NavItem {
   icon: any
@@ -34,7 +35,7 @@ const navItems: NavItem[] = [
 
 export function Sidebar() {
   const location = useLocation()
-  const { isMaster } = useIsMaster()
+  const { isMaster, isProfessional } = useIsMaster()
   const isEnabled = useFeatureFlagsStore((s) => s.isEnabled)
 
   const visibleNavItems = navItems.filter((item) => {
@@ -53,24 +54,40 @@ export function Sidebar() {
         {visibleNavItems.map((item) => {
           const isActive = location.pathname === item.path
           return (
-            <Link
-              key={item.path}
-              to={item.path}
-              className={cn(
-                'flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all duration-200 group font-medium',
-                isActive
-                  ? 'bg-primary/20 text-primary font-bold'
-                  : 'text-muted-foreground hover:bg-muted hover:text-foreground',
-              )}
-            >
-              <item.icon
+            <div key={item.path}>
+              <Link
+                to={item.path}
                 className={cn(
-                  'w-5 h-5 shrink-0',
-                  isActive ? 'text-primary' : 'text-muted-foreground group-hover:text-foreground',
+                  'flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all duration-200 group font-medium',
+                  isActive
+                    ? 'bg-primary/20 text-primary font-bold'
+                    : 'text-muted-foreground hover:bg-muted hover:text-foreground',
                 )}
-              />
-              <span className="truncate">{item.label}</span>
-            </Link>
+              >
+                <item.icon
+                  className={cn(
+                    'w-5 h-5 shrink-0',
+                    isActive ? 'text-primary' : 'text-muted-foreground group-hover:text-foreground',
+                  )}
+                />
+                <span className="truncate">{item.label}</span>
+              </Link>
+              {/* Item no sidebar e bottom-nav abaixo de "Perfil", visível somente quando is_professional = true */}
+              {item.path === '/profile' && isProfessional && (
+                <Link
+                  to="/professional"
+                  className={cn(
+                    'mt-2 flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all duration-200 group font-bold border-b-2',
+                    location.pathname.startsWith('/professional')
+                      ? 'bg-[#1CB0F6]/20 text-[#1CB0F6] border-[#1CB0F6]'
+                      : 'text-[#1CB0F6] hover:bg-[#1CB0F6]/10 border-transparent',
+                  )}
+                >
+                  <StethoscopeIcon className="w-5 h-5 shrink-0 text-[#1CB0F6]" />
+                  <span className="truncate">Painel Pro</span>
+                </Link>
+              )}
+            </div>
           )
         })}
       </nav>

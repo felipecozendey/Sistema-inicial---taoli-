@@ -17,6 +17,7 @@ export interface Profile {
   displayName: string | null
   role: 'master' | 'user'
   status: 'active' | 'suspended'
+  is_professional?: boolean
   createdAt: string
   updatedAt: string
 }
@@ -93,6 +94,7 @@ interface MasterState {
   // User management
   createUser: (data: CreateUserData) => Promise<CreateUserResult | null>
   setRole: (userId: string, newRole: 'master' | 'user') => Promise<boolean>
+  setProfessional: (userId: string, isProf: boolean) => Promise<boolean>
   suspendUser: (userId: string) => Promise<boolean>
   reactivateUser: (userId: string) => Promise<boolean>
   deleteUser: (userId: string) => Promise<boolean>
@@ -154,6 +156,7 @@ function mapProfile(
         display_name?: string | null
         role?: string
         status?: string
+        is_professional?: boolean | null
         created_at: string
         updated_at: string
       },
@@ -164,6 +167,7 @@ function mapProfile(
     displayName: data.display_name ?? null,
     role: data.role === 'master' ? 'master' : 'user',
     status: data.status === 'suspended' ? 'suspended' : 'active',
+    is_professional: Boolean((data as any).is_professional),
     createdAt: data.created_at,
     updatedAt: data.updated_at,
   }
@@ -320,6 +324,35 @@ export const useMasterStore = create<MasterState>((set, get) => ({
       const message = err instanceof Error ? err.message : 'Erro inesperado ao criar usuário'
       toast.error(message)
       return null
+    }
+  },
+
+  setProfessional: async (userId: string, isProf: boolean) => {
+    const prevProfiles = get().profiles
+    const target = prevProfiles.find((p) => p.id === userId)
+    if (!target) return false
+
+    // Optimistic update
+    set({
+      profiles: prevProfiles.map((p) => (p.id === userId ? { ...p, is_professional: isProf } : p)),
+    })
+
+    try {
+      const { error } = await supabase.rpc('set_user_professional', {
+        target: userId,
+        is_prof: isProf,
+      })
+
+      if (error) throw error
+
+      toast.success(`Perfil profissional ${isProf ? 'concedido' : 'revogado'} com sucesso!`)
+      return true
+    } catch (err) {
+      // Rollback
+      set({ profiles: prevProfiles })
+      const message = err instanceof Error ? err.message : 'Falha ao alterar perfil profissional'
+      toast.error(message)
+      return false
     }
   },
 
@@ -743,6 +776,7 @@ export type MasterAuthStatus = 'idle' | 'loading' | 'ready' | 'error'
 export interface UseIsMasterResult {
   isMaster: boolean
   isSuspended: boolean
+  isProfessional: boolean
   loading: boolean
   status: MasterAuthStatus
   errorMessage: string | null
@@ -914,10 +948,12 @@ export function useIsMaster(): UseIsMasterResult {
   // When ready, check role; never assume false silently if status is error
   const isMaster = status === 'ready' && profile?.role === 'master'
   const isSuspended = status === 'ready' && profile?.status === 'suspended'
+  const isProfessional = status === 'ready' && Boolean(profile?.is_professional)
 
   return {
     isMaster,
     isSuspended,
+    isProfessional,
     loading: isLoading,
     status,
     errorMessage,

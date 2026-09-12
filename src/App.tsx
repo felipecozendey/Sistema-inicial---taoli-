@@ -13,6 +13,7 @@ import { useOnlineSync } from '@/hooks/use-online-sync'
 import { useFeatureFlagsStore } from '@/stores/useFeatureFlagsStore'
 import { useIsMaster } from '@/stores/useMasterStore'
 import { MasterRouteGuard } from '@/components/master/MasterRouteGuard'
+import { ProfessionalRouteGuard } from '@/components/professional/ProfessionalRouteGuard'
 import { FeatureGate } from '@/components/master/FeatureGate'
 import { SuspendedScreen } from '@/components/master/SuspendedScreen'
 
@@ -29,6 +30,7 @@ import Health from './pages/Health'
 import Studies from './pages/Studies'
 import Finance from './pages/Finance'
 import Master from './pages/Master'
+import Professional from './pages/Professional'
 
 function SuspendedGuard({ children }: { children: React.ReactNode }) {
   const { isSuspended } = useIsMaster()
@@ -125,6 +127,14 @@ function AppInner() {
                     <MasterRouteGuard>
                       <Master />
                     </MasterRouteGuard>
+                  }
+                />
+                <Route
+                  path="/professional"
+                  element={
+                    <ProfessionalRouteGuard>
+                      <Professional />
+                    </ProfessionalRouteGuard>
                   }
                 />
                 <Route path="/profile" element={<Profile />} />
