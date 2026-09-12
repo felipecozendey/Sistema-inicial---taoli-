@@ -369,6 +369,8 @@ interface AppState {
   addTag: (name: string, color: string) => void
   updateTag: (id: string, updates: Partial<Pick<Tag, 'name' | 'color'>>) => void
   deleteTag: (id: string) => void
+  fetchTasks: () => Promise<void>
+  fetchHabits: () => Promise<void>
   addTask: (t: NewTask) => void
   toggleTask: (id: string) => void
   deleteTask: (id: string) => void
@@ -1162,7 +1164,230 @@ export const AppStoreProvider = ({ children }: { children: ReactNode }) => {
   const updateTag = (id: string, updates: Partial<Pick<Tag, 'name' | 'color'>>) =>
     setTags((p) => p.map((t) => (t.id === id ? { ...t, ...updates } : t)))
   const deleteTag = (id: string) => setTags((p) => p.filter((t) => t.id !== id))
+  const fetchTasks = async () => {
+    const {
+      data: { user: authUser },
+    } = await supabase.auth.getUser()
+    if (!authUser) return
+
+    // 1. Migração única vt_synced_v1 (se usuário autenticado logar pela 1ª vez)
+    const isSynced = localStorage.getItem('vt_synced_v1')
+    if (!isSynced) {
+      const { data: dbTasks } = await (supabase as any)
+        .from('tasks')
+        .select('*')
+        .eq('user_id', authUser.id)
+        .order('created_at', { ascending: false })
+
+      const localStr = localStorage.getItem('vt_tasks')
+      const localTasks: Task[] = localStr ? JSON.parse(localStr) : []
+
+      if (!dbTasks || dbTasks.length === 0) {
+        // Banco está vazio para este usuário. Se há itens locais, envia-os
+        if (localTasks.length > 0) {
+          const toInsert = localTasks.map((t) => ({
+            title: t.title,
+            due_date: t.dueDate
+              ? t.dueDate.includes('T')
+                ? t.dueDate
+                : `${t.dueDate}T23:59:59Z`
+              : null,
+            scheduled_date: t.scheduledDate
+              ? t.scheduledDate.includes('T')
+                ? t.scheduledDate
+                : `${t.scheduledDate}T00:00:00Z`
+              : t.dueDate
+                ? t.dueDate.includes('T')
+                  ? t.dueDate
+                  : `${t.dueDate}T00:00:00Z`
+                : null,
+            energy_level: t.energyLevel || 2,
+            priority:
+              t.priority || (t.energyLevel === 3 ? 'high' : t.energyLevel === 2 ? 'medium' : 'low'),
+            estimated_time: t.estimatedTime || 30,
+            tag_id: t.tagId || (t.tagIds && t.tagIds[0]) || null,
+            tag_ids: t.tagIds || (t.tagId ? [t.tagId] : []),
+            completed: Boolean(t.completed),
+            subtasks: t.subtasks || [],
+            user_id: authUser.id,
+          }))
+
+          const { data: inserted } = await (supabase as any)
+            .from('tasks')
+            .insert(toInsert)
+            .select('*')
+
+          if (inserted && inserted.length > 0) {
+            const mappedInserted: Task[] = inserted.map((d: any) => ({
+              id: d.id,
+              title: d.title,
+              dueDate: d.due_date ? d.due_date.split('T')[0] : '',
+              scheduledDate: d.scheduled_date ? d.scheduled_date.split('T')[0] : undefined,
+              energyLevel: d.energy_level || 2,
+              priority: (d.priority as Priority) || 'medium',
+              estimatedTime: d.estimated_time || 30,
+              tagId: d.tag_id || (d.tag_ids && d.tag_ids[0]) || '',
+              tagIds: d.tag_ids || (d.tag_id ? [d.tag_id] : []),
+              completed: Boolean(d.completed),
+              subtasks: Array.isArray(d.subtasks) ? d.subtasks : [],
+              created_by: d.created_by || null,
+            }))
+            setTasks(mappedInserted)
+          }
+        }
+      } else {
+        // Banco já tem linhas: o banco é a fonte da verdade e vence
+        const mapped: Task[] = dbTasks.map((d: any) => ({
+          id: d.id,
+          title: d.title,
+          dueDate: d.due_date ? d.due_date.split('T')[0] : '',
+          scheduledDate: d.scheduled_date ? d.scheduled_date.split('T')[0] : undefined,
+          energyLevel: d.energy_level || 2,
+          priority: (d.priority as Priority) || 'medium',
+          estimatedTime: d.estimated_time || 30,
+          tagId: d.tag_id || (d.tag_ids && d.tag_ids[0]) || '',
+          tagIds: d.tag_ids || (d.tag_id ? [d.tag_id] : []),
+          completed: Boolean(d.completed),
+          subtasks: Array.isArray(d.subtasks) ? d.subtasks : [],
+          created_by: d.created_by || null,
+        }))
+        setTasks(mapped)
+        toast.info('Tarefas sincronizadas com a nuvem.')
+      }
+      localStorage.setItem('vt_synced_v1', 'true')
+      return
+    }
+
+    // Leitura normal
+    const { data } = await (supabase as any)
+      .from('tasks')
+      .select('*')
+      .eq('user_id', authUser.id)
+      .order('created_at', { ascending: false })
+
+    if (data) {
+      setTasks(
+        data.map((d: any) => ({
+          id: d.id,
+          title: d.title,
+          dueDate: d.due_date ? d.due_date.split('T')[0] : '',
+          scheduledDate: d.scheduled_date ? d.scheduled_date.split('T')[0] : undefined,
+          energyLevel: d.energy_level || 2,
+          priority: (d.priority as Priority) || 'medium',
+          estimatedTime: d.estimated_time || 30,
+          tagId: d.tag_id || (d.tag_ids && d.tag_ids[0]) || '',
+          tagIds: d.tag_ids || (d.tag_id ? [d.tag_id] : []),
+          completed: Boolean(d.completed),
+          subtasks: Array.isArray(d.subtasks) ? d.subtasks : [],
+          created_by: d.created_by || null,
+        })),
+      )
+    }
+  }
+
+  const fetchHabits = async () => {
+    const {
+      data: { user: authUser },
+    } = await supabase.auth.getUser()
+    if (!authUser) return
+
+    // 1. Migração única vt_synced_v1
+    const isSynced = localStorage.getItem('vt_synced_v1')
+    if (!isSynced) {
+      const { data: dbHabits } = await (supabase as any)
+        .from('habits')
+        .select('*')
+        .eq('user_id', authUser.id)
+        .order('created_at', { ascending: false })
+
+      const localStr = localStorage.getItem('vt_habits')
+      const localHabits: Habit[] = localStr ? JSON.parse(localStr) : []
+
+      if (!dbHabits || dbHabits.length === 0) {
+        if (localHabits.length > 0) {
+          const toInsert = localHabits.map((h) => ({
+            title: h.title,
+            frequency: h.frequency || 'daily',
+            week_days: h.weekDays || [],
+            weekly_goal: h.weeklyGoal || 0,
+            target_completions: h.targetCompletions || null,
+            tag_id: h.tagId || null,
+            completions: h.completions || [],
+            escudos: h.escudos !== undefined ? h.escudos : 2,
+            frozen_dates: h.frozenDates || [],
+            user_id: authUser.id,
+          }))
+
+          const { data: inserted } = await (supabase as any)
+            .from('habits')
+            .insert(toInsert)
+            .select('*')
+
+          if (inserted && inserted.length > 0) {
+            const mappedInserted: Habit[] = inserted.map((d: any) => ({
+              id: d.id,
+              title: d.title,
+              frequency: d.frequency || 'daily',
+              weekDays: Array.isArray(d.week_days) ? d.week_days : [],
+              weeklyGoal: d.weekly_goal || 0,
+              targetCompletions: d.target_completions || undefined,
+              tagId: d.tag_id || '',
+              completions: Array.isArray(d.completions) ? d.completions : [],
+              escudos: d.escudos !== undefined ? d.escudos : 2,
+              frozenDates: Array.isArray(d.frozen_dates) ? d.frozen_dates : [],
+              created_by: d.created_by || null,
+            }))
+            setHabits(mappedInserted)
+          }
+        }
+      } else {
+        const mapped: Habit[] = dbHabits.map((d: any) => ({
+          id: d.id,
+          title: d.title,
+          frequency: d.frequency || 'daily',
+          weekDays: Array.isArray(d.week_days) ? d.week_days : [],
+          weeklyGoal: d.weekly_goal || 0,
+          targetCompletions: d.target_completions || undefined,
+          tagId: d.tag_id || '',
+          completions: Array.isArray(d.completions) ? d.completions : [],
+          escudos: d.escudos !== undefined ? d.escudos : 2,
+          frozenDates: Array.isArray(d.frozen_dates) ? d.frozen_dates : [],
+          created_by: d.created_by || null,
+        }))
+        setHabits(mapped)
+      }
+      localStorage.setItem('vt_synced_v1', 'true')
+      return
+    }
+
+    // Leitura normal
+    const { data } = await (supabase as any)
+      .from('habits')
+      .select('*')
+      .eq('user_id', authUser.id)
+      .order('created_at', { ascending: false })
+
+    if (data) {
+      setHabits(
+        data.map((d: any) => ({
+          id: d.id,
+          title: d.title,
+          frequency: d.frequency || 'daily',
+          weekDays: Array.isArray(d.week_days) ? d.week_days : [],
+          weeklyGoal: d.weekly_goal || 0,
+          targetCompletions: d.target_completions || undefined,
+          tagId: d.tag_id || '',
+          completions: Array.isArray(d.completions) ? d.completions : [],
+          escudos: d.escudos !== undefined ? d.escudos : 2,
+          frozenDates: Array.isArray(d.frozen_dates) ? d.frozen_dates : [],
+          created_by: d.created_by || null,
+        })),
+      )
+    }
+  }
+
   const addTask = (t: NewTask) => {
+    const tempId = genId()
     const priority: Priority = t.energyLevel === 1 ? 'low' : t.energyLevel === 2 ? 'medium' : 'high'
     const subtasks: Subtask[] = (t.subtasks || []).map((s) => ({
       id: s.id || genId(),
@@ -1170,31 +1395,78 @@ export const AppStoreProvider = ({ children }: { children: ReactNode }) => {
       completed: s.completed || false,
     }))
     const tagIds = t.tagIds || (t.tagId ? [t.tagId] : [])
-    setTasks((p) => [
-      ...p,
-      {
-        id: genId(),
-        title: t.title,
-        dueDate: t.dueDate,
-        scheduledDate: t.scheduledDate || t.dueDate,
-        energyLevel: t.energyLevel,
-        priority,
-        estimatedTime: t.estimatedTime,
-        tagId: tagIds[0] || '',
-        tagIds,
-        completed: false,
-        subtasks,
-      },
-    ])
+    const newTask: Task = {
+      id: tempId,
+      title: t.title,
+      dueDate: t.dueDate,
+      scheduledDate: t.scheduledDate || t.dueDate,
+      energyLevel: t.energyLevel,
+      priority,
+      estimatedTime: t.estimatedTime,
+      tagId: tagIds[0] || '',
+      tagIds,
+      completed: false,
+      subtasks,
+    }
+
+    setTasks((p) => [newTask, ...p])
+
+    supabase.auth.getUser().then(({ data: { user: u } }) => {
+      if (!u) return
+      const dueIso = t.dueDate
+        ? t.dueDate.includes('T')
+          ? t.dueDate
+          : `${t.dueDate}T23:59:59Z`
+        : null
+      const schedIso =
+        t.scheduledDate || t.dueDate
+          ? (t.scheduledDate || t.dueDate).includes('T')
+            ? t.scheduledDate || t.dueDate
+            : `${t.scheduledDate || t.dueDate}T00:00:00Z`
+          : null
+
+      ;(supabase as any)
+        .from('tasks')
+        .insert({
+          title: t.title,
+          due_date: dueIso,
+          scheduled_date: schedIso,
+          energy_level: t.energyLevel || 2,
+          priority,
+          estimated_time: t.estimatedTime || 30,
+          tag_id: tagIds[0] || null,
+          tag_ids: tagIds,
+          completed: false,
+          subtasks,
+          user_id: u.id,
+        })
+        .select('id')
+        .single()
+        .then(({ data: inserted, error }: { data: any; error: any }) => {
+          if (error || !inserted) {
+            setTasks((p) => p.filter((item) => item.id !== tempId))
+            toast.error('Erro ao salvar tarefa no banco de dados.')
+          } else {
+            setTasks((p) =>
+              p.map((item) => (item.id === tempId ? { ...item, id: inserted.id } : item)),
+            )
+          }
+        })
+    })
   }
+
   const toggleTask = (id: string) => {
     let completedNow = false
     let taskTitle = ''
+    let isCreatedByProfessional = false
+    const previousTasks = tasks
+
     setTasks((p) =>
       p.map((t) => {
         if (t.id === id) {
           completedNow = !t.completed
           taskTitle = t.title
+          isCreatedByProfessional = Boolean(t.created_by)
           return { ...t, completed: completedNow }
         }
         return t
@@ -1202,7 +1474,8 @@ export const AppStoreProvider = ({ children }: { children: ReactNode }) => {
     )
 
     // Gamificação do Jardim: se a tarefa acabou de ser concluída
-    if (completedNow) {
+    // O paciente conclui tarefas do profissional normalmente, mas o Jardim pontua apenas ações próprias
+    if (completedNow && !isCreatedByProfessional) {
       import('@/stores/useGardenStore').then(({ useGardenStore }) => {
         useGardenStore
           .getState()
@@ -1212,58 +1485,211 @@ export const AppStoreProvider = ({ children }: { children: ReactNode }) => {
           })
       })
     }
+
+    supabase.auth.getUser().then(({ data: { user: u } }) => {
+      if (!u) return
+      ;(supabase as any)
+        .from('tasks')
+        .update({ completed: completedNow })
+        .eq('id', id)
+        .then(({ error }: { error: any }) => {
+          if (error) {
+            setTasks(previousTasks)
+            toast.error('Erro ao atualizar tarefa.')
+          }
+        })
+    })
   }
-  const deleteTask = (id: string) => setTasks((p) => p.filter((t) => t.id !== id))
-  const updateTask = (id: string, updates: Partial<NewTask>) =>
+
+  const deleteTask = (id: string) => {
+    const previousTasks = tasks
+    setTasks((p) => p.filter((t) => t.id !== id))
+
+    supabase.auth.getUser().then(({ data: { user: u } }) => {
+      if (!u) return
+      ;(supabase as any)
+        .from('tasks')
+        .delete()
+        .eq('id', id)
+        .then(({ error }: { error: any }) => {
+          if (error) {
+            setTasks(previousTasks)
+            toast.error('Erro ao excluir tarefa.')
+          }
+        })
+    })
+  }
+
+  const updateTask = (id: string, updates: Partial<NewTask>) => {
+    const previousTasks = tasks
+    const target = tasks.find((t) => t.id === id)
+    if (!target) return
+
+    const energyLevel = updates.energyLevel ?? target.energyLevel
+    const priority: Priority = energyLevel === 1 ? 'low' : energyLevel === 2 ? 'medium' : 'high'
+    const subtasks = updates.subtasks
+      ? updates.subtasks.map((s) => ({
+          id: s.id || genId(),
+          title: s.title,
+          completed: s.completed || false,
+        }))
+      : target.subtasks
+    const tagIds = updates.tagIds ?? target.tagIds
+    const updatedTask: Task = {
+      ...target,
+      ...updates,
+      energyLevel,
+      priority,
+      subtasks,
+      tagIds,
+      tagId: tagIds[0] || '',
+    }
+
+    setTasks((p) => p.map((t) => (t.id === id ? updatedTask : t)))
+
+    supabase.auth.getUser().then(({ data: { user: u } }) => {
+      if (!u) return
+      const dbUpdates: Record<string, any> = {}
+      if (updates.title !== undefined) dbUpdates.title = updates.title
+      if (updates.dueDate !== undefined) {
+        dbUpdates.due_date = updates.dueDate
+          ? updates.dueDate.includes('T')
+            ? updates.dueDate
+            : `${updates.dueDate}T23:59:59Z`
+          : null
+      }
+      if (updates.scheduledDate !== undefined) {
+        dbUpdates.scheduled_date = updates.scheduledDate
+          ? updates.scheduledDate.includes('T')
+            ? updates.scheduledDate
+            : `${updates.scheduledDate}T00:00:00Z`
+          : null
+      }
+      if (updates.energyLevel !== undefined) {
+        dbUpdates.energy_level = updates.energyLevel
+        dbUpdates.priority = priority
+      }
+      if (updates.estimatedTime !== undefined) dbUpdates.estimated_time = updates.estimatedTime
+      if (updates.subtasks !== undefined) dbUpdates.subtasks = subtasks
+      if (updates.tagIds !== undefined || updates.tagId !== undefined) {
+        dbUpdates.tag_ids = tagIds
+        dbUpdates.tag_id = tagIds[0] || null
+      }
+
+      ;(supabase as any)
+        .from('tasks')
+        .update(dbUpdates)
+        .eq('id', id)
+        .then(({ error }: { error: any }) => {
+          if (error) {
+            setTasks(previousTasks)
+            toast.error('Erro ao atualizar tarefa.')
+          }
+        })
+    })
+  }
+
+  const toggleSubtask = (taskId: string, subtaskId: string) => {
+    const previousTasks = tasks
+    let nextSubtasks: Subtask[] = []
+
     setTasks((p) =>
       p.map((t) => {
-        if (t.id !== id) return t
-        const energyLevel = updates.energyLevel ?? t.energyLevel
-        const priority: Priority = energyLevel === 1 ? 'low' : energyLevel === 2 ? 'medium' : 'high'
-        const subtasks = updates.subtasks
-          ? updates.subtasks.map((s) => ({
-              id: s.id || genId(),
-              title: s.title,
-              completed: s.completed || false,
-            }))
-          : t.subtasks
-        const tagIds = updates.tagIds ?? t.tagIds
-        return { ...t, ...updates, energyLevel, priority, subtasks, tagIds, tagId: tagIds[0] || '' }
+        if (t.id !== taskId) return t
+        nextSubtasks = t.subtasks.map((s) =>
+          s.id === subtaskId ? { ...s, completed: !s.completed } : s,
+        )
+        return {
+          ...t,
+          subtasks: nextSubtasks,
+        }
       }),
     )
-  const toggleSubtask = (taskId: string, subtaskId: string) =>
-    setTasks((p) =>
-      p.map((t) =>
-        t.id !== taskId
-          ? t
-          : {
-              ...t,
-              subtasks: t.subtasks.map((s) =>
-                s.id === subtaskId ? { ...s, completed: !s.completed } : s,
-              ),
-            },
-      ),
-    )
-  const addHabit = (h: NewHabit) =>
-    setHabits((p) => [...p, { ...h, id: genId(), completions: [], escudos: 2, frozenDates: [] }])
+
+    supabase.auth.getUser().then(({ data: { user: u } }) => {
+      if (!u) return
+      ;(supabase as any)
+        .from('tasks')
+        .update({ subtasks: nextSubtasks })
+        .eq('id', taskId)
+        .then(({ error }: { error: any }) => {
+          if (error) {
+            setTasks(previousTasks)
+            toast.error('Erro ao salvar sub-tarefa.')
+          }
+        })
+    })
+  }
+
+  const addHabit = (h: NewHabit) => {
+    const tempId = genId()
+    const newHabit: Habit = {
+      ...h,
+      id: tempId,
+      completions: [],
+      escudos: 2,
+      frozenDates: [],
+    }
+    setHabits((p) => [newHabit, ...p])
+
+    supabase.auth.getUser().then(({ data: { user: u } }) => {
+      if (!u) return
+      ;(supabase as any)
+        .from('habits')
+        .insert({
+          title: h.title,
+          frequency: h.frequency || 'daily',
+          week_days: h.weekDays || [],
+          weekly_goal: h.weeklyGoal || 0,
+          target_completions: h.targetCompletions || null,
+          tag_id: h.tagId || null,
+          completions: [],
+          escudos: 2,
+          frozen_dates: [],
+          user_id: u.id,
+        })
+        .select('id')
+        .single()
+        .then(({ data: inserted, error }: { data: any; error: any }) => {
+          if (error || !inserted) {
+            setHabits((p) => p.filter((item) => item.id !== tempId))
+            toast.error('Erro ao salvar hábito no banco de dados.')
+          } else {
+            setHabits((p) =>
+              p.map((item) => (item.id === tempId ? { ...item, id: inserted.id } : item)),
+            )
+          }
+        })
+    })
+  }
+
   const toggleHabitCompletion = (id: string, date: string) => {
     let completedNow = false
     let habitTitle = ''
+    let isCreatedByProfessional = false
+    const previousHabits = habits
+    let updatedCompletions: string[] = []
+
     setHabits((p) =>
       p.map((h) => {
         if (h.id !== id) return h
         const has = h.completions.includes(date)
         completedNow = !has
         habitTitle = h.title
+        isCreatedByProfessional = Boolean(h.created_by)
+        updatedCompletions = has
+          ? h.completions.filter((d) => d !== date)
+          : [...h.completions, date]
         return {
           ...h,
-          completions: has ? h.completions.filter((d) => d !== date) : [...h.completions, date],
+          completions: updatedCompletions,
         }
       }),
     )
 
     // Gamificação do Jardim: se o hábito acabou de ser concluído
-    if (completedNow) {
+    // O paciente cumpre hábitos do profissional normalmente, mas o Jardim pontua apenas ações próprias
+    if (completedNow && !isCreatedByProfessional) {
       import('@/stores/useGardenStore').then(({ useGardenStore }) => {
         useGardenStore
           .getState()
@@ -1273,10 +1699,72 @@ export const AppStoreProvider = ({ children }: { children: ReactNode }) => {
           })
       })
     }
+
+    supabase.auth.getUser().then(({ data: { user: u } }) => {
+      if (!u) return
+      ;(supabase as any)
+        .from('habits')
+        .update({ completions: updatedCompletions })
+        .eq('id', id)
+        .then(({ error }: { error: any }) => {
+          if (error) {
+            setHabits(previousHabits)
+            toast.error('Erro ao atualizar hábito.')
+          }
+        })
+    })
   }
-  const deleteHabit = (id: string) => setHabits((p) => p.filter((h) => h.id !== id))
-  const updateHabit = (id: string, updates: Partial<NewHabit>) =>
-    setHabits((p) => p.map((h) => (h.id === id ? { ...h, ...updates } : h)))
+
+  const deleteHabit = (id: string) => {
+    const previousHabits = habits
+    setHabits((p) => p.filter((h) => h.id !== id))
+
+    supabase.auth.getUser().then(({ data: { user: u } }) => {
+      if (!u) return
+      ;(supabase as any)
+        .from('habits')
+        .delete()
+        .eq('id', id)
+        .then(({ error }: { error: any }) => {
+          if (error) {
+            setHabits(previousHabits)
+            toast.error('Erro ao excluir hábito.')
+          }
+        })
+    })
+  }
+
+  const updateHabit = (id: string, updates: Partial<NewHabit>) => {
+    const previousHabits = habits
+    const target = habits.find((h) => h.id === id)
+    if (!target) return
+
+    const updatedHabit = { ...target, ...updates }
+    setHabits((p) => p.map((h) => (h.id === id ? updatedHabit : h)))
+
+    supabase.auth.getUser().then(({ data: { user: u } }) => {
+      if (!u) return
+      const dbUpdates: Record<string, any> = {}
+      if (updates.title !== undefined) dbUpdates.title = updates.title
+      if (updates.frequency !== undefined) dbUpdates.frequency = updates.frequency
+      if (updates.weekDays !== undefined) dbUpdates.week_days = updates.weekDays
+      if (updates.weeklyGoal !== undefined) dbUpdates.weekly_goal = updates.weeklyGoal
+      if (updates.targetCompletions !== undefined)
+        dbUpdates.target_completions = updates.targetCompletions
+      if (updates.tagId !== undefined) dbUpdates.tag_id = updates.tagId
+
+      ;(supabase as any)
+        .from('habits')
+        .update(dbUpdates)
+        .eq('id', id)
+        .then(({ error }: { error: any }) => {
+          if (error) {
+            setHabits(previousHabits)
+            toast.error('Erro ao atualizar hábito.')
+          }
+        })
+    })
+  }
   const addHydrationLog = (date: string, amount: number) =>
     setHydrationLogs((p) => [...p, { id: genId(), date, amount, timestamp: nowIso() }])
   const deleteHydrationLog = (id: string) => setHydrationLogs((p) => p.filter((l) => l.id !== id))
