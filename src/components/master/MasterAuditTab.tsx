@@ -89,6 +89,30 @@ export function MasterAuditTab() {
           icon: CreditCard,
           color: 'bg-purple-500/10 text-purple-600 border-purple-500/30',
         }
+      case 'professional_granted':
+        return {
+          label: 'Perfil Pro Concedido',
+          icon: ShieldCheck,
+          color: 'bg-blue-500/10 text-[#1CB0F6] border-blue-500/30',
+        }
+      case 'professional_revoked':
+        return {
+          label: 'Perfil Pro Revogado',
+          icon: UserX,
+          color: 'bg-amber-500/10 text-amber-600 border-amber-500/30',
+        }
+      case 'professional_link_forced_end':
+        return {
+          label: 'Vínculo Forçado Fim',
+          icon: UserX,
+          color: 'bg-amber-500/10 text-amber-600 border-amber-500/30',
+        }
+      case 'professional_link_deleted':
+        return {
+          label: 'Vínculo Excluído',
+          icon: Trash2,
+          color: 'bg-rose-500/10 text-rose-600 border-rose-500/30',
+        }
       case 'create_food':
         return {
           label: 'Criou Alimento',
@@ -183,6 +207,10 @@ export function MasterAuditTab() {
           <option value="set_role">Alterar Papel</option>
           <option value="toggle_feature">Alternar Feature Flag</option>
           <option value="create_billing">Cobrança</option>
+          <option value="professional_granted">Perfil Pro Concedido</option>
+          <option value="professional_revoked">Perfil Pro Revogado</option>
+          <option value="professional_link_forced_end">Vínculo Pro Forçado Fim</option>
+          <option value="professional_link_deleted">Vínculo Pro Excluído</option>
           <option value="create_food">Criar Alimento Oficial</option>
           <option value="update_food">Atualizar Alimento Oficial</option>
           <option value="delete_food">Excluir Alimento Oficial</option>
