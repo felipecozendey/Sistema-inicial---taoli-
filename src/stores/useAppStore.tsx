@@ -239,6 +239,7 @@ export type MetabolicLog = {
   weightGoal: number | null
   goalDays: number | null
   createdAt: string
+  created_by?: string | null
 }
 export type NutritionMicroGoal = {
   id: string
@@ -1528,6 +1529,7 @@ export const AppStoreProvider = ({ children }: { children: ReactNode }) => {
           title: d.title,
           exercises: d.exercises || [],
           description: d.description || '',
+          created_by: d.created_by || null,
         })),
       )
   }
@@ -1707,6 +1709,7 @@ export const AppStoreProvider = ({ children }: { children: ReactNode }) => {
           photoLeft: d.photo_left || undefined,
           attachments: d.attachments || [],
           observations: d.observations || undefined,
+          created_by: d.created_by || null,
         })),
       )
   }
@@ -2325,6 +2328,7 @@ export const AppStoreProvider = ({ children }: { children: ReactNode }) => {
         weightGoal: d.weight_goal ?? null,
         goalDays: d.goal_days ?? null,
         createdAt: d.created_at,
+        created_by: d.created_by || null,
       })),
     )
   }

@@ -15,6 +15,7 @@ export type DietPlanItem = {
   fibersG: number
   sodiumMg: number
   allergens: string | null
+  created_by?: string | null
 }
 
 export type DietPlan = {
@@ -23,6 +24,7 @@ export type DietPlan = {
   time: string
   orderIndex: number
   items: DietPlanItem[]
+  created_by?: string | null
 }
 
 export type CustomFood = {
@@ -60,6 +62,7 @@ export type NutritionRecipe = {
   instructions: string
   tags: string[]
   ingredients: RecipeIngredient[]
+  created_by?: string | null
 }
 
 const genId = () => Math.random().toString(36).substring(2, 9)
@@ -172,6 +175,7 @@ const mapDietItem = (i: any): DietPlanItem => ({
   fibersG: Number(i.fibers_g) || 0,
   sodiumMg: Number(i.sodium_mg) || 0,
   allergens: i.allergens || null,
+  created_by: i.created_by || null,
 })
 
 const mapFood = (d: any): CustomFood => ({
@@ -357,6 +361,7 @@ export const useNutritionStore = create<NutritionState>()(
               time: d.time || '',
               orderIndex: d.order_index || 0,
               items: (d.diet_plan_items || []).map(mapDietItem),
+              created_by: d.created_by || null,
             })),
           })
         }
@@ -759,6 +764,7 @@ export const useNutritionStore = create<NutritionState>()(
               description: r.description || '',
               instructions: r.instructions || '',
               tags: r.tags || [],
+              created_by: r.created_by || null,
               ingredients: (r.recipe_ingredients || []).map((ri: any) => {
                 const food = ri.custom_foods
                 const macros = calcMacrosForAmount(food?.base_unit || '100g', ri.amount || '', {

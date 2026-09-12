@@ -70,7 +70,12 @@ export type WorkoutExercise = {
   reps: number
   weight: number
 }
-export type WorkoutRoutine = { id: string; title: string; exercises: WorkoutExercise[] }
+export type WorkoutRoutine = {
+  id: string
+  title: string
+  exercises: WorkoutExercise[]
+  created_by?: string | null
+}
 export type WorkoutHistory = {
   id: string
   routineId: string
@@ -99,6 +104,7 @@ export type BodyMetric = {
   get?: number
   leanMass?: number
   fatMass?: number
+  created_by?: string | null
 }
 export type PatientGoal = {
   targetWeight: number
@@ -131,6 +137,7 @@ export type Task = {
   tagIds: string[]
   completed: boolean
   subtasks: Subtask[]
+  created_by?: string | null
 }
 export type NewTask = {
   title: string
@@ -153,6 +160,7 @@ export type Habit = {
   completions: string[]
   escudos: number
   frozenDates: string[]
+  created_by?: string | null
 }
 export type NewHabit = {
   title: string

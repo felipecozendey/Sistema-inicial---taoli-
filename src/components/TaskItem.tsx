@@ -3,6 +3,7 @@ import { cn } from '@/lib/utils'
 import { Task, useAppStore } from '@/stores/useAppStore'
 import { formatTime } from '@/lib/habit-utils'
 import { GameProgress } from '@/components/ui/game-progress'
+import { ProfessionalTag } from '@/components/professional/ProfessionalTag'
 
 const ENERGY_COLORS = ['#58CC02', '#FFC800', '#FF4B4B']
 
@@ -40,14 +41,17 @@ export function TaskItem({ task }: { task: Task }) {
           <Check className="w-4 h-4" strokeWidth={3} />
         </button>
         <div className="flex-1 min-w-0">
-          <h4
-            className={cn(
-              'font-bold transition-all truncate',
-              task.completed && 'line-through text-muted-foreground opacity-60',
-            )}
-          >
-            {task.title}
-          </h4>
+          <div className="flex items-center gap-2">
+            <h4
+              className={cn(
+                'font-bold transition-all truncate',
+                task.completed && 'line-through text-muted-foreground opacity-60',
+              )}
+            >
+              {task.title}
+            </h4>
+            {task.created_by && <ProfessionalTag createdBy={task.created_by} />}
+          </div>
           <div className="flex items-center gap-2 mt-1 text-xs text-muted-foreground">
             {tag && (
               <span

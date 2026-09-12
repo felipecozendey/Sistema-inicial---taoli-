@@ -51,14 +51,17 @@ export function TaskCard({ task }: TaskCardProps) {
           className="w-6 h-6 rounded-full border-2 data-[state=checked]:bg-[#58CC02] data-[state=checked]:border-[#58CC02] transition-all duration-300"
         />
         <div className="flex-1 min-w-0">
-          <p
-            className={cn(
-              'font-bold text-base truncate transition-all duration-300',
-              task.completed && 'line-through text-muted-foreground',
-            )}
-          >
-            {task.title}
-          </p>
+          <div className="flex items-center gap-2 flex-wrap">
+            <p
+              className={cn(
+                'font-bold text-base truncate transition-all duration-300',
+                task.completed && 'line-through text-muted-foreground',
+              )}
+            >
+              {task.title}
+            </p>
+            {task.created_by && <ProfessionalTag createdBy={task.created_by} />}
+          </div>
           <div className="flex items-center gap-2 mt-1 flex-wrap">
             {taskTags.map(
               (tag) =>

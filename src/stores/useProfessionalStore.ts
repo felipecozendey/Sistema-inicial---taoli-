@@ -97,6 +97,9 @@ export interface PatientSaudeData {
   medical_exams: any[]
   meal_logs: any[]
   metabolic_logs: any[]
+  diet_plans: any[]
+  recipes: any[]
+  workout_routines: any[]
 }
 
 export interface PatientFinancasData {
@@ -121,6 +124,12 @@ export interface PatientEstudosData {
   recent_reviews: any[]
 }
 
+export interface ActivePatientContext {
+  id: string
+  displayName: string
+  grantedPages: string[]
+}
+
 interface ProfessionalState {
   profile: ProfessionalProfile | null
   patients: PatientLink[]
@@ -130,8 +139,12 @@ interface ProfessionalState {
   notes: ClinicalNote[]
   loading: boolean
   error: string | null
+  activePatient: ActivePatientContext | null
+  professionalNamesCache: Map<string, string>
 
   // Methods
+  setActivePatient: (patient: ActivePatientContext | null) => void
+  getProfessionalNames: (ids: string[]) => Promise<Map<string, string>>
   loadProfessionalData: () => Promise<void>
   loadPatientConsentData: () => Promise<void>
   upsertClinicProfile: (data: Partial<ProfessionalProfile>) => Promise<boolean>
@@ -186,6 +199,70 @@ export const useProfessionalStore = create<ProfessionalState>((set, get) => ({
   notes: [],
   loading: false,
   error: null,
+  activePatient: null,
+  professionalNamesCache: new Map<string, string>(),
+
+  setActivePatient: (patient: ActivePatientContext | null) => {
+    set({ activePatient: patient })
+  },
+
+  getProfessionalNames: async (ids: string[]) => {
+    const uniqueIds = Array.from(new Set(ids.filter(Boolean)))
+    if (uniqueIds.length === 0) return new Map<string, string>()
+
+    const cache = new Map(get().professionalNamesCache)
+    const missing = uniqueIds.filter((id) => !cache.has(id))
+
+    if (missing.length > 0) {
+      try {
+        const [profilesRes, clinicRes] = await Promise.all([
+          supabase.from('profiles').select('id, display_name, email').in('id', missing),
+          supabase
+            .from('professional_profiles')
+            .select('user_id, profession')
+            .in('user_id', missing),
+        ])
+
+        const clinicMap = new Map<string, string>()
+        if (clinicRes.data) {
+          clinicRes.data.forEach((c: any) => {
+            clinicMap.set(c.user_id, c.profession || '')
+          })
+        }
+
+        if (profilesRes.data) {
+          profilesRes.data.forEach((p: any) => {
+            const rawName = (p.display_name || p.email?.split('@')[0] || '').trim()
+            if (!rawName) {
+              cache.set(p.id, 'Profissional')
+              return
+            }
+            const parts = rawName.split(/\s+/)
+            const formatted = parts.length > 1 ? `${parts[0]} ${parts[parts.length - 1]}` : parts[0]
+            const profession = clinicMap.get(p.id) || ''
+            const prefix = profession.toLowerCase().includes('nutri')
+              ? 'Nutri'
+              : profession.toLowerCase().includes('médic') ||
+                  profession.toLowerCase().includes('medic')
+                ? 'Dr.'
+                : 'Dr(a).'
+            cache.set(p.id, `${prefix} ${formatted}`)
+          })
+        }
+
+        // Fill any remaining with fallback
+        missing.forEach((id) => {
+          if (!cache.has(id)) cache.set(id, 'Profissional')
+        })
+
+        set({ professionalNamesCache: cache })
+      } catch (e) {
+        console.error('Error fetching professional names:', e)
+      }
+    }
+
+    return cache
+  },
 
   loadProfessionalData: async () => {
     set({ loading: true, error: null })
@@ -922,14 +999,23 @@ export const useProfessionalStore = create<ProfessionalState>((set, get) => ({
 
   fetchPatientSaude: async (patientId: string) => {
     try {
-      const [goalsRes, metricsRes, examsRes, mealsRes, metabolicRes] = await Promise.all([
+      const [
+        goalsRes,
+        metricsRes,
+        examsRes,
+        mealsRes,
+        metabolicRes,
+        dietRes,
+        recipesRes,
+        workoutsRes,
+      ] = await Promise.all([
         supabase.from('patient_goals').select('*').eq('user_id', patientId).maybeSingle(),
         supabase
           .from('body_metrics')
           .select('*')
           .eq('user_id', patientId)
           .order('date', { ascending: false })
-          .limit(10),
+          .limit(50),
         supabase
           .from('medical_exams')
           .select('*')
@@ -947,7 +1033,22 @@ export const useProfessionalStore = create<ProfessionalState>((set, get) => ({
           .select('*')
           .eq('user_id', patientId)
           .order('date', { ascending: false })
-          .limit(5),
+          .limit(20),
+        supabase
+          .from('diet_plans')
+          .select('*, diet_plan_items(*)')
+          .eq('user_id', patientId)
+          .order('order_index', { ascending: true }),
+        supabase
+          .from('nutrition_recipes')
+          .select('*, recipe_ingredients(*, custom_foods(*))')
+          .eq('user_id', patientId)
+          .order('created_at', { ascending: false }),
+        supabase
+          .from('workout_routines')
+          .select('*')
+          .eq('user_id', patientId)
+          .order('created_at', { ascending: false }),
       ])
 
       const metricsList = metricsRes.data || []
@@ -958,6 +1059,9 @@ export const useProfessionalStore = create<ProfessionalState>((set, get) => ({
         medical_exams: examsRes.data || [],
         meal_logs: mealsRes.data || [],
         metabolic_logs: metabolicRes.data || [],
+        diet_plans: dietRes.data || [],
+        recipes: recipesRes.data || [],
+        workout_routines: workoutsRes.data || [],
       }
     } catch (err) {
       console.error('Error fetching patient saude:', err)
