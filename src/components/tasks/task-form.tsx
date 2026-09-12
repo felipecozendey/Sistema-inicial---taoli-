@@ -18,6 +18,7 @@ import {
 } from '@/components/ui/select'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { useAppStore, EnergyLevel, Task, Subtask } from '@/stores/useAppStore'
+import { useProfessionalPatientWrite } from '@/hooks/use-professional-patient-write'
 import { Plus, X, Check } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
@@ -27,11 +28,19 @@ const ENERGY_LEVELS: { value: EnergyLevel; label: string; bolts: number; color: 
   { value: 3, label: 'Alta', bolts: 3, color: '#FF4B4B' },
 ]
 
+interface PatientContext {
+  userId: string
+  displayName?: string
+  mode: 'professional'
+}
+
 interface TaskFormProps {
   editTask?: Task
   open?: boolean
   onOpenChange?: (open: boolean) => void
   hideTrigger?: boolean
+  patientContext?: PatientContext
+  onSavedSuccess?: () => void
 }
 
 export function TaskForm({
@@ -39,8 +48,12 @@ export function TaskForm({
   open: controlledOpen,
   onOpenChange,
   hideTrigger,
+  patientContext,
+  onSavedSuccess,
 }: TaskFormProps) {
   const { tags, addTask, updateTask } = useAppStore()
+  const { createTaskForPatient, updateTaskForPatient } = useProfessionalPatientWrite()
+  const isProfessional = patientContext?.mode === 'professional'
   const [internalOpen, setInternalOpen] = useState(false)
   const isControlled = controlledOpen !== undefined
   const open = isControlled ? controlledOpen : internalOpen
@@ -91,7 +104,7 @@ export function TaskForm({
   }
   const removeSubtask = (i: number) => setSubtasks((prev) => prev.filter((_, idx) => idx !== i))
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!title.trim()) return
     const data = {
@@ -104,6 +117,18 @@ export function TaskForm({
       tagIds,
       subtasks: subtasks.map((s) => ({ id: s.id, title: s.title, completed: s.completed })),
     }
+
+    if (isProfessional) {
+      if (editTask) {
+        await updateTaskForPatient(editTask.id, data)
+      } else {
+        await createTaskForPatient(data)
+      }
+      onSavedSuccess?.()
+      setOpen(false)
+      return
+    }
+
     if (editTask) updateTask(editTask.id, data)
     else addTask(data)
     setOpen(false)
@@ -120,8 +145,22 @@ export function TaskForm({
       )}
       <DialogContent className="sm:max-w-[425px] rounded-3xl">
         <DialogHeader>
+          {isProfessional && (
+            <div className="flex items-center gap-2 mb-1">
+              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-black text-white bg-[#1CB0F6]">
+                Prescrição
+              </span>
+              <span className="text-xs font-bold text-muted-foreground truncate">
+                Criando para: <strong>{patientContext?.displayName || 'Paciente'}</strong>
+              </span>
+            </div>
+          )}
           <DialogTitle className="text-2xl font-extrabold">
-            {editTask ? 'Editar Tarefa' : 'Criar Nova Tarefa'}
+            {editTask
+              ? 'Editar Tarefa'
+              : isProfessional
+                ? 'Prescrever Tarefa'
+                : 'Criar Nova Tarefa'}
           </DialogTitle>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-6 mt-4">

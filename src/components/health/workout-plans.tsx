@@ -10,6 +10,7 @@ import { Plus, Trash2, Play, Dumbbell } from 'lucide-react'
 import { WorkoutPlanModal } from '@/components/health/workout-plan-modal'
 import { WorkoutActiveMode } from '@/components/health/workout-active-mode'
 import { normalizeExercises } from '@/components/health/workout-types'
+import { ProfessionalTag } from '@/components/professional/ProfessionalTag'
 
 export function WorkoutPlans() {
   const workoutRoutines = useAppStore((s) => s.workoutRoutines)
@@ -57,7 +58,10 @@ export function WorkoutPlans() {
                   <div className="flex items-center gap-2 text-left">
                     <span className="text-xl">📋</span>
                     <div>
-                      <p>{r.title}</p>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <p>{r.title}</p>
+                        {r.created_by && <ProfessionalTag createdBy={r.created_by} />}
+                      </div>
                       <p className="text-xs font-bold text-muted-foreground">
                         {exercises.length} exercícios
                       </p>

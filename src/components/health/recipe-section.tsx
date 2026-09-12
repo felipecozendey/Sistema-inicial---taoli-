@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo } from 'react'
 import { useNutritionStore } from '@/stores/use-nutrition-store'
 import { RecipeCreatorModal } from '@/components/health/recipe-creator-modal'
 import { Plus, Trash2, ChefHat } from 'lucide-react'
+import { ProfessionalTag } from '@/components/professional/ProfessionalTag'
 
 export function RecipeSection() {
   const { nutritionRecipes, fetchRecipes, deleteRecipe } = useNutritionStore()
@@ -53,7 +54,10 @@ export function RecipeSection() {
                 >
                   <Trash2 className="w-3.5 h-3.5 text-[#FF4B4B]" />
                 </button>
-                <h4 className="font-extrabold text-sm pr-8">{recipe.name}</h4>
+                <div className="flex items-center gap-2 flex-wrap pr-8">
+                  <h4 className="font-extrabold text-sm">{recipe.name}</h4>
+                  {recipe.created_by && <ProfessionalTag createdBy={recipe.created_by} />}
+                </div>
                 {recipe.tags.length > 0 && (
                   <div className="flex flex-wrap gap-1 mt-1 mb-2">
                     {recipe.tags.map((tag) => (

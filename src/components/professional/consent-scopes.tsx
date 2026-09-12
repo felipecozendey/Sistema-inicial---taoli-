@@ -12,7 +12,7 @@ export const CONSENT_SCOPES: ScopeDefinition[] = [
     key: 'tarefas',
     title: 'Hábitos e Tarefas',
     description:
-      'Tarefas agendadas, hábitos diários, taxa de conclusão e histórico de consistência.',
+      'Tarefas agendadas, hábitos diários, taxa de conclusão e histórico de consistência, e poderá criar tarefas e hábitos para você, identificados com o nome dele.',
     icon: ({ className = 'w-5 h-5' }: { className?: string }) => (
       <svg
         className={className}
@@ -36,7 +36,7 @@ export const CONSENT_SCOPES: ScopeDefinition[] = [
     key: 'saude',
     title: 'Saúde e Medições',
     description:
-      'Métricas corporais, peso, dobras, metas clínicas, exames anexados e registros nutricionais.',
+      'Métricas corporais, peso, dobras, metas clínicas, exames anexados e registros nutricionais, e poderá registrar plano alimentar, receitas, medidas, ato energético e fichas de treino para você.',
     icon: ({ className = 'w-5 h-5' }: { className?: string }) => (
       <svg
         className={className}
@@ -57,7 +57,7 @@ export const CONSENT_SCOPES: ScopeDefinition[] = [
     key: 'financas',
     title: 'Finanças Pessoais',
     description:
-      'Transações, faturas, contas e investimentos agregados — senhas nunca são compartilhadas.',
+      'Transações, faturas, contas e investimentos agregados (somente visualização) — senhas nunca são compartilhadas.',
     icon: ({ className = 'w-5 h-5' }: { className?: string }) => (
       <svg
         className={className}
@@ -79,7 +79,7 @@ export const CONSENT_SCOPES: ScopeDefinition[] = [
     key: 'estudos',
     title: 'Estudos e Conhecimento',
     description:
-      'Cadernos, anotações, baralhos de flashcards e estatísticas de retenção e revisões.',
+      'Cadernos, anotações, baralhos de flashcards e estatísticas de retenção e revisões (somente visualização).',
     icon: ({ className = 'w-5 h-5' }: { className?: string }) => (
       <svg
         className={className}

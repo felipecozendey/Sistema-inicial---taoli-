@@ -17,17 +17,26 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { useAppStore, Habit } from '@/stores/useAppStore'
+import { useProfessionalPatientWrite } from '@/hooks/use-professional-patient-write'
 import { Plus, Shield } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 const DAYS = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb']
 const WEEKLY_GOALS = [1, 2, 3, 4, 5, 6, 7]
 
+interface PatientContext {
+  userId: string
+  displayName?: string
+  mode: 'professional'
+}
+
 interface HabitFormProps {
   editHabit?: Habit
   open?: boolean
   onOpenChange?: (open: boolean) => void
   hideTrigger?: boolean
+  patientContext?: PatientContext
+  onSavedSuccess?: () => void
 }
 
 export function HabitForm({
@@ -35,8 +44,12 @@ export function HabitForm({
   open: controlledOpen,
   onOpenChange,
   hideTrigger,
+  patientContext,
+  onSavedSuccess,
 }: HabitFormProps) {
   const { tags, addHabit, updateHabit } = useAppStore()
+  const { createHabitForPatient, updateHabitForPatient } = useProfessionalPatientWrite()
+  const isProfessional = patientContext?.mode === 'professional'
   const [internalOpen, setInternalOpen] = useState(false)
   const isControlled = controlledOpen !== undefined
   const open = isControlled ? controlledOpen : internalOpen
@@ -73,7 +86,7 @@ export function HabitForm({
   const toggleDay = (day: number) =>
     setWeekDays((prev) => (prev.includes(day) ? prev.filter((d) => d !== day) : [...prev, day]))
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!title.trim()) return
     const data = {
@@ -84,6 +97,18 @@ export function HabitForm({
       weeklyGoal: frequency === 'weekly' ? weeklyGoal : 0,
       targetCompletions: targetCompletions === '' ? undefined : Number(targetCompletions),
     }
+
+    if (isProfessional) {
+      if (editHabit) {
+        await updateHabitForPatient(editHabit.id, data)
+      } else {
+        await createHabitForPatient(data)
+      }
+      onSavedSuccess?.()
+      setOpen(false)
+      return
+    }
+
     if (editHabit) updateHabit(editHabit.id, data)
     else addHabit(data)
     setOpen(false)
@@ -100,8 +125,18 @@ export function HabitForm({
       )}
       <DialogContent className="sm:max-w-[425px] rounded-3xl">
         <DialogHeader>
+          {isProfessional && (
+            <div className="flex items-center gap-2 mb-1">
+              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-black text-white bg-[#1CB0F6]">
+                Prescrição
+              </span>
+              <span className="text-xs font-bold text-muted-foreground truncate">
+                Criando para: <strong>{patientContext?.displayName || 'Paciente'}</strong>
+              </span>
+            </div>
+          )}
           <DialogTitle className="text-2xl font-extrabold">
-            {editHabit ? 'Editar Hábito' : 'Criar Hábito'}
+            {editHabit ? 'Editar Hábito' : isProfessional ? 'Prescrever Hábito' : 'Criar Hábito'}
           </DialogTitle>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-6 mt-4">
@@ -216,7 +251,7 @@ export function HabitForm({
               className="rounded-2xl bg-muted/50 border-transparent font-semibold"
             />
           </div>
-          {!editHabit && (
+          {!editHabit && !isProfessional && (
             <div className="flex items-center gap-2 p-3 rounded-2xl bg-[#1CB0F6]/10">
               <Shield className="w-5 h-5 text-[#1CB0F6] shrink-0" strokeWidth={2.5} />
               <p className="text-xs font-semibold text-muted-foreground">
@@ -225,8 +260,13 @@ export function HabitForm({
               </p>
             </div>
           )}
-          <GameButton type="submit" variant="gold" size="lg" className="w-full">
-            {editHabit ? 'Salvar' : 'Criar Hábito'}
+          <GameButton
+            type="submit"
+            variant={isProfessional ? 'primary' : 'gold'}
+            size="lg"
+            className="w-full"
+          >
+            {editHabit ? 'Salvar' : isProfessional ? 'Prescrever Hábito' : 'Criar Hábito'}
           </GameButton>
         </form>
       </DialogContent>

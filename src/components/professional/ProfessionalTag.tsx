@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { StethoscopeIcon } from './StethoscopeIcon'
 import { useProfessionalStore } from '@/stores/useProfessionalStore'
+import { useAuth } from '@/hooks/use-auth'
 import { cn } from '@/lib/utils'
 
 interface ProfessionalTagProps {
@@ -35,18 +36,21 @@ export function ProfessionalTag({ createdBy, className, fallbackName }: Professi
     }
   }, [createdBy, cache, getProfessionalNames, fallbackName])
 
-  if (!createdBy) return null
+  const { user } = useAuth()
+
+  // Não renderizar se não há createdBy ou se o item foi criado pelo próprio usuário autenticado
+  if (!createdBy || (user && user.id === createdBy)) return null
 
   return (
     <span
       className={cn(
-        'inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-bold text-white bg-[#1CB0F6] shadow-sm select-none shrink-0',
+        'inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-bold text-white bg-[#1CB0F6] border-b-2 border-[#147eb0] shadow-sm select-none shrink-0',
         className,
       )}
-      title={`Criado por ${name}`}
+      title={`Prescrito por ${name}`}
     >
       <StethoscopeIcon size={12} className="shrink-0 stroke-[2.5]" />
-      <span className="truncate max-w-[140px]">{name}</span>
+      <span className="truncate max-w-[150px]">{name}</span>
     </span>
   )
 }

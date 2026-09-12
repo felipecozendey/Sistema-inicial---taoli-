@@ -17,6 +17,7 @@ import {
 } from 'lucide-react'
 import { safeFormatDateLong } from '@/lib/date-utils'
 import { CALC_FORMULA_LABELS, type CalcFormula } from '@/lib/metabolic-math'
+import { ProfessionalTag } from '@/components/professional/ProfessionalTag'
 
 const MEASUREMENT_LABELS: Record<string, string> = {
   waist: 'Cintura',
@@ -127,7 +128,10 @@ export function AssessmentHistory({ onEdit, onEditMetabolic }: Props) {
                     <Scale className="w-6 h-6 text-[#1CB0F6]" />
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="font-extrabold text-sm">{safeFormatDateLong(m.date)}</p>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <p className="font-extrabold text-sm">{safeFormatDateLong(m.date)}</p>
+                      {m.created_by && <ProfessionalTag createdBy={m.created_by} />}
+                    </div>
                     <div className="flex gap-4 mt-1">
                       <span className="text-xs font-bold text-muted-foreground">
                         ⚖️ {m.weight?.toFixed(1) || '—'} kg
@@ -190,7 +194,10 @@ export function AssessmentHistory({ onEdit, onEditMetabolic }: Props) {
                     <Calculator className="w-6 h-6 text-[#FF9600]" />
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="font-extrabold text-sm">{safeFormatDateLong(log.date)}</p>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <p className="font-extrabold text-sm">{safeFormatDateLong(log.date)}</p>
+                      {log.created_by && <ProfessionalTag createdBy={log.created_by} />}
+                    </div>
                     <div className="flex items-center gap-2 mt-1">
                       <span className="text-xs font-bold text-muted-foreground">
                         {getFormulaLabel(log.formula)}

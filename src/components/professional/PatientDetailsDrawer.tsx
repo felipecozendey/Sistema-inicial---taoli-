@@ -63,6 +63,7 @@ export function PatientDetailsDrawer({ patient, open, onOpenChange }: PatientDet
     fetchPatientSaude,
     fetchPatientFinancas,
     fetchPatientEstudos,
+    setActivePatient,
     endPatientLink,
   } = useProfessionalStore()
 
@@ -97,6 +98,19 @@ export function PatientDetailsDrawer({ patient, open, onOpenChange }: PatientDet
       setActiveTab('')
     }
   }, [open, grantedPages, activeTab])
+
+  // Set and clear active patient in store
+  useEffect(() => {
+    if (open && patient) {
+      setActivePatient({
+        id: patient.patient_id,
+        displayName: patient.patient_name || patient.patient_email,
+        grantedPages: Array.isArray(patient.granted_pages) ? patient.granted_pages : [],
+      })
+    } else if (!open) {
+      setActivePatient(null)
+    }
+  }, [open, patient, setActivePatient])
 
   // Reset cached data on patient change
   useEffect(() => {
@@ -802,9 +816,10 @@ export function PatientDetailsDrawer({ patient, open, onOpenChange }: PatientDet
             )}
 
             {/* Ação de Encerrar Vínculo */}
-            <div className="pt-4 border-t flex items-center justify-between">
-              <div className="text-[11px] text-muted-foreground">
-                O paciente pode revogar permissões a qualquer momento.
+            <div className="pt-4 border-t flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div className="text-[11px] text-muted-foreground leading-relaxed">
+                Conteúdos que você criar aparecerão para o paciente com seu nome. O paciente pode
+                revogar permissões a qualquer momento.
               </div>
               {patient.status === 'active' && (
                 <Button

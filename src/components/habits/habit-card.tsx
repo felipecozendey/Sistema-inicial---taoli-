@@ -6,6 +6,7 @@ import { calculateStreak, getHabitEvolution, getHabitWeeklyProgress } from '@/li
 import { GameProgress } from '@/components/ui/game-progress'
 import { HabitForm } from '@/components/habits/habit-form'
 import { ConfettiBurst } from '@/components/ui/confetti-burst'
+import { ProfessionalTag } from '@/components/professional/ProfessionalTag'
 
 export function HabitCard({ habit }: { habit: Habit }) {
   const { tags, toggleHabitCompletion, deleteHabit } = useAppStore()
@@ -56,6 +57,7 @@ export function HabitCard({ habit }: { habit: Habit }) {
             >
               {habit.title}
             </p>
+            {habit.created_by && <ProfessionalTag createdBy={habit.created_by} />}
           </div>
           <div className="flex items-center gap-2 mt-1 flex-wrap">
             {tag && (
