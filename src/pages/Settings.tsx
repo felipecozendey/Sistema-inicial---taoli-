@@ -31,9 +31,12 @@ import {
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog'
 import { useAppStore } from '@/stores/useAppStore'
-import { useProfessionalStore } from '@/stores/useProfessionalStore'
+import { useProfessionalStore, PatientLink } from '@/stores/useProfessionalStore'
 import { useIsMaster } from '@/stores/useMasterStore'
 import { StethoscopeIcon } from '@/components/professional/StethoscopeIcon'
+import { ConsentScopeModal } from '@/components/professional/ConsentScopeModal'
+import { SCOPE_LABELS, SCOPE_BADGE_STYLES } from '@/components/professional/consent-scopes.tsx'
+import { safeFormatDate } from '@/lib/date-utils'
 
 export default function Settings() {
   const { theme, setTheme } = useTheme()
@@ -45,6 +48,7 @@ export default function Settings() {
     myProfessionals,
     loadPatientConsentData,
     respondPatientInvite,
+    updateGrantedPages,
     endPatientLink,
   } = useProfessionalStore()
 
@@ -52,6 +56,11 @@ export default function Settings() {
   const [resetOpen, setResetOpen] = useState(false)
   const [disconnectLinkId, setDisconnectLinkId] = useState<string | null>(null)
   const [isEnding, setIsEnding] = useState(false)
+
+  // Modais de consentimento granular
+  const [acceptingInvite, setAcceptingInvite] = useState<PatientLink | null>(null)
+  const [managingLink, setManagingLink] = useState<PatientLink | null>(null)
+  const [isSubmittingConsent, setIsSubmittingConsent] = useState(false)
 
   useEffect(() => {
     loadPatientConsentData()
@@ -71,6 +80,48 @@ export default function Settings() {
   }
 
   const selectedDisconnectLink = myProfessionals.find((l) => l.id === disconnectLinkId)
+
+  const handleOpenAcceptModal = (invite: PatientLink) => {
+    setAcceptingInvite(invite)
+  }
+
+  const handleConfirmAccept = async (grantedPages: string[]) => {
+    if (!acceptingInvite) return
+    setIsSubmittingConsent(true)
+    try {
+      const ok = await respondPatientInvite(acceptingInvite.id, true, grantedPages)
+      if (ok) {
+        setAcceptingInvite(null)
+      }
+    } finally {
+      setIsSubmittingConsent(false)
+    }
+  }
+
+  const handleRejectInvite = async (linkId: string) => {
+    setIsSubmittingConsent(true)
+    try {
+      const ok = await respondPatientInvite(linkId, false)
+      if (ok && acceptingInvite?.id === linkId) {
+        setAcceptingInvite(null)
+      }
+    } finally {
+      setIsSubmittingConsent(false)
+    }
+  }
+
+  const handleConfirmManage = async (grantedPages: string[]) => {
+    if (!managingLink) return
+    setIsSubmittingConsent(true)
+    try {
+      const ok = await updateGrantedPages(managingLink.id, grantedPages)
+      if (ok) {
+        setManagingLink(null)
+      }
+    } finally {
+      setIsSubmittingConsent(false)
+    }
+  }
 
   const themeOptions = [
     { value: 'light' as const, label: 'Claro', icon: Sun },
@@ -320,53 +371,79 @@ export default function Settings() {
                 </div>
               ) : (
                 <div className="space-y-3">
-                  {incomingInvites.map((invite) => (
-                    <div
-                      key={invite.id}
-                      className="p-4 rounded-2xl border-2 bg-card hover:bg-muted/10 transition-colors flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-xs"
-                    >
-                      <div className="space-y-1 min-w-0">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <span className="font-black text-sm text-foreground">
-                            {invite.professional_name}
-                          </span>
-                          <Badge
-                            variant="outline"
-                            className="text-[10px] font-bold text-[#1CB0F6] border-[#1CB0F6]/40 bg-[#1CB0F6]/5"
-                          >
-                            {invite.professional_profession}
-                          </Badge>
-                        </div>
-                        {invite.professional_register && (
-                          <div className="text-xs text-muted-foreground font-semibold">
-                            Registro: {invite.professional_register}
+                  {incomingInvites.map((invite) => {
+                    const initials = (invite.professional_name || invite.professional_email || 'P')
+                      .slice(0, 2)
+                      .toUpperCase()
+                    return (
+                      <div
+                        key={invite.id}
+                        className="p-4 rounded-2xl border-2 bg-card hover:bg-muted/10 transition-colors flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-xs"
+                      >
+                        <div className="flex items-start gap-3 min-w-0 flex-1">
+                          <div className="w-11 h-11 rounded-2xl bg-[#1CB0F6] text-white flex items-center justify-center font-black text-sm shrink-0 shadow-xs mt-0.5">
+                            {initials}
                           </div>
-                        )}
-                        <p className="text-[11px] text-muted-foreground font-medium pt-0.5">
-                          Solicita acesso de leitura às suas medições corporais, metas de saúde,
-                          hábitos e histórico de exames.
-                        </p>
-                      </div>
+                          <div className="space-y-1 min-w-0 flex-1">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className="font-black text-sm text-foreground">
+                                {invite.professional_name}
+                              </span>
+                              <Badge
+                                variant="outline"
+                                className="text-[10px] font-bold text-[#1CB0F6] border-[#1CB0F6]/40 bg-[#1CB0F6]/5"
+                              >
+                                {invite.professional_profession || 'Profissional da Saúde'}
+                              </Badge>
+                            </div>
+                            {invite.professional_email && (
+                              <div className="text-xs text-muted-foreground font-medium">
+                                {invite.professional_email}
+                              </div>
+                            )}
+                            <div className="flex items-center gap-2 flex-wrap text-xs text-muted-foreground font-semibold">
+                              {invite.professional_register && (
+                                <span>Reg: {invite.professional_register}</span>
+                              )}
+                              {invite.professional_specialty && (
+                                <span>• {invite.professional_specialty}</span>
+                              )}
+                              {invite.professional_clinic && (
+                                <span>• {invite.professional_clinic}</span>
+                              )}
+                              <span className="text-[11px] text-muted-foreground/80">
+                                • {safeFormatDate(invite.created_at)}
+                              </span>
+                            </div>
+                            <p className="text-[11px] text-muted-foreground font-medium pt-0.5">
+                              Solicitou permissão para acompanhar sua evolução no app. Você decide
+                              quais áreas liberar ao aceitar.
+                            </p>
+                          </div>
+                        </div>
 
-                      <div className="flex items-center gap-2 self-stretch sm:self-center justify-end shrink-0 pt-2 sm:pt-0">
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => respondPatientInvite(invite.id, false)}
-                          className="rounded-xl h-9 px-3 text-xs font-bold text-rose-600 border-rose-300 dark:border-rose-900 hover:bg-rose-50 dark:hover:bg-rose-950 flex-1 sm:flex-initial"
-                        >
-                          Recusar
-                        </Button>
-                        <Button
-                          size="sm"
-                          onClick={() => respondPatientInvite(invite.id, true)}
-                          className="rounded-xl h-9 px-4 text-xs font-black bg-[#58CC02] hover:bg-[#46a302] text-white border-b-2 border-[#46a302] active:border-b-0 active:translate-y-0.5 flex-1 sm:flex-initial"
-                        >
-                          Aceitar Convite
-                        </Button>
+                        <div className="flex items-center gap-2 self-stretch sm:self-center justify-end shrink-0 pt-2 sm:pt-0">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => handleRejectInvite(invite.id)}
+                            disabled={isSubmittingConsent}
+                            className="rounded-xl h-9 px-3 text-xs font-bold text-rose-600 border-rose-300 dark:border-rose-900 hover:bg-rose-50 dark:hover:bg-rose-950 flex-1 sm:flex-initial"
+                          >
+                            Recusar
+                          </Button>
+                          <Button
+                            size="sm"
+                            onClick={() => handleOpenAcceptModal(invite)}
+                            disabled={isSubmittingConsent}
+                            className="rounded-xl h-9 px-4 text-xs font-black bg-[#58CC02] hover:bg-[#46a302] text-white border-b-2 border-[#46a302] active:border-b-0 active:translate-y-0.5 flex-1 sm:flex-initial"
+                          >
+                            Aceitar Convite
+                          </Button>
+                        </div>
                       </div>
-                    </div>
-                  ))}
+                    )
+                  })}
                 </div>
               )}
             </div>
@@ -396,57 +473,146 @@ export default function Settings() {
                 </div>
               ) : (
                 <div className="space-y-2.5">
-                  {myProfessionals.map((link) => (
-                    <div
-                      key={link.id}
-                      className="p-3.5 sm:p-4 rounded-2xl border-2 bg-card flex items-center justify-between gap-3 text-xs"
-                    >
-                      <div className="space-y-0.5 min-w-0">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <span className="font-extrabold text-sm text-foreground">
-                            {link.professional_name}
-                          </span>
-                          <span
-                            className={cn(
-                              'text-[10px] font-bold px-2 py-0.5 rounded-full',
-                              link.status === 'active'
-                                ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30'
-                                : 'bg-muted text-muted-foreground',
+                  {myProfessionals.map((link) => {
+                    const initials = (link.professional_name || link.professional_email || 'P')
+                      .slice(0, 2)
+                      .toUpperCase()
+                    const granted = Array.isArray(link.granted_pages) ? link.granted_pages : []
+
+                    return (
+                      <div
+                        key={link.id}
+                        className="p-4 rounded-2xl border-2 bg-card flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs shadow-xs"
+                      >
+                        <div className="flex items-start gap-3 min-w-0 flex-1">
+                          <div className="w-10 h-10 rounded-2xl bg-[#1CB0F6] text-white flex items-center justify-center font-black text-xs shrink-0 shadow-xs mt-0.5">
+                            {initials}
+                          </div>
+                          <div className="space-y-1.5 min-w-0 flex-1">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className="font-extrabold text-sm text-foreground">
+                                {link.professional_name}
+                              </span>
+                              <span
+                                className={cn(
+                                  'text-[10px] font-bold px-2 py-0.5 rounded-full',
+                                  link.status === 'active'
+                                    ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30'
+                                    : 'bg-muted text-muted-foreground',
+                                )}
+                              >
+                                {link.status === 'active' ? 'Ativo' : 'Encerrado'}
+                              </span>
+                            </div>
+
+                            <div className="text-[11px] text-muted-foreground font-semibold flex items-center gap-2 flex-wrap">
+                              <span>{link.professional_profession}</span>
+                              {link.professional_register && (
+                                <span>• Reg. {link.professional_register}</span>
+                              )}
+                              {link.professional_email && (
+                                <span className="font-normal">• {link.professional_email}</span>
+                              )}
+                            </div>
+
+                            {/* Badges com as permissões concedidas */}
+                            {link.status === 'active' && (
+                              <div className="flex items-center gap-1.5 flex-wrap pt-0.5">
+                                <span className="text-[10px] font-bold text-muted-foreground mr-1">
+                                  Áreas liberadas:
+                                </span>
+                                {granted.length === 0 ? (
+                                  <span className="text-[10px] font-bold text-amber-600 dark:text-amber-400 bg-amber-500/10 border border-amber-500/30 px-2 py-0.5 rounded-full">
+                                    Nenhuma área
+                                  </span>
+                                ) : (
+                                  granted.map((scope) => {
+                                    const label = SCOPE_LABELS[scope] || scope
+                                    const style = SCOPE_BADGE_STYLES[scope] || {
+                                      bg: 'bg-muted',
+                                      text: 'text-foreground',
+                                      border: 'border-border',
+                                    }
+                                    return (
+                                      <span
+                                        key={scope}
+                                        className={cn(
+                                          'text-[10px] font-black px-2 py-0.5 rounded-full border',
+                                          style.bg,
+                                          style.text,
+                                          style.border,
+                                        )}
+                                      >
+                                        {label}
+                                      </span>
+                                    )
+                                  })
+                                )}
+                              </div>
                             )}
-                          >
-                            {link.status === 'active' ? 'Ativo' : 'Encerrado'}
-                          </span>
+                          </div>
                         </div>
-                        <div className="text-[11px] text-muted-foreground font-semibold truncate">
-                          {link.professional_profession}
-                          {link.professional_register
-                            ? ` • Reg. ${link.professional_register}`
-                            : ''}
+
+                        <div className="flex items-center gap-2 self-stretch sm:self-center justify-end shrink-0 pt-2 sm:pt-0">
+                          {link.status === 'active' ? (
+                            <>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => setManagingLink(link)}
+                                className="h-9 text-xs font-bold border-2 rounded-xl border-[#1CB0F6]/40 text-[#1CB0F6] hover:bg-[#1CB0F6]/10"
+                              >
+                                Gerenciar Acesso
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                onClick={() => setDisconnectLinkId(link.id)}
+                                className="h-9 text-xs font-bold text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950 rounded-xl"
+                              >
+                                Encerrar vínculo
+                              </Button>
+                            </>
+                          ) : (
+                            <span className="text-[11px] text-muted-foreground font-bold">
+                              Encerrado
+                            </span>
+                          )}
                         </div>
                       </div>
-
-                      {link.status === 'active' ? (
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => setDisconnectLinkId(link.id)}
-                          className="h-8 text-xs font-bold text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950 rounded-xl shrink-0"
-                        >
-                          Encerrar vínculo
-                        </Button>
-                      ) : (
-                        <span className="text-[11px] text-muted-foreground font-bold shrink-0">
-                          Encerrado
-                        </span>
-                      )}
-                    </div>
-                  ))}
+                    )
+                  })}
                 </div>
               )}
             </div>
           </div>
         </TabsContent>
       </Tabs>
+
+      {/* Dialog de Aceite com Escolha de Permissões */}
+      <ConsentScopeModal
+        open={Boolean(acceptingInvite)}
+        onOpenChange={(open) => {
+          if (!open) setAcceptingInvite(null)
+        }}
+        link={acceptingInvite}
+        mode="accept"
+        onConfirm={handleConfirmAccept}
+        onReject={acceptingInvite ? () => handleRejectInvite(acceptingInvite.id) : undefined}
+        isSubmitting={isSubmittingConsent}
+      />
+
+      {/* Dialog de Gestão/Edição de Permissões para Vínculo Ativo */}
+      <ConsentScopeModal
+        open={Boolean(managingLink)}
+        onOpenChange={(open) => {
+          if (!open) setManagingLink(null)
+        }}
+        link={managingLink}
+        mode="manage"
+        onConfirm={handleConfirmManage}
+        isSubmitting={isSubmittingConsent}
+      />
 
       {/* AlertDialog de Confirmação para Encerrar Vínculo */}
       <AlertDialog

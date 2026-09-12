@@ -72,6 +72,7 @@ export interface MasterProfessionalLinkItem {
   requested_by: string
   created_at: string
   responded_at: string | null
+  granted_pages?: string[]
 }
 
 export function MasterProfessionalTab() {
@@ -628,14 +629,28 @@ export function MasterProfessionalTab() {
                       </td>
 
                       <td className="py-3 px-4">
-                        <span
-                          className={cn(
-                            'inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-black border',
-                            st.badge,
+                        <div className="space-y-1">
+                          <span
+                            className={cn(
+                              'inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-black border',
+                              st.badge,
+                            )}
+                          >
+                            {st.label}
+                          </span>
+                          {Array.isArray(link.granted_pages) && link.granted_pages.length > 0 && (
+                            <div className="flex items-center gap-1 flex-wrap pt-0.5">
+                              {link.granted_pages.map((scope) => (
+                                <span
+                                  key={scope}
+                                  className="text-[9px] font-black px-1.5 py-0.2 rounded bg-muted/60 text-muted-foreground border border-border"
+                                >
+                                  {scope}
+                                </span>
+                              ))}
+                            </div>
                           )}
-                        >
-                          {st.label}
-                        </span>
+                        </div>
                       </td>
 
                       <td className="py-3 px-4 text-muted-foreground font-mono text-[11px]">

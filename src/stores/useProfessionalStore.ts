@@ -15,6 +15,8 @@ export interface ProfessionalProfile {
   updated_at: string
 }
 
+export type ConsentScope = 'tarefas' | 'saude' | 'financas' | 'estudos'
+
 export interface PatientLink {
   id: string
   professional_id: string
@@ -23,11 +25,15 @@ export interface PatientLink {
   requested_by: string
   created_at: string
   responded_at: string | null
+  granted_pages: string[]
   patient_name?: string
   patient_email?: string
   professional_name?: string
+  professional_email?: string
   professional_profession?: string
   professional_register?: string
+  professional_specialty?: string | null
+  professional_clinic?: string | null
 }
 
 export interface Appointment {
@@ -67,6 +73,54 @@ export interface PatientReadData {
   tasks_completed_count: number
 }
 
+export interface PatientTarefasData {
+  tasks: any[]
+  habits: any[]
+  checklist: any[]
+  pending_tasks: number
+  completed_tasks: number
+  recent_tasks: any[]
+  habits_summary: {
+    id: string
+    title: string
+    frequency: string
+    streak: number
+    completion_rate_pct: number
+    weekly_progress_pct: number
+  }[]
+}
+
+export interface PatientSaudeData {
+  goals: any | null
+  latest_metrics: any | null
+  metrics_history: any[]
+  medical_exams: any[]
+  meal_logs: any[]
+  metabolic_logs: any[]
+}
+
+export interface PatientFinancasData {
+  bank_accounts: any[]
+  recent_transactions: any[]
+  monthly_income: number
+  monthly_expense: number
+  balance: number
+  total_invested: number
+  total_current_invested: number
+  investments: any[]
+  pending_billings: any[]
+  pending_billings_total: number
+}
+
+export interface PatientEstudosData {
+  notebooks: any[]
+  notes: any[]
+  decks: any[]
+  flashcards_count: number
+  review_logs_count: number
+  recent_reviews: any[]
+}
+
 interface ProfessionalState {
   profile: ProfessionalProfile | null
   patients: PatientLink[]
@@ -84,7 +138,12 @@ interface ProfessionalState {
 
   // Patient link management
   invitePatientByEmail: (email: string) => Promise<boolean>
-  respondPatientInvite: (linkId: string, accept: boolean) => Promise<boolean>
+  respondPatientInvite: (
+    linkId: string,
+    accept: boolean,
+    grantedPages?: string[],
+  ) => Promise<boolean>
+  updateGrantedPages: (linkId: string, grantedPages: string[]) => Promise<boolean>
   endPatientLink: (linkId: string) => Promise<boolean>
 
   // Appointments
@@ -112,6 +171,10 @@ interface ProfessionalState {
 
   // Patient details reader
   fetchPatientSharedData: (patientId: string) => Promise<PatientReadData | null>
+  fetchPatientTarefas: (patientId: string) => Promise<PatientTarefasData | null>
+  fetchPatientSaude: (patientId: string) => Promise<PatientSaudeData | null>
+  fetchPatientFinancas: (patientId: string) => Promise<PatientFinancasData | null>
+  fetchPatientEstudos: (patientId: string) => Promise<PatientEstudosData | null>
 }
 
 export const useProfessionalStore = create<ProfessionalState>((set, get) => ({
@@ -187,6 +250,7 @@ export const useProfessionalStore = create<ProfessionalState>((set, get) => ({
 
       const enrichedLinks: PatientLink[] = rawLinks.map((l: any) => ({
         ...l,
+        granted_pages: Array.isArray(l.granted_pages) ? l.granted_pages : [],
         patient_name: patientProfilesMap[l.patient_id]?.name || 'Paciente',
         patient_email: patientProfilesMap[l.patient_id]?.email || '',
       }))
@@ -241,12 +305,18 @@ export const useProfessionalStore = create<ProfessionalState>((set, get) => ({
         supabase.from('professional_profiles').select('*').in('user_id', profUserIds),
       ])
 
-      const nameMap: Record<string, string> = {}
+      const profMap: Record<string, { name: string; email: string }> = {}
       const clinicMap: Record<string, any> = {}
 
       if (profProfilesRes.data) {
         profProfilesRes.data.forEach((p: any) => {
-          nameMap[p.id] = p.display_name || p.email.split('@')[0]
+          const emailPrefix = p.email ? p.email.split('@')[0] : ''
+          profMap[p.id] = {
+            name: p.display_name?.trim()
+              ? p.display_name
+              : emailPrefix || p.email || 'Profissional',
+            email: p.email || '',
+          }
         })
       }
       if (clinicProfilesRes.data) {
@@ -259,12 +329,17 @@ export const useProfessionalStore = create<ProfessionalState>((set, get) => ({
       const activeOrEnded: PatientLink[] = []
 
       links.forEach((l: any) => {
+        const profInfo = profMap[l.professional_id]
+        const clinicInfo = clinicMap[l.professional_id]
         const item: PatientLink = {
           ...l,
-          professional_name: nameMap[l.professional_id] || 'Profissional',
-          professional_profession:
-            clinicMap[l.professional_id]?.profession || 'Profissional da Saúde',
-          professional_register: clinicMap[l.professional_id]?.register_code || null,
+          granted_pages: Array.isArray(l.granted_pages) ? l.granted_pages : [],
+          professional_name: profInfo?.name || profInfo?.email || 'Profissional',
+          professional_email: profInfo?.email || '',
+          professional_profession: clinicInfo?.profession || 'Profissional da Saúde',
+          professional_register: clinicInfo?.register_code || null,
+          professional_specialty: clinicInfo?.specialty || null,
+          professional_clinic: clinicInfo?.clinic_name || null,
         }
         if (l.status === 'pending' && l.requested_by !== user.id) {
           incoming.push(item)
@@ -402,19 +477,30 @@ export const useProfessionalStore = create<ProfessionalState>((set, get) => ({
     }
   },
 
-  respondPatientInvite: async (linkId: string, accept: boolean) => {
+  respondPatientInvite: async (
+    linkId: string,
+    accept: boolean,
+    grantedPages: string[] = ['tarefas', 'saude'],
+  ) => {
     const prevIncoming = get().incomingInvites
+    const prevMyProfessionals = get().myProfessionals
     const target = prevIncoming.find((l) => l.id === linkId)
     if (!target) return false
 
     const newStatus = accept ? 'active' : 'rejected'
+    const pagesToSave = accept ? grantedPages : []
 
     // Optimistic
     set((state) => ({
       incomingInvites: state.incomingInvites.filter((l) => l.id !== linkId),
       myProfessionals: accept
         ? [
-            { ...target, status: 'active', responded_at: new Date().toISOString() },
+            {
+              ...target,
+              status: 'active',
+              granted_pages: pagesToSave,
+              responded_at: new Date().toISOString(),
+            },
             ...state.myProfessionals,
           ]
         : state.myProfessionals,
@@ -425,6 +511,7 @@ export const useProfessionalStore = create<ProfessionalState>((set, get) => ({
         .from('professional_patients')
         .update({
           status: newStatus,
+          granted_pages: pagesToSave,
           responded_at: new Date().toISOString(),
         })
         .eq('id', linkId)
@@ -433,13 +520,43 @@ export const useProfessionalStore = create<ProfessionalState>((set, get) => ({
 
       toast.success(
         accept
-          ? 'Convite aceito! Seu profissional agora pode acompanhar seus dados clínicos.'
+          ? 'Convite aceito! Seu profissional agora tem acesso às áreas liberadas.'
           : 'Convite recusado.',
       )
       return true
     } catch (err) {
-      set({ incomingInvites: prevIncoming })
+      set({ incomingInvites: prevIncoming, myProfessionals: prevMyProfessionals })
       const message = err instanceof Error ? err.message : 'Erro ao responder convite'
+      toast.error(message)
+      return false
+    }
+  },
+
+  updateGrantedPages: async (linkId: string, grantedPages: string[]) => {
+    const prevMyProfessionals = get().myProfessionals
+    const target = prevMyProfessionals.find((l) => l.id === linkId)
+    if (!target) return false
+
+    // Optimistic
+    set((state) => ({
+      myProfessionals: state.myProfessionals.map((l) =>
+        l.id === linkId ? { ...l, granted_pages: grantedPages } : l,
+      ),
+    }))
+
+    try {
+      const { error } = await supabase
+        .from('professional_patients')
+        .update({ granted_pages: grantedPages })
+        .eq('id', linkId)
+
+      if (error) throw error
+
+      toast.success('Permissões de acesso atualizadas!')
+      return true
+    } catch (err) {
+      set({ myProfessionals: prevMyProfessionals })
+      const message = err instanceof Error ? err.message : 'Erro ao atualizar permissões'
       toast.error(message)
       return false
     }
@@ -702,6 +819,266 @@ export const useProfessionalStore = create<ProfessionalState>((set, get) => ({
       }
     } catch (err) {
       console.error('Error fetching patient shared data:', err)
+      return null
+    }
+  },
+
+  fetchPatientTarefas: async (patientId: string) => {
+    try {
+      const now = new Date()
+      const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000).toISOString()
+
+      const [tasksRes, habitsRes, checklistRes] = await Promise.all([
+        supabase
+          .from('tasks')
+          .select('*')
+          .eq('user_id', patientId)
+          .or(`created_at.gte.${sevenDaysAgo},completed.eq.false`)
+          .order('created_at', { ascending: false })
+          .limit(50),
+        supabase.from('habits').select('*').eq('user_id', patientId).limit(50),
+        supabase
+          .from('daily_checklist')
+          .select('*')
+          .eq('user_id', patientId)
+          .order('date', { ascending: false })
+          .limit(7),
+      ])
+
+      const tasks = tasksRes.data || []
+      const habits = habitsRes.data || []
+      const checklist = checklistRes.data || []
+
+      const pendingCount = tasks.filter((t: any) => !t.completed).length
+      const completedCount = tasks.filter((t: any) => t.completed).length
+
+      const todayStr = now.toISOString().slice(0, 10)
+
+      const habitsSummary = habits.map((h: any) => {
+        const completions: string[] = Array.isArray(h.completions) ? h.completions : []
+        const last7DaysCompletions = completions.filter((c) => {
+          try {
+            const d = new Date(c).getTime()
+            return d >= new Date(sevenDaysAgo).getTime()
+          } catch {
+            return false
+          }
+        }).length
+
+        // Simple streak
+        let streak = 0
+        const sorted = [...new Set(completions.map((d) => d.slice(0, 10)))].sort().reverse()
+        let checkDate = new Date(todayStr)
+        // Check if done today or yesterday to start streak
+        const yesterday = new Date(checkDate)
+        yesterday.setDate(yesterday.getDate() - 1)
+        const yesterdayStr = yesterday.toISOString().slice(0, 10)
+
+        if (sorted.includes(todayStr) || sorted.includes(yesterdayStr)) {
+          let curr = sorted.includes(todayStr) ? new Date(todayStr) : yesterday
+          while (true) {
+            const cStr = curr.toISOString().slice(0, 10)
+            if (sorted.includes(cStr)) {
+              streak++
+              curr.setDate(curr.getDate() - 1)
+            } else {
+              break
+            }
+          }
+        }
+
+        const weeklyGoal = h.weekly_goal || 7
+        const weeklyProgress = Math.min(100, Math.round((last7DaysCompletions / weeklyGoal) * 100))
+        const totalPossible = 7
+        const completionRate = Math.min(
+          100,
+          Math.round((last7DaysCompletions / totalPossible) * 100),
+        )
+
+        return {
+          id: h.id,
+          title: h.title,
+          frequency: h.frequency || 'daily',
+          streak,
+          completion_rate_pct: completionRate,
+          weekly_progress_pct: weeklyProgress,
+        }
+      })
+
+      return {
+        tasks,
+        habits,
+        checklist,
+        pending_tasks: pendingCount,
+        completed_tasks: completedCount,
+        recent_tasks: tasks.slice(0, 10),
+        habits_summary: habitsSummary,
+      }
+    } catch (err) {
+      console.error('Error fetching patient tarefas:', err)
+      return null
+    }
+  },
+
+  fetchPatientSaude: async (patientId: string) => {
+    try {
+      const [goalsRes, metricsRes, examsRes, mealsRes, metabolicRes] = await Promise.all([
+        supabase.from('patient_goals').select('*').eq('user_id', patientId).maybeSingle(),
+        supabase
+          .from('body_metrics')
+          .select('*')
+          .eq('user_id', patientId)
+          .order('date', { ascending: false })
+          .limit(10),
+        supabase
+          .from('medical_exams')
+          .select('*')
+          .eq('user_id', patientId)
+          .order('date', { ascending: false })
+          .limit(15),
+        supabase
+          .from('meal_logs')
+          .select('*')
+          .eq('user_id', patientId)
+          .order('created_at', { ascending: false })
+          .limit(10),
+        supabase
+          .from('metabolic_logs')
+          .select('*')
+          .eq('user_id', patientId)
+          .order('date', { ascending: false })
+          .limit(5),
+      ])
+
+      const metricsList = metricsRes.data || []
+      return {
+        goals: goalsRes.data || null,
+        latest_metrics: metricsList[0] || null,
+        metrics_history: metricsList,
+        medical_exams: examsRes.data || [],
+        meal_logs: mealsRes.data || [],
+        metabolic_logs: metabolicRes.data || [],
+      }
+    } catch (err) {
+      console.error('Error fetching patient saude:', err)
+      return null
+    }
+  },
+
+  fetchPatientFinancas: async (patientId: string) => {
+    try {
+      const now = new Date()
+      const firstDayOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString()
+      const lastDayOfMonth = new Date(
+        now.getFullYear(),
+        now.getMonth() + 1,
+        0,
+        23,
+        59,
+        59,
+      ).toISOString()
+
+      const [accountsRes, txRes, invRes, billingsRes] = await Promise.all([
+        supabase.from('bank_accounts').select('*').eq('user_id', patientId),
+        supabase
+          .from('transactions')
+          .select('*')
+          .eq('user_id', patientId)
+          .gte('date', firstDayOfMonth)
+          .lte('date', lastDayOfMonth)
+          .order('date', { ascending: false })
+          .limit(100),
+        supabase.from('investments').select('*').eq('user_id', patientId),
+        supabase
+          .from('billings')
+          .select('*')
+          .eq('user_id', patientId)
+          .eq('status', 'pending')
+          .order('due_date', { ascending: true })
+          .limit(20),
+      ])
+
+      const accounts = accountsRes.data || []
+      const transactions = txRes.data || []
+      const investments = invRes.data || []
+      const billings = billingsRes.data || []
+
+      let monthlyIncome = 0
+      let monthlyExpense = 0
+      transactions.forEach((t: any) => {
+        const amt = Number(t.amount) || 0
+        if (t.type === 'income') monthlyIncome += amt
+        if (t.type === 'expense') monthlyExpense += amt
+      })
+
+      let totalInvested = 0
+      let totalCurrentInvested = 0
+      investments.forEach((inv: any) => {
+        totalInvested += Number(inv.invested_amount || inv.initial_amount || 0)
+        totalCurrentInvested += Number(inv.current_amount || 0)
+      })
+
+      const pendingBillingsTotal = billings.reduce(
+        (acc: number, b: any) => acc + (Number(b.amount) || 0),
+        0,
+      )
+
+      return {
+        bank_accounts: accounts,
+        recent_transactions: transactions.slice(0, 10),
+        monthly_income: monthlyIncome,
+        monthly_expense: monthlyExpense,
+        balance: monthlyIncome - monthlyExpense,
+        total_invested: totalInvested,
+        total_current_invested: totalCurrentInvested,
+        investments,
+        pending_billings: billings,
+        pending_billings_total: pendingBillingsTotal,
+      }
+    } catch (err) {
+      console.error('Error fetching patient financas:', err)
+      return null
+    }
+  },
+
+  fetchPatientEstudos: async (patientId: string) => {
+    try {
+      const [notebooksRes, notesRes, decksRes, flashcardsRes, reviewsRes] = await Promise.all([
+        supabase
+          .from('notebooks')
+          .select('*')
+          .eq('user_id', patientId)
+          .order('created_at', { ascending: false }),
+        supabase
+          .from('notes')
+          .select('id, notebook_id, title, emoji, created_at, updated_at')
+          .eq('user_id', patientId)
+          .order('updated_at', { ascending: false })
+          .limit(20),
+        supabase
+          .from('decks')
+          .select('*')
+          .eq('user_id', patientId)
+          .order('created_at', { ascending: false }),
+        supabase.from('flashcards').select('id, deck_id').eq('user_id', patientId),
+        supabase
+          .from('review_logs')
+          .select('*')
+          .eq('user_id', patientId)
+          .order('reviewed_at', { ascending: false })
+          .limit(20),
+      ])
+
+      return {
+        notebooks: notebooksRes.data || [],
+        notes: notesRes.data || [],
+        decks: decksRes.data || [],
+        flashcards_count: (flashcardsRes.data || []).length,
+        review_logs_count: (reviewsRes.data || []).length,
+        recent_reviews: (reviewsRes.data || []).slice(0, 10),
+      }
+    } catch (err) {
+      console.error('Error fetching patient estudos:', err)
       return null
     }
   },
