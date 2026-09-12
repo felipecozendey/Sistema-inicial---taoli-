@@ -29,11 +29,18 @@ interface Props {
   open: boolean
   onOpenChange: (o: boolean) => void
   patientName: string
+  editRecipe?: any | null
   onSuccess?: () => void
 }
 
-export function ProfessionalRecipeModal({ open, onOpenChange, patientName, onSuccess }: Props) {
-  const { createRecipeForPatient } = useProfessionalPatientWrite()
+export function ProfessionalRecipeModal({
+  open,
+  onOpenChange,
+  patientName,
+  editRecipe,
+  onSuccess,
+}: Props) {
+  const { createRecipeForPatient, updateRecipeForPatient } = useProfessionalPatientWrite()
   const [foods, setFoods] = useState<CustomFood[]>([])
   const [loadingFoods, setLoadingFoods] = useState(false)
 
@@ -44,6 +51,35 @@ export function ProfessionalRecipeModal({ open, onOpenChange, patientName, onSuc
   const [search, setSearch] = useState('')
   const [ingredients, setIngredients] = useState<DraftIngredient[]>([])
   const [saving, setSaving] = useState(false)
+
+  useEffect(() => {
+    if (!open) return
+    if (editRecipe) {
+      setName(editRecipe.name || '')
+      setDescription(editRecipe.description || '')
+      setInstructions(editRecipe.instructions || '')
+      setTags(Array.isArray(editRecipe.tags) ? editRecipe.tags : [])
+      const ings = Array.isArray(editRecipe.recipe_ingredients)
+        ? editRecipe.recipe_ingredients
+        : Array.isArray(editRecipe.ingredients)
+          ? editRecipe.ingredients
+          : []
+      setIngredients(
+        ings.map((i: any) => ({
+          foodId: i.food_id || i.foodId,
+          foodName: i.custom_foods?.name || i.foodName || 'Alimento',
+          foodBaseUnit: i.custom_foods?.base_unit || i.foodBaseUnit || '100g',
+          amount: String(i.amount || '100g'),
+        })),
+      )
+    } else {
+      setName('')
+      setDescription('')
+      setInstructions('')
+      setTags([])
+      setIngredients([])
+    }
+  }, [open, editRecipe])
 
   // Carregar alimentos customizados (RLS permite ler os do paciente ou do próprio profissional)
   useEffect(() => {
@@ -144,17 +180,36 @@ export function ProfessionalRecipeModal({ open, onOpenChange, patientName, onSuc
     }
 
     setSaving(true)
-    const res = await createRecipeForPatient(
-      name.trim(),
-      description.trim(),
-      instructions.trim(),
-      tags,
-      ingredients.map((i) => ({ foodId: i.foodId, amount: i.amount || '1' })),
-    )
+    let res = null
+    const mappedIngredients = ingredients.map((i) => ({
+      foodId: i.foodId,
+      amount: i.amount || '1',
+    }))
+    if (editRecipe?.id) {
+      res = await updateRecipeForPatient(editRecipe.id, {
+        name: name.trim(),
+        description: description.trim(),
+        instructions: instructions.trim(),
+        tags,
+        ingredients: mappedIngredients,
+      })
+    } else {
+      res = await createRecipeForPatient(
+        name.trim(),
+        description.trim(),
+        instructions.trim(),
+        tags,
+        mappedIngredients,
+      )
+    }
     setSaving(false)
 
     if (res) {
-      toast.success(`Receita prescrita para ${patientName}! 🍳`)
+      toast.success(
+        editRecipe
+          ? `Receita atualizada para ${patientName}! 🍳`
+          : `Receita prescrita para ${patientName}! 🍳`,
+      )
       setName('')
       setDescription('')
       setInstructions('')
@@ -178,9 +233,13 @@ export function ProfessionalRecipeModal({ open, onOpenChange, patientName, onSuc
               Criando para: <strong>{patientName}</strong>
             </span>
           </div>
-          <DialogTitle className="text-xl font-extrabold">Prescrever Receita</DialogTitle>
+          <DialogTitle className="text-xl font-extrabold">
+            {editRecipe ? 'Editar Receita Prescrita' : 'Prescrever Receita'}
+          </DialogTitle>
           <DialogDescription className="text-xs">
-            Crie uma receita saudável recomendada diretamente para o paciente.
+            {editRecipe
+              ? 'Edite ingredientes, instruções e detalhes da receita prescrita.'
+              : 'Crie uma receita saudável recomendada diretamente para o paciente.'}
           </DialogDescription>
         </DialogHeader>
 
@@ -344,7 +403,7 @@ export function ProfessionalRecipeModal({ open, onOpenChange, patientName, onSuc
             className="w-full py-5 rounded-3xl bg-[#1CB0F6] hover:bg-[#1899d6] text-white font-extrabold border-b-4 border-[#147eb0] active:translate-y-1 active:border-b-0 transition-all duration-150"
           >
             <Check className="w-5 h-5 mr-2" strokeWidth={3} />
-            {saving ? 'Prescrevendo...' : 'Prescrever Receita'}
+            {saving ? 'Salvando...' : editRecipe ? 'Salvar Receita' : 'Prescrever Receita'}
           </Button>
         </div>
       </DialogContent>

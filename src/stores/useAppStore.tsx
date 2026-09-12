@@ -90,6 +90,7 @@ export type WorkoutRoutine = {
   title: string
   exercises: WorkoutExercise[]
   description?: string
+  created_by?: string | null
 }
 export type WorkoutHistory = {
   id: string
@@ -191,6 +192,7 @@ export type BodyMetric = {
   photoLeft?: string
   attachments?: string[]
   observations?: string
+  created_by?: string | null
 }
 export type MentalHealthLog = {
   id: string
@@ -291,6 +293,7 @@ export type Task = {
   tagIds: string[]
   completed: boolean
   subtasks: Subtask[]
+  created_by?: string | null
 }
 export type NewTask = {
   title: string
@@ -313,6 +316,7 @@ export type Habit = {
   completions: string[]
   escudos: number
   frozenDates: string[]
+  created_by?: string | null
 }
 export type NewHabit = {
   title: string

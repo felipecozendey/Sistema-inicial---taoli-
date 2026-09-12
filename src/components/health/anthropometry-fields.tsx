@@ -9,24 +9,31 @@ import { cn } from '@/lib/utils'
 
 export function MeasurementInput({
   label,
+  unit,
   value,
   onChange,
   placeholder,
   step = '0.1',
   required = false,
+  highlight = false,
 }: {
   label: string
+  unit?: string
   value: string
   onChange: (v: string) => void
   placeholder?: string
   step?: string
   required?: boolean
+  highlight?: boolean
 }) {
   return (
     <div className="space-y-1">
-      <Label className="text-xs font-bold text-muted-foreground flex items-center gap-1">
-        {label}
-        {required && <span className="text-[10px] text-green-500 font-bold">⭐</span>}
+      <Label className="text-xs font-bold text-muted-foreground flex items-center justify-between gap-1">
+        <span className="flex items-center gap-1">
+          {label}
+          {required && <span className="text-[10px] text-green-500 font-bold">⭐</span>}
+        </span>
+        {unit && <span className="text-[10px] text-muted-foreground/70 font-normal">{unit}</span>}
       </Label>
       <Input
         type="number"
@@ -35,7 +42,8 @@ export function MeasurementInput({
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder || label}
         className={cn(
-          'rounded-xl border-2 text-sm',
+          'rounded-xl border-2 text-sm font-semibold',
+          highlight && 'border-[#1CB0F6] bg-[#1CB0F6]/10 text-foreground',
           required && 'ring-2 ring-green-400/50 border-green-400/50',
         )}
       />

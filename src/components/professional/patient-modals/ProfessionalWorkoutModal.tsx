@@ -19,16 +19,53 @@ interface Props {
   open: boolean
   onOpenChange: (v: boolean) => void
   patientName: string
+  editRoutine?: any | null
   onSuccess?: () => void
 }
 
-export function ProfessionalWorkoutModal({ open, onOpenChange, patientName, onSuccess }: Props) {
-  const { createWorkoutRoutineForPatient } = useProfessionalPatientWrite()
+export function ProfessionalWorkoutModal({
+  open,
+  onOpenChange,
+  patientName,
+  editRoutine,
+  onSuccess,
+}: Props) {
+  const { createWorkoutRoutineForPatient, updateWorkoutRoutineForPatient } =
+    useProfessionalPatientWrite()
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
   const [exercises, setExercises] = useState<ExerciseItem[]>([
     { id: newExerciseId(), name: '', sets: 3, reps: '10-12', weightKg: 0 },
   ])
+  const [lastRoutineId, setLastRoutineId] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (!open) return
+    if (editRoutine) {
+      setLastRoutineId(editRoutine.id)
+      setTitle(editRoutine.title || '')
+      setDescription(editRoutine.description || '')
+      const list = Array.isArray(editRoutine.exercises) ? editRoutine.exercises : []
+      if (list.length > 0) {
+        setExercises(
+          list.map((ex: any) => ({
+            id: ex.id || newExerciseId(),
+            name: ex.name || '',
+            sets: Number(ex.sets) || 3,
+            reps: String(ex.reps || '10-12'),
+            weightKg: Number(ex.weightKg || ex.weight_kg) || 0,
+          })),
+        )
+      } else {
+        setExercises([{ id: newExerciseId(), name: '', sets: 3, reps: '10-12', weightKg: 0 }])
+      }
+    } else {
+      setLastRoutineId(null)
+      setTitle('')
+      setDescription('')
+      setExercises([{ id: newExerciseId(), name: '', sets: 3, reps: '10-12', weightKg: 0 }])
+    }
+  }, [open, editRoutine])
   const [globalExercises, setGlobalExercises] = useState<
     { id: string; name: string; muscleGroup: string }[]
   >([])
@@ -81,11 +118,24 @@ export function ProfessionalWorkoutModal({ open, onOpenChange, patientName, onSu
     }
 
     setSaving(true)
-    const res = await createWorkoutRoutineForPatient(title.trim(), valid as any, description.trim())
+    let res = null
+    if (editRoutine?.id) {
+      res = await updateWorkoutRoutineForPatient(editRoutine.id, {
+        title: title.trim(),
+        exercises: valid as any,
+        description: description.trim(),
+      })
+    } else {
+      res = await createWorkoutRoutineForPatient(title.trim(), valid as any, description.trim())
+    }
     setSaving(false)
 
     if (res) {
-      toast.success(`Ficha de treino prescrita para ${patientName}! 🏋️`)
+      toast.success(
+        editRoutine
+          ? `Ficha de treino atualizada para ${patientName}! 🏋️`
+          : `Ficha de treino prescrita para ${patientName}! 🏋️`,
+      )
       setTitle('')
       setDescription('')
       setExercises([{ id: newExerciseId(), name: '', sets: 3, reps: '10-12', weightKg: 0 }])
@@ -107,9 +157,13 @@ export function ProfessionalWorkoutModal({ open, onOpenChange, patientName, onSu
               Criando para: <strong>{patientName}</strong>
             </span>
           </div>
-          <DialogTitle className="text-xl font-extrabold">Prescrever Ficha de Treino</DialogTitle>
+          <DialogTitle className="text-xl font-extrabold">
+            {editRoutine ? 'Editar Ficha de Treino' : 'Prescrever Ficha de Treino'}
+          </DialogTitle>
           <DialogDescription className="text-xs">
-            Monte a rotina de exercícios físicos individualizada para o paciente.
+            {editRoutine
+              ? 'Ajuste os exercícios, séries e cargas prescritos para o paciente.'
+              : 'Monte a rotina de exercícios físicos individualizada para o paciente.'}
           </DialogDescription>
         </DialogHeader>
 
@@ -206,7 +260,7 @@ export function ProfessionalWorkoutModal({ open, onOpenChange, patientName, onSu
             className="w-full py-3 rounded-2xl bg-[#1CB0F6] hover:bg-[#1899d6] text-white font-extrabold border-b-4 border-[#147eb0] active:translate-y-1 active:border-b-0 transition-all"
           >
             <Check className="w-5 h-5 mr-1" strokeWidth={2.5} />
-            {saving ? 'Prescrevendo...' : 'Prescrever Ficha'}
+            {saving ? 'Salvando...' : editRoutine ? 'Salvar Ficha' : 'Prescrever Ficha'}
           </Button>
         </div>
       </DialogContent>

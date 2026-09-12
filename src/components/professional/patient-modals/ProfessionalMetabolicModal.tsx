@@ -434,7 +434,7 @@ export function ProfessionalMetabolicModal({
                 <SelectContent>
                   {CLINICAL_CONDITIONS.map((c) => (
                     <SelectItem key={c.id} value={c.id}>
-                      {c.name}
+                      {c.label}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -480,7 +480,7 @@ export function ProfessionalMetabolicModal({
             </div>
           </div>
 
-          <MetabolicActivityList activities={activities} weightKg={wNum} onChange={setActivities} />
+          <MetabolicActivityList activities={activities} weight={wNum} onChange={setActivities} />
 
           {result && (
             <div className="p-4 rounded-3xl bg-[#1CB0F6]/10 border-2 border-[#1CB0F6]/40 space-y-2">

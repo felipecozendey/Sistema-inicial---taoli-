@@ -17,14 +17,41 @@ interface Props {
   open: boolean
   onOpenChange: (o: boolean) => void
   patientName: string
+  editPlan?: any | null
   onSuccess?: () => void
 }
 
-export function ProfessionalDietPlanModal({ open, onOpenChange, patientName, onSuccess }: Props) {
-  const { createDietPlanForPatient } = useProfessionalPatientWrite()
+export function ProfessionalDietPlanModal({
+  open,
+  onOpenChange,
+  patientName,
+  editPlan,
+  onSuccess,
+}: Props) {
+  const { createDietPlanForPatient, updateDietPlanForPatient } = useProfessionalPatientWrite()
   const [name, setName] = useState('')
   const [time, setTime] = useState('')
   const [saving, setSaving] = useState(false)
+
+  // Pre-fill when editing
+  useState(() => {
+    if (editPlan) {
+      setName(editPlan.name || '')
+      setTime(editPlan.time || '')
+    }
+  })
+
+  // Also update when open / editPlan changes
+  const [lastPlanId, setLastPlanId] = useState<string | null>(null)
+  if (editPlan && editPlan.id !== lastPlanId) {
+    setLastPlanId(editPlan.id)
+    setName(editPlan.name || '')
+    setTime(editPlan.time || '')
+  } else if (!editPlan && lastPlanId !== null) {
+    setLastPlanId(null)
+    setName('')
+    setTime('')
+  }
 
   const handleSubmit = useCallback(async () => {
     if (!name.trim()) {
@@ -33,17 +60,38 @@ export function ProfessionalDietPlanModal({ open, onOpenChange, patientName, onS
     }
 
     setSaving(true)
-    const res = await createDietPlanForPatient(name.trim(), time.trim() || '08:00')
+    let res = null
+    if (editPlan?.id) {
+      res = await updateDietPlanForPatient(editPlan.id, {
+        name: name.trim(),
+        time: time.trim() || '08:00',
+      })
+    } else {
+      res = await createDietPlanForPatient(name.trim(), time.trim() || '08:00')
+    }
     setSaving(false)
 
     if (res) {
-      toast.success(`Refeição prescrita para ${patientName}! 🎉`)
+      toast.success(
+        editPlan
+          ? `Refeição atualizada para ${patientName}! 🎉`
+          : `Refeição prescrita para ${patientName}! 🎉`,
+      )
       setName('')
       setTime('')
       onOpenChange(false)
       onSuccess?.()
     }
-  }, [name, time, createDietPlanForPatient, patientName, onOpenChange, onSuccess])
+  }, [
+    name,
+    time,
+    editPlan,
+    createDietPlanForPatient,
+    updateDietPlanForPatient,
+    patientName,
+    onOpenChange,
+    onSuccess,
+  ])
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -58,9 +106,13 @@ export function ProfessionalDietPlanModal({ open, onOpenChange, patientName, onS
               Criando para: <strong>{patientName}</strong>
             </span>
           </div>
-          <DialogTitle className="text-xl font-extrabold">Nova Refeição no Plano</DialogTitle>
+          <DialogTitle className="text-xl font-extrabold">
+            {editPlan ? 'Editar Refeição no Plano' : 'Nova Refeição no Plano'}
+          </DialogTitle>
           <DialogDescription className="text-xs">
-            Prescreva um novo horário/refeição no plano alimentar do paciente.
+            {editPlan
+              ? 'Edite o nome ou horário sugerido para esta refeição prescrita.'
+              : 'Prescreva um novo horário/refeição no plano alimentar do paciente.'}
           </DialogDescription>
         </DialogHeader>
 
@@ -92,7 +144,7 @@ export function ProfessionalDietPlanModal({ open, onOpenChange, patientName, onS
             className="w-full py-6 rounded-3xl bg-[#1CB0F6] hover:bg-[#1899d6] text-white font-extrabold border-b-4 border-[#147eb0] active:translate-y-1 active:border-b-0 transition-all duration-150"
           >
             <Plus className="w-5 h-5 mr-2" strokeWidth={3} />
-            {saving ? 'Prescrevendo...' : 'Prescrever Refeição'}
+            {saving ? 'Salvando...' : editPlan ? 'Salvar Refeição' : 'Prescrever Refeição'}
           </Button>
         </div>
       </DialogContent>

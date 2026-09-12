@@ -6,6 +6,7 @@ import { TaskForm } from '@/components/tasks/task-form'
 import { cn } from '@/lib/utils'
 import { Zap, Trash2, Clock, Pencil, AlarmClock } from 'lucide-react'
 import { formatTime } from '@/lib/habit-utils'
+import { ProfessionalTag } from '@/components/professional/ProfessionalTag'
 
 const ENERGY_COLORS = ['#58CC02', '#FFC800', '#FF4B4B']
 

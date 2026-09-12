@@ -334,6 +334,158 @@ export function useProfessionalPatientWrite() {
     [activePatient, ensureContext],
   )
 
+  const updateDietPlanForPatient = useCallback(
+    async (planId: string, updates: { name?: string; time?: string }) => {
+      if (!ensureContext('saude') || !activePatient) return false
+      setSaving(true)
+      try {
+        const {
+          data: { user },
+        } = await supabase.auth.getUser()
+        if (!user) return false
+
+        const { error } = await (supabase as any)
+          .from('diet_plans')
+          .update(updates)
+          .eq('id', planId)
+          .eq('created_by', user.id)
+
+        if (error) {
+          toast.error('Erro ao atualizar refeição do plano.')
+          return false
+        }
+        toast.success('Refeição atualizada!')
+        return true
+      } finally {
+        setSaving(false)
+      }
+    },
+    [activePatient, ensureContext],
+  )
+
+  const addDietPlanItemForPatient = useCallback(
+    async (
+      planId: string,
+      item: {
+        description: string
+        quantity: string
+        calories?: number
+        carbs_g?: number
+        protein_g?: number
+        fat_g?: number
+        fibers_g?: number
+        sodium_mg?: number
+        allergens?: string | null
+      },
+    ) => {
+      if (!ensureContext('saude') || !activePatient) return null
+      setSaving(true)
+      try {
+        const {
+          data: { user },
+        } = await supabase.auth.getUser()
+        if (!user) return null
+
+        const { data, error } = await (supabase as any)
+          .from('diet_plan_items')
+          .insert({
+            plan_id: planId,
+            description: item.description,
+            quantity: item.quantity,
+            calories: item.calories || 0,
+            carbs_g: item.carbs_g || 0,
+            protein_g: item.protein_g || 0,
+            fat_g: item.fat_g || 0,
+            fibers_g: item.fibers_g || 0,
+            sodium_mg: item.sodium_mg || 0,
+            allergens: item.allergens || null,
+            created_by: user.id,
+          })
+          .select()
+          .single()
+
+        if (error || !data) {
+          toast.error('Erro ao adicionar alimento à refeição.')
+          return null
+        }
+        return data
+      } finally {
+        setSaving(false)
+      }
+    },
+    [activePatient, ensureContext],
+  )
+
+  const updateDietPlanItemForPatient = useCallback(
+    async (
+      itemId: string,
+      updates: {
+        description?: string
+        quantity?: string
+        calories?: number
+        carbs_g?: number
+        protein_g?: number
+        fat_g?: number
+        fibers_g?: number
+        sodium_mg?: number
+        allergens?: string | null
+      },
+    ) => {
+      if (!ensureContext('saude') || !activePatient) return false
+      setSaving(true)
+      try {
+        const {
+          data: { user },
+        } = await supabase.auth.getUser()
+        if (!user) return false
+
+        const { error } = await (supabase as any)
+          .from('diet_plan_items')
+          .update(updates)
+          .eq('id', itemId)
+          .eq('created_by', user.id)
+
+        if (error) {
+          toast.error('Erro ao atualizar alimento.')
+          return false
+        }
+        return true
+      } finally {
+        setSaving(false)
+      }
+    },
+    [activePatient, ensureContext],
+  )
+
+  const deleteDietPlanItemForPatient = useCallback(
+    async (itemId: string) => {
+      if (!ensureContext('saude') || !activePatient) return false
+      setSaving(true)
+      try {
+        const {
+          data: { user },
+        } = await supabase.auth.getUser()
+        if (!user) return false
+
+        const { error } = await supabase
+          .from('diet_plan_items')
+          .delete()
+          .eq('id', itemId)
+          .eq('created_by', user.id)
+
+        if (error) {
+          toast.error('Erro ao excluir alimento.')
+          return false
+        }
+        toast.success('Alimento removido!')
+        return true
+      } finally {
+        setSaving(false)
+      }
+    },
+    [activePatient, ensureContext],
+  )
+
   const deleteDietPlanForPatient = useCallback(
     async (planId: string) => {
       if (!ensureContext('saude') || !activePatient) return false
@@ -413,6 +565,64 @@ export function useProfessionalPatientWrite() {
 
         toast.success(`Receita prescrita para ${activePatient.displayName}! 🍲`)
         return recipe
+      } finally {
+        setSaving(false)
+      }
+    },
+    [activePatient, ensureContext],
+  )
+
+  const updateRecipeForPatient = useCallback(
+    async (
+      recipeId: string,
+      updates: {
+        name?: string
+        description?: string
+        instructions?: string
+        tags?: string[]
+        ingredients?: { foodId: string; amount: string }[]
+      },
+    ) => {
+      if (!ensureContext('saude') || !activePatient) return false
+      setSaving(true)
+      try {
+        const {
+          data: { user },
+        } = await supabase.auth.getUser()
+        if (!user) return false
+
+        const dbUpdates: Record<string, any> = {}
+        if (updates.name !== undefined) dbUpdates.name = updates.name
+        if (updates.description !== undefined) dbUpdates.description = updates.description
+        if (updates.instructions !== undefined) dbUpdates.instructions = updates.instructions
+        if (updates.tags !== undefined) dbUpdates.tags = updates.tags
+
+        const { error } = await (supabase as any)
+          .from('nutrition_recipes')
+          .update(dbUpdates)
+          .eq('id', recipeId)
+          .eq('created_by', user.id)
+
+        if (error) {
+          toast.error('Erro ao atualizar receita.')
+          return false
+        }
+
+        if (updates.ingredients) {
+          await supabase.from('recipe_ingredients').delete().eq('recipe_id', recipeId)
+          if (updates.ingredients.length > 0) {
+            await (supabase as any).from('recipe_ingredients').insert(
+              updates.ingredients.map((ing) => ({
+                recipe_id: recipeId,
+                food_id: ing.foodId,
+                amount: ing.amount,
+              })),
+            )
+          }
+        }
+
+        toast.success('Receita atualizada!')
+        return true
       } finally {
         setSaving(false)
       }
@@ -552,11 +762,16 @@ export function useProfessionalPatientWrite() {
       formula: string
       tmb: number
       naf: string
-      injuryFactor: number
-      ventaTarget: number
-      extraActivities: any[]
-      weightGoal: number | null
-      goalDays: number | null
+      injuryFactor?: number
+      injury_factor?: number
+      ventaTarget?: number
+      venta_target?: number
+      extraActivities?: any[]
+      extra_activities?: any[]
+      weightGoal?: number | null
+      weight_goal?: number | null
+      goalDays?: number | null
+      goal_days?: number | null
       date?: string
     }) => {
       if (!ensureContext('saude') || !activePatient) return null
@@ -567,16 +782,22 @@ export function useProfessionalPatientWrite() {
         } = await supabase.auth.getUser()
         if (!user) return null
 
+        const injury = logData.injuryFactor ?? logData.injury_factor ?? 1.0
+        const venta = logData.ventaTarget ?? logData.venta_target ?? 0
+        const extras = logData.extraActivities ?? logData.extra_activities ?? []
+        const weightG = logData.weightGoal ?? logData.weight_goal ?? null
+        const daysG = logData.goalDays ?? logData.goal_days ?? null
+
         const payload = {
           date: logData.date || new Date().toISOString().slice(0, 10),
           formula: logData.formula,
           tmb: logData.tmb,
           naf: logData.naf,
-          injury_factor: logData.injuryFactor,
-          venta_target: logData.ventaTarget,
-          extra_activities: logData.extraActivities,
-          weight_goal: logData.weightGoal,
-          goal_days: logData.goalDays,
+          injury_factor: injury,
+          venta_target: venta,
+          extra_activities: extras,
+          weight_goal: weightG,
+          goal_days: daysG,
           user_id: activePatient.id,
           created_by: user.id,
         }
@@ -594,6 +815,73 @@ export function useProfessionalPatientWrite() {
 
         toast.success(`Cálculo energético salvo para ${activePatient.displayName}! ⚡`)
         return data
+      } finally {
+        setSaving(false)
+      }
+    },
+    [activePatient, ensureContext],
+  )
+
+  const updateMetabolicLogForPatient = useCallback(
+    async (
+      logId: string,
+      logData: {
+        formula?: string
+        tmb?: number
+        naf?: string
+        injuryFactor?: number
+        injury_factor?: number
+        ventaTarget?: number
+        venta_target?: number
+        extraActivities?: any[]
+        extra_activities?: any[]
+        weightGoal?: number | null
+        weight_goal?: number | null
+        goalDays?: number | null
+        goal_days?: number | null
+        date?: string
+      },
+    ) => {
+      if (!ensureContext('saude') || !activePatient) return false
+      setSaving(true)
+      try {
+        const {
+          data: { user },
+        } = await supabase.auth.getUser()
+        if (!user) return false
+
+        const dbUpdates: Record<string, any> = {}
+        if (logData.formula !== undefined) dbUpdates.formula = logData.formula
+        if (logData.tmb !== undefined) dbUpdates.tmb = logData.tmb
+        if (logData.naf !== undefined) dbUpdates.naf = logData.naf
+        if (logData.injuryFactor !== undefined || logData.injury_factor !== undefined) {
+          dbUpdates.injury_factor = logData.injuryFactor ?? logData.injury_factor
+        }
+        if (logData.ventaTarget !== undefined || logData.venta_target !== undefined) {
+          dbUpdates.venta_target = logData.ventaTarget ?? logData.venta_target
+        }
+        if (logData.extraActivities !== undefined || logData.extra_activities !== undefined) {
+          dbUpdates.extra_activities = logData.extraActivities ?? logData.extra_activities
+        }
+        if (logData.weightGoal !== undefined || logData.weight_goal !== undefined) {
+          dbUpdates.weight_goal = logData.weightGoal ?? logData.weight_goal
+        }
+        if (logData.goalDays !== undefined || logData.goal_days !== undefined) {
+          dbUpdates.goal_days = logData.goalDays ?? logData.goal_days
+        }
+        if (logData.date !== undefined) dbUpdates.date = logData.date
+
+        const { error } = await (supabase as any)
+          .from('metabolic_logs')
+          .update(dbUpdates)
+          .eq('id', logId)
+          .eq('created_by', user.id)
+
+        if (error) {
+          toast.error('Erro ao atualizar cálculo energético.')
+          return false
+        }
+        return true
       } finally {
         setSaving(false)
       }
@@ -669,6 +957,38 @@ export function useProfessionalPatientWrite() {
     [activePatient, ensureContext],
   )
 
+  const updateWorkoutRoutineForPatient = useCallback(
+    async (
+      routineId: string,
+      updates: { title?: string; exercises?: any[]; description?: string },
+    ) => {
+      if (!ensureContext('saude') || !activePatient) return false
+      setSaving(true)
+      try {
+        const {
+          data: { user },
+        } = await supabase.auth.getUser()
+        if (!user) return false
+
+        const { error } = await (supabase as any)
+          .from('workout_routines')
+          .update(updates)
+          .eq('id', routineId)
+          .eq('created_by', user.id)
+
+        if (error) {
+          toast.error('Erro ao atualizar ficha de treino.')
+          return false
+        }
+        toast.success('Ficha atualizada!')
+        return true
+      } finally {
+        setSaving(false)
+      }
+    },
+    [activePatient, ensureContext],
+  )
+
   const deleteWorkoutRoutineForPatient = useCallback(
     async (routineId: string) => {
       if (!ensureContext('saude') || !activePatient) return false
@@ -712,6 +1032,7 @@ export function useProfessionalPatientWrite() {
     createDietPlanForPatient,
     deleteDietPlanForPatient,
     createRecipeForPatient,
+    updateRecipeForPatient,
     deleteRecipeForPatient,
     createBodyMetricForPatient,
     updateBodyMetricForPatient,
@@ -719,6 +1040,12 @@ export function useProfessionalPatientWrite() {
     createMetabolicLogForPatient,
     deleteMetabolicLogForPatient,
     createWorkoutRoutineForPatient,
+    updateWorkoutRoutineForPatient,
     deleteWorkoutRoutineForPatient,
+    updateDietPlanForPatient,
+    addDietPlanItemForPatient,
+    updateDietPlanItemForPatient,
+    deleteDietPlanItemForPatient,
+    updateMetabolicLogForPatient,
   }
 }
