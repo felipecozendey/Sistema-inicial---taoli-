@@ -25,11 +25,22 @@ export type OfflineAction = {
   operation: 'insert' | 'update' | 'delete'
   payload: Record<string, any>
 }
+export type FocusPhase = 'focus' | 'short' | 'long'
+export type FocusMode = 'pomodoro' | 'radar'
+
 export type FocusRadarSettings = {
   enabled: boolean
   interval: number
   message: string
   soundProfile: SoundProfile
+  mode: FocusMode
+  focusMinutes: number
+  shortBreakMinutes: number
+  longBreakMinutes: number
+  cyclesBeforeLongBreak: number
+  autoStartNext: boolean
+  currentCycle: number
+  phase: FocusPhase
 }
 
 export type HydrationLog = { id: string; date: string; amount: number; timestamp: string }
@@ -969,14 +980,21 @@ export const AppStoreProvider = ({ children }: { children: ReactNode }) => {
   })
   const [focusRadar, setFocusRadar] = useState<FocusRadarSettings>(() => {
     const s = localStorage.getItem('vt_focus_radar')
-    return s
-      ? JSON.parse(s)
-      : {
-          enabled: false,
-          interval: 30,
-          message: 'Ainda focado? 👀',
-          soundProfile: 'ding' as SoundProfile,
-        }
+    const parsed = s ? JSON.parse(s) : {}
+    return {
+      enabled: typeof parsed.enabled === 'boolean' ? parsed.enabled : false,
+      interval: Number(parsed.interval) || 30,
+      message: typeof parsed.message === 'string' ? parsed.message : 'Ainda focado? 👀',
+      soundProfile: (parsed.soundProfile as SoundProfile) || 'ding',
+      mode: (parsed.mode as FocusMode) || 'pomodoro',
+      focusMinutes: Number(parsed.focusMinutes) || 25,
+      shortBreakMinutes: Number(parsed.shortBreakMinutes) || 5,
+      longBreakMinutes: Number(parsed.longBreakMinutes) || 15,
+      cyclesBeforeLongBreak: Number(parsed.cyclesBeforeLongBreak) || 4,
+      autoStartNext: typeof parsed.autoStartNext === 'boolean' ? parsed.autoStartNext : false,
+      currentCycle: Number(parsed.currentCycle) || 1,
+      phase: (parsed.phase as FocusPhase) || 'focus',
+    }
   })
   const [offlineQueue, setOfflineQueue] = useState<OfflineAction[]>(() => {
     const s = localStorage.getItem('vt_offline_queue')

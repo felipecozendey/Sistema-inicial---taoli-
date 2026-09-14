@@ -12,11 +12,23 @@ export type OfflineAction = {
   operation: 'insert' | 'update' | 'delete'
   payload: Record<string, any>
 }
+export type FocusPhase = 'focus' | 'short' | 'long'
+export type FocusMode = 'pomodoro' | 'radar'
+
 export type FocusRadarSettings = {
   enabled: boolean
   interval: number
   message: string
   soundProfile: SoundProfile
+  // Novos campos Pomodoro / Gerenciador de Produtividade Humana
+  mode: FocusMode
+  focusMinutes: number
+  shortBreakMinutes: number
+  longBreakMinutes: number
+  cyclesBeforeLongBreak: number
+  autoStartNext: boolean
+  currentCycle: number
+  phase: FocusPhase
 }
 export type HydrationLog = { id: string; date: string; amount: number; timestamp: string }
 export type MoodLog = {
@@ -367,6 +379,14 @@ export const defaultFocusRadar: FocusRadarSettings = {
   interval: 30,
   message: 'Ainda focado? 👀',
   soundProfile: 'ding' as SoundProfile,
+  mode: 'pomodoro',
+  focusMinutes: 25,
+  shortBreakMinutes: 5,
+  longBreakMinutes: 15,
+  cyclesBeforeLongBreak: 4,
+  autoStartNext: false,
+  currentCycle: 1,
+  phase: 'focus',
 }
 
 export const initialTags: Tag[] = [
