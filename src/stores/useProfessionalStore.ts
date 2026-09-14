@@ -124,6 +124,39 @@ export interface PatientEstudosData {
   recent_reviews: any[]
 }
 
+export interface PatientMenteEvaluation {
+  id: string
+  date: string
+  mood: number
+  stress_level: number
+  anxiety_level: number
+  sadness_level: number
+  sleep_quality: number
+  mental_triggers: string
+  created_at: string
+}
+
+export interface PatientMenteData {
+  evaluations: PatientMenteEvaluation[]
+  journals: { id: string; content: string; created_at: string; date: string }[]
+  events: { id: string; description: string; created_at: string; date: string }[]
+  latest_evaluation: PatientMenteEvaluation | null
+  averages_7d: {
+    mood: number
+    stress: number
+    anxiety: number
+    sadness: number
+    sleep: number
+  } | null
+  averages_30d: {
+    mood: number
+    stress: number
+    anxiety: number
+    sadness: number
+    sleep: number
+  } | null
+}
+
 export interface ActivePatientContext {
   id: string
   displayName: string
@@ -186,6 +219,7 @@ interface ProfessionalState {
   fetchPatientSharedData: (patientId: string) => Promise<PatientReadData | null>
   fetchPatientTarefas: (patientId: string) => Promise<PatientTarefasData | null>
   fetchPatientSaude: (patientId: string) => Promise<PatientSaudeData | null>
+  fetchPatientMente: (patientId: string) => Promise<PatientMenteData | null>
   fetchPatientFinancas: (patientId: string) => Promise<PatientFinancasData | null>
   fetchPatientEstudos: (patientId: string) => Promise<PatientEstudosData | null>
 }
@@ -1183,6 +1217,112 @@ export const useProfessionalStore = create<ProfessionalState>((set, get) => ({
       }
     } catch (err) {
       console.error('Error fetching patient estudos:', err)
+      return null
+    }
+  },
+
+  fetchPatientMente: async (patientId: string) => {
+    try {
+      const [metricsRes, journalsRes, eventsRes] = await Promise.all([
+        supabase
+          .from('body_metrics')
+          .select(
+            'id, date, mood, stress_level, sadness_level, anxiety_level, sleep_quality, mental_triggers, created_at',
+          )
+          .eq('user_id', patientId)
+          .not('sadness_level', 'is', null)
+          .order('created_at', { ascending: false }),
+        supabase
+          .from('mind_journals')
+          .select('id, content, created_at')
+          .eq('user_id', patientId)
+          .order('created_at', { ascending: false }),
+        supabase
+          .from('mind_events')
+          .select('id, description, created_at')
+          .eq('user_id', patientId)
+          .order('created_at', { ascending: false }),
+      ])
+
+      const rawMetrics = metricsRes.data || []
+      // Deduplicate by day, identical logic to fetchMentalHealthLogs
+      const uniqueByDate = new Map<string, any>()
+      rawMetrics.forEach((d: any) => {
+        const dateStr = (d.date || d.created_at || '').split('T')[0]
+        if (!uniqueByDate.has(dateStr)) {
+          uniqueByDate.set(dateStr, d)
+        }
+      })
+
+      const evaluations: PatientMenteEvaluation[] = Array.from(uniqueByDate.values())
+        .map((d: any) => ({
+          id: d.id,
+          date: (d.date || d.created_at || '').split('T')[0],
+          mood: Number(d.mood) || 3,
+          stress_level: Number(d.stress_level) || 3,
+          anxiety_level: Number(d.anxiety_level) || 0,
+          sadness_level: Number(d.sadness_level) || 0,
+          sleep_quality: Number(d.sleep_quality) || 3,
+          mental_triggers: d.mental_triggers || '',
+          created_at: d.created_at,
+        }))
+        .sort((a, b) => b.date.localeCompare(a.date))
+
+      const journals = (journalsRes.data || []).map((j: any) => ({
+        id: j.id,
+        content: j.content || '',
+        created_at: j.created_at,
+        date: (j.created_at || '').split('T')[0],
+      }))
+
+      const events = (eventsRes.data || []).map((e: any) => ({
+        id: e.id,
+        description: e.description || '',
+        created_at: e.created_at,
+        date: (e.created_at || '').split('T')[0],
+      }))
+
+      const latest = evaluations[0] || null
+
+      const now = new Date()
+      const cutoff7d = new Date(now.getTime() - 7 * 86400000).toISOString().split('T')[0]
+      const cutoff30d = new Date(now.getTime() - 30 * 86400000).toISOString().split('T')[0]
+
+      const evals7d = evaluations.filter((e) => e.date >= cutoff7d)
+      const evals30d = evaluations.filter((e) => e.date >= cutoff30d)
+
+      const calcAvg = (list: PatientMenteEvaluation[]) => {
+        if (list.length === 0) return null
+        const sum = list.reduce(
+          (acc, cur) => ({
+            mood: acc.mood + cur.mood,
+            stress: acc.stress + cur.stress_level,
+            anxiety: acc.anxiety + cur.anxiety_level,
+            sadness: acc.sadness + cur.sadness_level,
+            sleep: acc.sleep + cur.sleep_quality,
+          }),
+          { mood: 0, stress: 0, anxiety: 0, sadness: 0, sleep: 0 },
+        )
+        const count = list.length
+        return {
+          mood: Number((sum.mood / count).toFixed(1)),
+          stress: Number((sum.stress / count).toFixed(1)),
+          anxiety: Number((sum.anxiety / count).toFixed(1)),
+          sadness: Number((sum.sadness / count).toFixed(1)),
+          sleep: Number((sum.sleep / count).toFixed(1)),
+        }
+      }
+
+      return {
+        evaluations,
+        journals,
+        events,
+        latest_evaluation: latest,
+        averages_7d: calcAvg(evals7d),
+        averages_30d: calcAvg(evals30d),
+      }
+    } catch (err) {
+      console.error('Error fetching patient mente:', err)
       return null
     }
   },

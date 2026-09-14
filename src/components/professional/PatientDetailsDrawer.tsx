@@ -16,7 +16,9 @@ import {
   PatientSaudeData,
   PatientFinancasData,
   PatientEstudosData,
+  PatientMenteData,
 } from '@/stores/useProfessionalStore'
+import { PatientMenteView } from './PatientMenteView'
 import {
   Scale,
   Activity,
@@ -35,6 +37,7 @@ import {
   Layers,
   Utensils,
   Flame,
+  Brain,
 } from 'lucide-react'
 import { safeFormatDate } from '@/lib/date-utils'
 import { formatCurrency } from '@/lib/finance-utils'
@@ -48,7 +51,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
-import { CONSENT_SCOPES, SCOPE_LABELS } from './consent-scopes.tsx'
+import { CONSENT_SCOPES, SCOPE_LABELS, SCOPE_BADGE_STYLES } from './consent-scopes.tsx'
 import { cn } from '@/lib/utils'
 import { TaskForm } from '@/components/tasks/task-form'
 import { HabitForm } from '@/components/habits/habit-form'
@@ -86,6 +89,7 @@ export function PatientDetailsDrawer({ patient, open, onOpenChange }: PatientDet
     fetchPatientSaude,
     fetchPatientFinancas,
     fetchPatientEstudos,
+    fetchPatientMente,
     setActivePatient,
     endPatientLink,
   } = useProfessionalStore()
@@ -107,6 +111,7 @@ export function PatientDetailsDrawer({ patient, open, onOpenChange }: PatientDet
   const [saudeData, setSaudeData] = useState<PatientSaudeData | null>(null)
   const [financasData, setFinancasData] = useState<PatientFinancasData | null>(null)
   const [estudosData, setEstudosData] = useState<PatientEstudosData | null>(null)
+  const [menteData, setMenteData] = useState<PatientMenteData | null>(null)
 
   // Loading flags per tab
   const [loadingMap, setLoadingMap] = useState<Record<string, boolean>>({})
@@ -187,7 +192,7 @@ export function PatientDetailsDrawer({ patient, open, onOpenChange }: PatientDet
   const grantedPages = React.useMemo(() => {
     if (!patient || !Array.isArray(patient.granted_pages)) return []
     return patient.granted_pages.filter((p) =>
-      ['tarefas', 'saude', 'financas', 'estudos'].includes(p),
+      ['tarefas', 'saude', 'mente', 'financas', 'estudos'].includes(p),
     )
   }, [patient])
 
@@ -222,6 +227,7 @@ export function PatientDetailsDrawer({ patient, open, onOpenChange }: PatientDet
       setSaudeData(null)
       setFinancasData(null)
       setEstudosData(null)
+      setMenteData(null)
       setLoadingMap({})
     }
   }, [patient?.id])
@@ -250,6 +256,11 @@ export function PatientDetailsDrawer({ patient, open, onOpenChange }: PatientDet
       fetchPatientEstudos(patient.patient_id)
         .then((res) => setEstudosData(res))
         .finally(() => setLoadingMap((m) => ({ ...m, estudos: false })))
+    } else if (activeTab === 'mente' && !menteData && !loadingMap['mente']) {
+      setLoadingMap((m) => ({ ...m, mente: true }))
+      fetchPatientMente(patient.patient_id)
+        .then((res) => setMenteData(res))
+        .finally(() => setLoadingMap((m) => ({ ...m, mente: false })))
     }
   }, [
     open,
@@ -259,12 +270,29 @@ export function PatientDetailsDrawer({ patient, open, onOpenChange }: PatientDet
     saudeData,
     financasData,
     estudosData,
+    menteData,
     loadingMap,
     fetchPatientTarefas,
     fetchPatientSaude,
     fetchPatientFinancas,
     fetchPatientEstudos,
+    fetchPatientMente,
   ])
+
+  // Pre-load compact summaries for granted pages when drawer opens
+  useEffect(() => {
+    if (!open || !patient) return
+    const scopes = Array.isArray(patient.granted_pages) ? patient.granted_pages : []
+    if (scopes.includes('tarefas') && !tarefasData) {
+      fetchPatientTarefas(patient.patient_id).then((r) => setTarefasData(r))
+    }
+    if (scopes.includes('saude') && !saudeData) {
+      fetchPatientSaude(patient.patient_id).then((r) => setSaudeData(r))
+    }
+    if (scopes.includes('mente') && !menteData) {
+      fetchPatientMente(patient.patient_id).then((r) => setMenteData(r))
+    }
+  }, [open, patient?.id])
 
   if (!patient) return null
 
@@ -284,30 +312,128 @@ export function PatientDetailsDrawer({ patient, open, onOpenChange }: PatientDet
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto rounded-3xl border-2 p-0 gap-0 shadow-2xl">
-          {/* Cabeçalho Pro Azul */}
-          <DialogHeader className="p-5 sm:p-6 pb-4 border-b bg-[#1CB0F6]/10">
-            <div className="flex items-center justify-between gap-3">
+          {/* Cabeçalho Pro Redesenhado: Card do paciente + badges de escopos + métricas-resumo */}
+          <DialogHeader className="p-4 sm:p-6 pb-3 border-b bg-gradient-to-b from-[#1CB0F6]/10 to-transparent space-y-3">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
               <div className="flex items-center gap-3">
-                <div className="w-12 h-12 rounded-2xl bg-[#1CB0F6] text-white flex items-center justify-center font-black text-lg shadow-sm shrink-0">
+                <div className="w-12 h-12 rounded-2xl bg-[#1CB0F6] text-white flex items-center justify-center font-black text-lg shadow-sm shrink-0 border-b-2 border-[#147eb0]">
                   {initials}
                 </div>
-                <div>
-                  <DialogTitle className="text-xl font-black text-foreground flex items-center gap-2">
-                    <span>{patient.patient_name || 'Paciente'}</span>
-                    <Badge className="bg-[#1CB0F6] text-white text-[10px] font-extrabold uppercase">
+                <div className="min-w-0 flex-1">
+                  <DialogTitle className="text-lg sm:text-xl font-black text-foreground flex items-center gap-2 truncate">
+                    <span className="truncate">{patient.patient_name || 'Paciente'}</span>
+                    <Badge className="bg-[#1CB0F6] text-white text-[10px] font-extrabold uppercase shrink-0">
                       {patient.status === 'active' ? 'Ativo' : patient.status}
                     </Badge>
                   </DialogTitle>
-                  <DialogDescription className="text-xs text-muted-foreground mt-0.5">
-                    {patient.patient_email} • Conectado desde {safeFormatDate(patient.created_at)}
+                  <DialogDescription className="text-xs text-muted-foreground truncate mt-0.5">
+                    {patient.patient_email} • Vínculo desde {safeFormatDate(patient.created_at)}
                   </DialogDescription>
                 </div>
               </div>
+
+              {/* Badges dos escopos concedidos com estilos do SCOPE_BADGE_STYLES */}
+              {grantedPages.length > 0 && (
+                <div className="flex flex-wrap items-center gap-1.5">
+                  {grantedPages.map((scope) => {
+                    const style = SCOPE_BADGE_STYLES[scope]
+                    const label = SCOPE_LABELS[scope] || scope
+                    return (
+                      <span
+                        key={scope}
+                        className={cn(
+                          'px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider border',
+                          style?.bg || 'bg-muted',
+                          style?.text || 'text-foreground',
+                          style?.border || 'border-border',
+                        )}
+                      >
+                        {label}
+                      </span>
+                    )
+                  })}
+                </div>
+              )}
             </div>
 
-            {/* Abas dinâmicas pelos escopos concedidos */}
+            {/* 3-4 Métricas-resumo compactas (somente se o escopo estiver concedido; clicável) */}
             {grantedPages.length > 0 && (
-              <div className="overflow-x-auto pb-1 -mx-2 px-2 mt-4">
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1">
+                {grantedPages.includes('tarefas') && (
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab('tarefas')}
+                    className="p-2.5 rounded-2xl border-2 bg-card/80 hover:border-[#58CC02] text-left transition-all cursor-pointer group"
+                  >
+                    <div className="text-[10px] font-bold text-muted-foreground uppercase flex items-center justify-between">
+                      <span>Tarefas</span>
+                      <CheckCircle2 className="w-3 h-3 text-[#58CC02]" />
+                    </div>
+                    <div className="text-sm font-black text-foreground mt-0.5">
+                      {tarefasData ? `${tarefasData.pending_tasks} pend.` : '—'}
+                    </div>
+                  </button>
+                )}
+
+                {grantedPages.includes('tarefas') && (
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab('tarefas')}
+                    className="p-2.5 rounded-2xl border-2 bg-card/80 hover:border-[#58CC02] text-left transition-all cursor-pointer group"
+                  >
+                    <div className="text-[10px] font-bold text-muted-foreground uppercase flex items-center justify-between">
+                      <span>Hábitos (7d)</span>
+                      <Activity className="w-3 h-3 text-[#58CC02]" />
+                    </div>
+                    <div className="text-sm font-black text-foreground mt-0.5">
+                      {tarefasData ? `${tarefasData.completed_tasks} concl.` : '—'}
+                    </div>
+                  </button>
+                )}
+
+                {grantedPages.includes('saude') && (
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab('saude')}
+                    className="p-2.5 rounded-2xl border-2 bg-card/80 hover:border-[#1CB0F6] text-left transition-all cursor-pointer group"
+                  >
+                    <div className="text-[10px] font-bold text-muted-foreground uppercase flex items-center justify-between">
+                      <span>Último Peso</span>
+                      <Scale className="w-3 h-3 text-[#1CB0F6]" />
+                    </div>
+                    <div className="text-sm font-black text-foreground mt-0.5">
+                      {saudeData?.latest_metrics?.weight
+                        ? `${saudeData.latest_metrics.weight} kg`
+                        : '—'}
+                    </div>
+                  </button>
+                )}
+
+                {grantedPages.includes('mente') && (
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab('mente')}
+                    className="p-2.5 rounded-2xl border-2 bg-card/80 hover:border-[#CE82FF] text-left transition-all cursor-pointer group"
+                  >
+                    <div className="text-[10px] font-bold text-muted-foreground uppercase flex items-center justify-between">
+                      <span>Humor 7d</span>
+                      <Brain className="w-3 h-3 text-[#CE82FF]" />
+                    </div>
+                    <div className="text-sm font-black text-[#CE82FF] mt-0.5">
+                      {menteData?.averages_7d?.mood
+                        ? `${menteData.averages_7d.mood}/5`
+                        : menteData?.latest_evaluation
+                          ? `${menteData.latest_evaluation.mood}/5`
+                          : '—'}
+                    </div>
+                  </button>
+                )}
+              </div>
+            )}
+
+            {/* Segmented Control horizontal rolável para as abas concedidas */}
+            {grantedPages.length > 0 && (
+              <div className="overflow-x-auto pb-1 -mx-2 px-2 pt-1 scrollbar-none">
                 <div className="inline-flex w-auto min-w-full sm:min-w-0 p-1.5 rounded-2xl bg-card border-2 gap-1.5">
                   {grantedPages.map((scope) => {
                     const isActive = activeTab === scope
@@ -323,7 +449,9 @@ export function PatientDetailsDrawer({ patient, open, onOpenChange }: PatientDet
                         className={cn(
                           'rounded-xl px-3.5 py-2 text-xs font-black transition-all flex items-center gap-2 cursor-pointer shrink-0 border-b-2',
                           isActive
-                            ? 'bg-[#1CB0F6] text-white border-[#147eb0] shadow-xs'
+                            ? scope === 'mente'
+                              ? 'bg-[#CE82FF] text-white border-[#a552dc] shadow-xs'
+                              : 'bg-[#1CB0F6] text-white border-[#147eb0] shadow-xs'
                             : 'bg-transparent text-muted-foreground hover:bg-muted border-transparent',
                         )}
                       >
@@ -458,8 +586,14 @@ export function PatientDetailsDrawer({ patient, open, onOpenChange }: PatientDet
                                         <span className="font-extrabold text-foreground truncate">
                                           {h.title}
                                         </span>
-                                        {isAuthor && <ProfessionalTag createdBy={h.created_by} />}
-                                      </div>
+                                        {isAuthor ? (
+                                          <ProfessionalTag createdBy={h.created_by} />
+                                        ) : (
+                                          <span className="text-[10px] text-muted-foreground italic">
+                                            criado pelo paciente
+                                          </span>
+                                        )}
+                                      </div>{' '}
                                       <div className="text-[11px] text-muted-foreground flex items-center gap-2 mt-0.5">
                                         {summary && (
                                           <span>Aderência: {summary.weekly_progress_pct}%</span>
@@ -558,7 +692,13 @@ export function PatientDetailsDrawer({ patient, open, onOpenChange }: PatientDet
                                       >
                                         {task.title}
                                       </span>
-                                      {isAuthor && <ProfessionalTag createdBy={task.created_by} />}
+                                      {isAuthor ? (
+                                        <ProfessionalTag createdBy={task.created_by} />
+                                      ) : (
+                                        <span className="text-[10px] text-muted-foreground italic">
+                                          criado pelo paciente
+                                        </span>
+                                      )}
                                     </div>
                                     <div className="text-[10px] text-muted-foreground">
                                       {task.due_date
@@ -752,8 +892,12 @@ export function PatientDetailsDrawer({ patient, open, onOpenChange }: PatientDet
                                                 {plan.time}
                                               </Badge>
                                             )}
-                                            {isAuthor && (
+                                            {isAuthor ? (
                                               <ProfessionalTag createdBy={plan.created_by} />
+                                            ) : (
+                                              <span className="text-[10px] text-muted-foreground italic">
+                                                criado pelo paciente
+                                              </span>
                                             )}
                                           </div>
                                           <span className="text-[10px] text-muted-foreground">
@@ -974,8 +1118,12 @@ export function PatientDetailsDrawer({ patient, open, onOpenChange }: PatientDet
                                             <span className="font-extrabold text-foreground text-sm truncate">
                                               {recipe.name}
                                             </span>
-                                            {isAuthor && (
+                                            {isAuthor ? (
                                               <ProfessionalTag createdBy={recipe.created_by} />
+                                            ) : (
+                                              <span className="text-[10px] text-muted-foreground italic">
+                                                criado pelo paciente
+                                              </span>
                                             )}
                                           </div>
                                           {recipe.description && (
@@ -1155,7 +1303,13 @@ export function PatientDetailsDrawer({ patient, open, onOpenChange }: PatientDet
                                           <span className="font-extrabold text-foreground">
                                             {safeFormatDate(m.date || m.created_at)}
                                           </span>
-                                          {isAuthor && <ProfessionalTag createdBy={m.created_by} />}
+                                          {isAuthor ? (
+                                            <ProfessionalTag createdBy={m.created_by} />
+                                          ) : (
+                                            <span className="text-[10px] text-muted-foreground italic">
+                                              criado pelo paciente
+                                            </span>
+                                          )}
                                         </div>
                                         <div className="text-[11px] text-muted-foreground flex flex-wrap gap-2 mt-0.5">
                                           {m.weight && <span>Peso: {m.weight} kg</span>}
@@ -1285,8 +1439,12 @@ export function PatientDetailsDrawer({ patient, open, onOpenChange }: PatientDet
                                             >
                                               {log.formula || 'Mifflin'}
                                             </Badge>
-                                            {isAuthor && (
+                                            {isAuthor ? (
                                               <ProfessionalTag createdBy={log.created_by} />
+                                            ) : (
+                                              <span className="text-[10px] text-muted-foreground italic">
+                                                criado pelo paciente
+                                              </span>
                                             )}
                                           </div>
                                           <div className="text-[11px] text-muted-foreground flex flex-wrap gap-2 mt-0.5">
@@ -1420,8 +1578,12 @@ export function PatientDetailsDrawer({ patient, open, onOpenChange }: PatientDet
                                             <span className="font-extrabold text-foreground text-sm">
                                               {routine.title}
                                             </span>
-                                            {isAuthor && (
+                                            {isAuthor ? (
                                               <ProfessionalTag createdBy={routine.created_by} />
+                                            ) : (
+                                              <span className="text-[10px] text-muted-foreground italic">
+                                                criado pelo paciente
+                                              </span>
                                             )}
                                           </div>
                                           {routine.description && (
@@ -1510,6 +1672,11 @@ export function PatientDetailsDrawer({ patient, open, onOpenChange }: PatientDet
                       </>
                     )}
                   </div>
+                )}
+
+                {/* ABA NOVA: MENTE (SOMENTE LEITURA) */}
+                {activeTab === 'mente' && (
+                  <PatientMenteView data={menteData} loading={!!loadingMap['mente']} />
                 )}
 
                 {/* ABA 3: FINANÇAS */}

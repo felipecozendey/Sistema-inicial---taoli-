@@ -97,11 +97,35 @@ export const CONSENT_SCOPES: ScopeDefinition[] = [
       </svg>
     ),
   },
+  {
+    key: 'mente',
+    title: 'Mente',
+    description:
+      'Histórico das suas avaliações mentais (humor, estresse, ansiedade, tristeza e sono), seu diário e seus acontecimentos registrados (somente visualização).',
+    icon: ({ className = 'w-5 h-5' }: { className?: string }) => (
+      <svg
+        className={className}
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2.2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      >
+        <path d="M9.5 2A4.5 4.5 0 0 0 5 6.5c0 .64.13 1.25.37 1.8A4 4 0 0 0 4 12a4 4 0 0 0 2 3.46V18a3 3 0 0 0 3 3h1a1 1 0 0 0 1-1v-4" />
+        <path d="M14.5 2A4.5 4.5 0 0 1 19 6.5c0 .64-.13 1.25-.37 1.8A4 4 0 0 1 20 12a4 4 0 0 1-2 3.46V18a3 3 0 0 1-3 3h-1a1 1 0 0 1-1-1v-4" />
+        <path d="M12 2v20" />
+        <path d="M8.5 7.5c1 .5 1.5 1.5 1.5 2.5" />
+        <path d="M15.5 7.5c-1 .5-1.5 1.5-1.5 2.5" />
+      </svg>
+    ),
+  },
 ]
 
 export const SCOPE_LABELS: Record<string, string> = {
   tarefas: 'Hábitos e Tarefas',
   saude: 'Saúde',
+  mente: 'Mente',
   financas: 'Finanças',
   estudos: 'Estudos',
 }
@@ -116,6 +140,11 @@ export const SCOPE_BADGE_STYLES: Record<string, { bg: string; text: string; bord
     bg: 'bg-[#1CB0F6]/10',
     text: 'text-[#1CB0F6]',
     border: 'border-[#1CB0F6]/30',
+  },
+  mente: {
+    bg: 'bg-[#CE82FF]/10',
+    text: 'text-[#CE82FF]',
+    border: 'border-[#CE82FF]/30',
   },
   financas: {
     bg: 'bg-emerald-500/10',
