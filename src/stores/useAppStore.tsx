@@ -1170,9 +1170,29 @@ export const AppStoreProvider = ({ children }: { children: ReactNode }) => {
     } = await supabase.auth.getUser()
     if (!authUser) return
 
-    // 1. Migração única vt_synced_v1 (se usuário autenticado logar pela 1ª vez)
-    const isSynced = localStorage.getItem('vt_synced_v1')
-    if (!isSynced) {
+    // Se houver fila offline pendente, executa mutations pendentes antes do fetch
+    try {
+      const storedQueue = localStorage.getItem('vt_offline_queue')
+      const queue: OfflineAction[] = storedQueue ? JSON.parse(storedQueue) : []
+      if (queue.length > 0) {
+        const { replayQueue } = await import('@/lib/sync-engine')
+        const ok = await replayQueue(queue)
+        if (ok) {
+          setOfflineQueue([])
+          localStorage.removeItem('vt_offline_queue')
+        }
+      }
+    } catch (err) {
+      console.warn('Erro ao processar fila offline antes de fetchTasks:', err)
+    }
+
+    // 1. Migração única vt_synced_v1 por usuário (vt_synced_v1_${authUser.id})
+    // Compatibilidade: se a flag genérica antiga existir e pertencer a este usuário, considerar migrado
+    const userSyncedKey = `vt_synced_v1_${authUser.id}`
+    const isUserSynced = localStorage.getItem(userSyncedKey)
+    const isLegacySynced = localStorage.getItem('vt_synced_v1')
+
+    if (!isUserSynced && !isLegacySynced) {
       const { data: dbTasks } = await (supabase as any)
         .from('tasks')
         .select('*')
@@ -1254,8 +1274,11 @@ export const AppStoreProvider = ({ children }: { children: ReactNode }) => {
         setTasks(mapped)
         toast.info('Tarefas sincronizadas com a nuvem.')
       }
-      localStorage.setItem('vt_synced_v1', 'true')
+      localStorage.setItem(userSyncedKey, 'true')
       return
+    } else if (!isUserSynced && isLegacySynced) {
+      // Atualiza para o formato por usuário
+      localStorage.setItem(userSyncedKey, 'true')
     }
 
     // Leitura normal
@@ -1291,9 +1314,28 @@ export const AppStoreProvider = ({ children }: { children: ReactNode }) => {
     } = await supabase.auth.getUser()
     if (!authUser) return
 
-    // 1. Migração única vt_synced_v1
-    const isSynced = localStorage.getItem('vt_synced_v1')
-    if (!isSynced) {
+    // Se houver fila offline pendente, executa mutations pendentes antes do fetch
+    try {
+      const storedQueue = localStorage.getItem('vt_offline_queue')
+      const queue: OfflineAction[] = storedQueue ? JSON.parse(storedQueue) : []
+      if (queue.length > 0) {
+        const { replayQueue } = await import('@/lib/sync-engine')
+        const ok = await replayQueue(queue)
+        if (ok) {
+          setOfflineQueue([])
+          localStorage.removeItem('vt_offline_queue')
+        }
+      }
+    } catch (err) {
+      console.warn('Erro ao processar fila offline antes de fetchHabits:', err)
+    }
+
+    // 1. Migração única vt_synced_v1 por usuário (vt_synced_v1_${authUser.id})
+    const userSyncedKey = `vt_synced_v1_${authUser.id}`
+    const isUserSynced = localStorage.getItem(userSyncedKey)
+    const isLegacySynced = localStorage.getItem('vt_synced_v1')
+
+    if (!isUserSynced && !isLegacySynced) {
       const { data: dbHabits } = await (supabase as any)
         .from('habits')
         .select('*')
@@ -1356,8 +1398,10 @@ export const AppStoreProvider = ({ children }: { children: ReactNode }) => {
         }))
         setHabits(mapped)
       }
-      localStorage.setItem('vt_synced_v1', 'true')
+      localStorage.setItem(userSyncedKey, 'true')
       return
+    } else if (!isUserSynced && isLegacySynced) {
+      localStorage.setItem(userSyncedKey, 'true')
     }
 
     // Leitura normal
@@ -3372,6 +3416,8 @@ export const AppStoreProvider = ({ children }: { children: ReactNode }) => {
     addTag,
     updateTag,
     deleteTag,
+    fetchTasks,
+    fetchHabits,
     addTask,
     toggleTask,
     deleteTask,

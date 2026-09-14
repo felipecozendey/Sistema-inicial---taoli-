@@ -1,10 +1,10 @@
 import { BrowserRouter, Routes, Route, useLocation } from 'react-router-dom'
-import { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
 import { Toaster } from '@/components/ui/toaster'
 import { Toaster as Sonner } from '@/components/ui/sonner'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { ThemeProvider } from '@/components/ThemeProvider'
-import { AppStoreProvider } from '@/stores/useAppStore'
+import { AppStoreProvider, useAppStore } from '@/stores/useAppStore'
 import { FocusRadarProvider } from '@/components/focus-radar/focus-radar-provider'
 import { useServiceWorker } from '@/hooks/use-service-worker'
 import { AuthProvider, useAuth } from '@/hooks/use-auth'
@@ -47,10 +47,54 @@ function SuspendedGuard({ children }: { children: React.ReactNode }) {
 function BootLoader() {
   const loadFlags = useFeatureFlagsStore((s) => s.loadFlags)
   const { user } = useAuth()
+  const fetchTasks = useAppStore((s) => s.fetchTasks)
+  const fetchHabits = useAppStore((s) => s.fetchHabits)
+  const lastFetchedUserIdRef = useRef<string | null>(null)
+  const lastFocusFetchTimeRef = useRef<number>(0)
 
+  // 1. Plug principal: fetchTasks e fetchHabits quando usuário autenticado fica disponível
   useEffect(() => {
     loadFlags(user?.id)
-  }, [loadFlags, user?.id])
+
+    if (user?.id) {
+      if (lastFetchedUserIdRef.current !== user.id) {
+        lastFetchedUserIdRef.current = user.id
+        fetchTasks()
+        fetchHabits()
+      }
+    } else {
+      lastFetchedUserIdRef.current = null
+    }
+  }, [loadFlags, user?.id, fetchTasks, fetchHabits])
+
+  // 2. Frescor automático: listener de visibilitychange e focus com debounce (mínimo 15s)
+  useEffect(() => {
+    if (!user?.id) return
+
+    const handleFreshen = () => {
+      if (document.visibilityState === 'hidden') return
+      const now = Date.now()
+      // Debounce de 15 segundos entre refetches acionados por visibilidade/foco
+      if (now - lastFocusFetchTimeRef.current < 15000) return
+      lastFocusFetchTimeRef.current = now
+      fetchTasks()
+      fetchHabits()
+    }
+
+    const onVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        handleFreshen()
+      }
+    }
+
+    window.addEventListener('visibilitychange', onVisibilityChange)
+    window.addEventListener('focus', handleFreshen)
+
+    return () => {
+      window.removeEventListener('visibilitychange', onVisibilityChange)
+      window.removeEventListener('focus', handleFreshen)
+    }
+  }, [user?.id, fetchTasks, fetchHabits])
 
   return null
 }

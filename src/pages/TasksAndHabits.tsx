@@ -18,7 +18,7 @@ import { cn } from '@/lib/utils'
 import { CheckSquare, Repeat, Clock, Flower2, Settings as SettingsIcon } from 'lucide-react'
 
 export default function TasksAndHabits() {
-  const { tags } = useAppStore()
+  const { tags, fetchTasks, fetchHabits } = useAppStore()
   const { settings, fetchSettings } = useTaskSettingsStore()
   const [activeTab, setActiveTab] = useState<'garden' | 'tasks' | 'habits'>('tasks')
   const [selectedTags, setSelectedTags] = useState<string[]>([])
@@ -27,7 +27,9 @@ export default function TasksAndHabits() {
 
   useEffect(() => {
     fetchSettings()
-  }, [fetchSettings])
+    fetchTasks()
+    fetchHabits()
+  }, [fetchSettings, fetchTasks, fetchHabits])
 
   // Se show_garden for desligado enquanto estiver no jardim, volta para tasks
   const showGarden = settings.show_garden ?? true
