@@ -28,6 +28,7 @@ import { Label } from '@/components/ui/label'
 interface FocusStudioProps {
   open: boolean
   onClose: () => void
+  initialTab?: 'timer' | 'ada' | 'settings'
 }
 
 const SOUNDS: { value: SoundProfile; label: string; emoji: string }[] = [
@@ -49,7 +50,7 @@ const FOCUS_PRESETS = [15, 25, 30, 50]
 const SHORT_BREAK_PRESETS = [3, 5, 10]
 const LONG_BREAK_PRESETS = [10, 15, 30]
 
-export function FocusStudio({ open, onClose }: FocusStudioProps) {
+export function FocusStudio({ open, onClose, initialTab = 'timer' }: FocusStudioProps) {
   const {
     isRunning,
     timeRemaining,
@@ -74,7 +75,13 @@ export function FocusStudio({ open, onClose }: FocusStudioProps) {
   const { focusRadar, updateFocusRadar, tasks } = useAppStore()
 
   // Tabs de visualização dentro do estúdio: 'timer' | 'ada' | 'settings'
-  const [activeTab, setActiveTab] = useState<'timer' | 'ada' | 'settings'>('timer')
+  const [activeTab, setActiveTab] = useState<'timer' | 'ada' | 'settings'>(initialTab)
+
+  React.useEffect(() => {
+    if (open && initialTab) {
+      setActiveTab(initialTab)
+    }
+  }, [open, initialTab])
 
   // Inputs controlados para digitação livre (validação 1..180 inteiros)
   const [customFocus, setCustomFocus] = useState<string>('')

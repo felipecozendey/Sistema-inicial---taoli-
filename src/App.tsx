@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route, useLocation } from 'react-router-dom'
+import { BrowserRouter, Routes, Route, useLocation, Navigate } from 'react-router-dom'
 import { useEffect, useRef } from 'react'
 import { Toaster } from '@/components/ui/toaster'
 import { Toaster as Sonner } from '@/components/ui/sonner'
@@ -23,7 +23,6 @@ import Login from './pages/Login'
 import NotFound from './pages/NotFound'
 import Dashboard from './pages/Dashboard'
 import Tasks from './pages/TasksAndHabits'
-import Analytics from './pages/Analytics'
 import Settings from './pages/Settings'
 import Profile from './pages/Profile'
 import Health from './pages/Health'
@@ -157,14 +156,7 @@ function AppInner() {
                     </FeatureGate>
                   }
                 />
-                <Route
-                  path="/analytics"
-                  element={
-                    <FeatureGate featureKey="analytics">
-                      <Analytics />
-                    </FeatureGate>
-                  }
-                />
+                <Route path="/analytics" element={<Navigate to="/dashboard" replace />} />
                 <Route
                   path="/master"
                   element={

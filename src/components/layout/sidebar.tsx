@@ -29,7 +29,6 @@ const navItems: NavItem[] = [
   { icon: HeartPulse, label: 'Saúde', path: '/health', featureKey: 'health' },
   { icon: GraduationCap, label: 'Estudos', path: '/studies', featureKey: 'studies' },
   { icon: Wallet, label: 'Finanças', path: '/finance', featureKey: 'finance' },
-  { icon: BarChart2, label: 'Relatórios', path: '/analytics', featureKey: 'analytics' },
   { icon: UserCircle, label: 'Perfil', path: '/profile' },
 ]
 

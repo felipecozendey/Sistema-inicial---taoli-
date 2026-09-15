@@ -37,6 +37,7 @@ export interface FocusRadarContextValue {
   todayStats: DailyFocusStats
   selectedTaskId: string | null
   setSelectedTaskId: (id: string | null) => void
+  focusHistory: FocusHistoryMap
   taskSessionCounts: Record<string, number>
 
   // Ada Focus
@@ -48,9 +49,12 @@ export interface FocusRadarContextValue {
   triggerAdaFocusPreview: () => void
 }
 
+export type FocusHistoryMap = Record<string, { sessions: number; focusMinutes: number }>
+
 const FocusRadarContext = createContext<FocusRadarContextValue | undefined>(undefined)
 
 const STATS_KEY = 'vt_focus_stats'
+const HISTORY_KEY = 'vt_focus_history'
 const ACTIVE_STATE_KEY = 'vt_focus_active_state'
 const TASK_COUNTS_KEY = 'vt_focus_task_counts'
 
@@ -59,8 +63,59 @@ function getTodayString(): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 }
 
-function loadTodayStats(): DailyFocusStats {
+function loadFocusHistory(): FocusHistoryMap {
+  const history: FocusHistoryMap = {}
+  try {
+    const rawHist = localStorage.getItem(HISTORY_KEY)
+    if (rawHist) {
+      const parsed = JSON.parse(rawHist)
+      if (parsed && typeof parsed === 'object') {
+        Object.assign(history, parsed)
+      }
+    }
+  } catch {
+    /* ignore */
+  }
+
+  // Retrocompatibilidade: migrar vt_focus_stats para o histórico se ainda não existir
+  try {
+    const rawSingle = localStorage.getItem(STATS_KEY)
+    if (rawSingle) {
+      const parsed = JSON.parse(rawSingle) as DailyFocusStats
+      if (parsed && parsed.date) {
+        if (!history[parsed.date]) {
+          history[parsed.date] = {
+            sessions: parsed.sessions || 0,
+            focusMinutes: parsed.focusMinutes || 0,
+          }
+          localStorage.setItem(HISTORY_KEY, JSON.stringify(history))
+        }
+      }
+    }
+  } catch {
+    /* ignore */
+  }
+
+  return history
+}
+
+function saveFocusHistory(history: FocusHistoryMap) {
+  try {
+    localStorage.setItem(HISTORY_KEY, JSON.stringify(history))
+  } catch {
+    /* ignore */
+  }
+}
+
+function loadTodayStats(history?: FocusHistoryMap): DailyFocusStats {
   const today = getTodayString()
+  if (history && history[today]) {
+    return {
+      date: today,
+      sessions: history[today].sessions || 0,
+      focusMinutes: history[today].focusMinutes || 0,
+    }
+  }
   try {
     const raw = localStorage.getItem(STATS_KEY)
     if (raw) {
@@ -139,7 +194,11 @@ export function FocusRadarProvider({ children }: { children: ReactNode }) {
   const [currentCycle, setCurrentCycle] = useState<number>(focusRadar.currentCycle || 1)
   const [timeRemaining, setTimeRemaining] = useState<number>(0)
   const [lastTriggered, setLastTriggered] = useState<Date | null>(null)
-  const [todayStats, setTodayStats] = useState<DailyFocusStats>(() => loadTodayStats())
+  const [focusHistory, setFocusHistory] = useState<FocusHistoryMap>(() => loadFocusHistory())
+  const [todayStats, setTodayStats] = useState<DailyFocusStats>(() => {
+    const hist = loadFocusHistory()
+    return loadTodayStats(hist)
+  })
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null)
   const [taskSessionCounts, setTaskSessionCounts] = useState<Record<string, number>>(() =>
     loadTaskCounts(),
@@ -205,8 +264,9 @@ export function FocusRadarProvider({ children }: { children: ReactNode }) {
 
   // Adicionar sessão concluída às estatísticas
   const registerCompletedFocusSession = useCallback((minutes: number) => {
+    const today = getTodayString()
+
     setTodayStats((prev) => {
-      const today = getTodayString()
       const base = prev.date === today ? prev : { date: today, sessions: 0, focusMinutes: 0 }
       const updated: DailyFocusStats = {
         date: today,
@@ -215,6 +275,19 @@ export function FocusRadarProvider({ children }: { children: ReactNode }) {
       }
       saveTodayStats(updated)
       return updated
+    })
+
+    setFocusHistory((prev) => {
+      const current = prev[today] || { sessions: 0, focusMinutes: 0 }
+      const updatedMap: FocusHistoryMap = {
+        ...prev,
+        [today]: {
+          sessions: current.sessions + 1,
+          focusMinutes: current.focusMinutes + minutes,
+        },
+      }
+      saveFocusHistory(updatedMap)
+      return updatedMap
     })
 
     const taskId = selectedTaskIdRef.current
@@ -736,6 +809,7 @@ export function FocusRadarProvider({ children }: { children: ReactNode }) {
         switchPhase,
         lastTriggered,
         todayStats,
+        focusHistory,
         selectedTaskId,
         setSelectedTaskId,
         taskSessionCounts,
