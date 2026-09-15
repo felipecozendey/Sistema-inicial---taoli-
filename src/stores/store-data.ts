@@ -15,6 +15,15 @@ export type OfflineAction = {
 export type FocusPhase = 'focus' | 'short' | 'long'
 export type FocusMode = 'pomodoro' | 'radar'
 
+export type AdaFocusSettings = {
+  enabled: boolean // padrão false
+  intervalMinutes: number // 1–180, padrão 30
+  message: string // padrão "Ainda focado? 👀"
+  soundProfile: SoundProfile // 'ding' | 'pop' | 'tibetan'
+  autoDismissSeconds: number // 0 = até fechar manualmente; 10/30/60/300; padrão 30
+  onlyDuringFocus: boolean // disparar só durante a fase focus do Pomodoro; padrão false
+}
+
 export type FocusRadarSettings = {
   enabled: boolean
   interval: number
@@ -29,6 +38,8 @@ export type FocusRadarSettings = {
   autoStartNext: boolean
   currentCycle: number
   phase: FocusPhase
+  // Bloco Ada Focus independente
+  adaFocus: AdaFocusSettings
 }
 export type HydrationLog = { id: string; date: string; amount: number; timestamp: string }
 export type MoodLog = {
@@ -374,6 +385,15 @@ export const defaultUser: User = {
   coins: 0,
 }
 
+export const defaultAdaFocus: AdaFocusSettings = {
+  enabled: false,
+  intervalMinutes: 30,
+  message: 'Ainda focado? 👀',
+  soundProfile: 'ding',
+  autoDismissSeconds: 30,
+  onlyDuringFocus: false,
+}
+
 export const defaultFocusRadar: FocusRadarSettings = {
   enabled: false,
   interval: 30,
@@ -387,6 +407,7 @@ export const defaultFocusRadar: FocusRadarSettings = {
   autoStartNext: false,
   currentCycle: 1,
   phase: 'focus',
+  adaFocus: defaultAdaFocus,
 }
 
 export const initialTags: Tag[] = [

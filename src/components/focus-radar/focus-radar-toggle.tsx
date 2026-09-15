@@ -5,7 +5,7 @@ import { useFocusRadar } from '@/components/focus-radar/focus-radar-provider'
 import { FocusStudio } from '@/components/focus-radar/focus-studio'
 
 export function FocusRadarToggle() {
-  const { isRunning, timeRemaining, phase, mode } = useFocusRadar()
+  const { isRunning, timeRemaining, phase, adaFocus } = useFocusRadar()
   const [studioOpen, setStudioOpen] = useState(false)
 
   const formatTime = (s: number) => {
@@ -15,7 +15,7 @@ export function FocusRadarToggle() {
     return `${m}:${String(sec).padStart(2, '0')}`
   }
 
-  // Estilo do botão conforme modo e fase
+  // Estilo do botão conforme Pomodoro (fase e tempo)
   const getButtonStyles = () => {
     if (!isRunning) {
       return {
@@ -23,16 +23,7 @@ export function FocusRadarToggle() {
           'bg-card border-[#E5E5E5] dark:border-[#3B4A55] text-muted-foreground hover:bg-muted shadow-md',
         badge: 'OFF',
         badgeClass: 'text-xs opacity-70',
-        label: mode === 'radar' ? 'Radar' : 'Foco',
-      }
-    }
-
-    if (mode === 'radar') {
-      return {
-        classes: 'bg-[#58CC02] border-[#46A302] text-white shadow-lg animate-pulse',
-        badge: formatTime(timeRemaining),
-        badgeClass: 'bg-white/20 px-2 py-0.5 rounded-lg tabular-nums text-xs',
-        label: 'Radar',
+        label: 'Foco',
       }
     }
 
@@ -75,13 +66,20 @@ export function FocusRadarToggle() {
           classes,
         )}
       >
-        {mode === 'radar' ? (
-          <Radio className="w-5 h-5 shrink-0" strokeWidth={2.5} />
-        ) : phase === 'focus' ? (
-          <Clock className="w-5 h-5 shrink-0" strokeWidth={2.5} />
-        ) : (
-          <Coffee className="w-5 h-5 shrink-0" strokeWidth={2.5} />
-        )}
+        <div className="relative flex items-center justify-center">
+          {phase === 'focus' ? (
+            <Clock className="w-5 h-5 shrink-0" strokeWidth={2.5} />
+          ) : (
+            <Coffee className="w-5 h-5 shrink-0" strokeWidth={2.5} />
+          )}
+          {/* Pontinho discreto quando Ada Focus está ativo */}
+          {adaFocus.enabled && (
+            <span
+              title="Ada Focus Ativo"
+              className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-[#58CC02] border-2 border-background ring-1 ring-[#46A302]"
+            />
+          )}
+        </div>
 
         <span className="hidden sm:inline font-bold">{label}</span>
 

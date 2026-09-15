@@ -7,8 +7,9 @@ import {
   useCallback,
   ReactNode,
 } from 'react'
-import { useAppStore, FocusPhase, FocusMode } from '@/stores/useAppStore'
+import { useAppStore, FocusPhase, FocusMode, AdaFocusSettings } from '@/stores/useAppStore'
 import { playFocusSound } from '@/lib/focus-sounds'
+import { AdaFocusPopup } from '@/components/focus-radar/ada-focus-popup'
 
 export interface DailyFocusStats {
   date: string
@@ -16,7 +17,8 @@ export interface DailyFocusStats {
   focusMinutes: number
 }
 
-interface FocusRadarContextValue {
+export interface FocusRadarContextValue {
+  // Pomodoro
   isRunning: boolean
   timeRemaining: number
   totalDuration: number
@@ -36,6 +38,14 @@ interface FocusRadarContextValue {
   selectedTaskId: string | null
   setSelectedTaskId: (id: string | null) => void
   taskSessionCounts: Record<string, number>
+
+  // Ada Focus
+  adaFocus: AdaFocusSettings
+  adaFocusActive: boolean
+  adaFocusTimeRemaining: number
+  adaFocusPopupOpen: boolean
+  dismissAdaFocusPopup: () => void
+  triggerAdaFocusPreview: () => void
 }
 
 const FocusRadarContext = createContext<FocusRadarContextValue | undefined>(undefined)
@@ -150,13 +160,16 @@ export function FocusRadarProvider({ children }: { children: ReactNode }) {
   const targetTimestampRef = useRef<number | null>(null)
   const pausedRemainingRef = useRef<number | null>(null)
 
-  // Obter duração total em segundos para a fase atual
+  // ESTADO DO MOTOR ADA FOCUS INDEPENDENTE
+  const [adaFocusPopupOpen, setAdaFocusPopupOpen] = useState<boolean>(false)
+  const [adaFocusTimeRemaining, setAdaFocusTimeRemaining] = useState<number>(0)
+  const [adaFocusIsTesting, setAdaFocusIsTesting] = useState<boolean>(false)
+  const adaTargetTimestampRef = useRef<number | null>(null)
+
+  // Obter duração total em segundos para a fase atual do Pomodoro
   const getPhaseDurationSeconds = useCallback(
     (p: FocusPhase, m: FocusMode = settingsRef.current.mode): number => {
       const s = settingsRef.current
-      if (m === 'radar') {
-        return Math.max(1, s.interval) * 60
-      }
       if (p === 'short') {
         return Math.max(1, s.shortBreakMinutes) * 60
       }
@@ -170,7 +183,7 @@ export function FocusRadarProvider({ children }: { children: ReactNode }) {
 
   const currentDurationSeconds = getPhaseDurationSeconds(phase, focusRadar.mode)
 
-  // Alerta sonoro e notificação push do browser
+  // Alerta sonoro e notificação push do browser (para Pomodoro)
   const triggerNotification = useCallback(
     (title: string, body: string, soundOverride?: boolean) => {
       const s = settingsRef.current
@@ -247,27 +260,11 @@ export function FocusRadarProvider({ children }: { children: ReactNode }) {
     }
   }, [])
 
-  // Função central: transição de fase quando o tempo chega a zero
+  // Função central: transição de fase quando o tempo chega a zero no Pomodoro
   const handlePhaseComplete = useCallback(() => {
     const s = settingsRef.current
     const currPhase = phaseRef.current
     const currCycle = cycleRef.current
-
-    if (s.mode === 'radar') {
-      // Modo Radar: dispara alerta a cada X minutos e reinicia
-      triggerNotification('Radar de Foco', s.message || 'Ainda focado? 👀')
-      const dur = Math.max(1, s.interval) * 60
-      targetTimestampRef.current = Date.now() + dur * 1000
-      setTimeRemaining(dur)
-      saveActiveState({
-        targetTimestamp: targetTimestampRef.current,
-        pausedRemaining: null,
-        mode: 'radar',
-        phase: 'focus',
-        cycle: 1,
-      })
-      return
-    }
 
     // Modo Pomodoro
     if (currPhase === 'focus') {
@@ -565,21 +562,21 @@ export function FocusRadarProvider({ children }: { children: ReactNode }) {
     [focusRadar.mode, currentCycle, getPhaseDurationSeconds, updateFocusRadar],
   )
 
-  // Alternar entre Pomodoro e Radar legado
+  // Compatibilidade legada para switchMode (mantém Pomodoro)
   const switchMode = useCallback(
     (newMode: FocusMode) => {
-      updateFocusRadar({ mode: newMode, enabled: false })
-      const p = newMode === 'radar' ? 'focus' : phase
+      updateFocusRadar({ mode: 'pomodoro', enabled: false })
+      const p = phase
       setPhase(p)
       phaseRef.current = p
-      const dur = getPhaseDurationSeconds(p, newMode)
+      const dur = getPhaseDurationSeconds(p, 'pomodoro')
       targetTimestampRef.current = null
       pausedRemainingRef.current = dur
       setTimeRemaining(dur)
       saveActiveState({
         targetTimestamp: null,
         pausedRemaining: dur,
-        mode: newMode,
+        mode: 'pomodoro',
         phase: p,
         cycle: currentCycle,
       })
@@ -597,12 +594,128 @@ export function FocusRadarProvider({ children }: { children: ReactNode }) {
     focusRadar.focusMinutes,
     focusRadar.shortBreakMinutes,
     focusRadar.longBreakMinutes,
-    focusRadar.interval,
     phase,
     focusRadar.mode,
     focusRadar.enabled,
     getPhaseDurationSeconds,
   ])
+
+  // ==========================================
+  // MOTOR ADA FOCUS INDEPENDENTE
+  // ==========================================
+  const adaSettings = focusRadar.adaFocus || {
+    enabled: false,
+    intervalMinutes: 30,
+    message: 'Ainda focado? 👀',
+    soundProfile: 'ding',
+    autoDismissSeconds: 30,
+    onlyDuringFocus: false,
+  }
+
+  // Verificar se o Ada Focus deve estar contando/ativo agora
+  const isAdaFocusActive = Boolean(
+    adaSettings.enabled &&
+    (!adaSettings.onlyDuringFocus || (focusRadar.enabled && phase === 'focus')),
+  )
+
+  // Disparar o alerta Ada Focus
+  const triggerAdaAlert = useCallback(() => {
+    const currentAda = settingsRef.current.adaFocus || adaSettings
+    // 1. Som selecionado
+    playFocusSound(currentAda.soundProfile)
+
+    // 2. Notificação push se permitido
+    if ('Notification' in window && Notification.permission === 'granted') {
+      try {
+        new Notification('Ada Focus', {
+          body: currentAda.message || 'Ainda focado? 👀',
+          icon: '/favicon.ico',
+        })
+      } catch {
+        /* ignore */
+      }
+    }
+
+    // 3. Abrir pop-up visual
+    setAdaFocusIsTesting(false)
+    setAdaFocusPopupOpen(true)
+    setLastTriggered(new Date())
+
+    // 4. Reiniciar ciclo para a próxima contagem
+    const durSec = Math.max(1, currentAda.intervalMinutes) * 60
+    adaTargetTimestampRef.current = Date.now() + durSec * 1000
+    setAdaFocusTimeRemaining(durSec)
+  }, [adaSettings])
+
+  // Fechar pop-up Ada Focus e reiniciar ciclo de intervalo
+  const dismissAdaFocusPopup = useCallback(() => {
+    setAdaFocusPopupOpen(false)
+    setAdaFocusIsTesting(false)
+    if (isAdaFocusActive) {
+      const currentAda = settingsRef.current.adaFocus || adaSettings
+      const durSec = Math.max(1, currentAda.intervalMinutes) * 60
+      adaTargetTimestampRef.current = Date.now() + durSec * 1000
+      setAdaFocusTimeRemaining(durSec)
+    }
+  }, [isAdaFocusActive, adaSettings])
+
+  // Botão de preview/teste: toca som e mostra o pop-up por 5s sem reiniciar o ciclo real
+  const triggerAdaFocusPreview = useCallback(() => {
+    const currentAda = settingsRef.current.adaFocus || adaSettings
+    playFocusSound(currentAda.soundProfile)
+    setAdaFocusIsTesting(true)
+    setAdaFocusPopupOpen(true)
+  }, [adaSettings])
+
+  // Heartbeat do Ada Focus baseado em Date.now() com proteção contra rajadas
+  useEffect(() => {
+    if (!isAdaFocusActive) {
+      adaTargetTimestampRef.current = null
+      setAdaFocusTimeRemaining(0)
+      return
+    }
+
+    const durSec = Math.max(1, adaSettings.intervalMinutes) * 60
+
+    // Se o timer ainda não tem alvo definido ou foi desativado anteriormente, inicializa do zero (sem rajadas ao recarregar)
+    if (!adaTargetTimestampRef.current) {
+      adaTargetTimestampRef.current = Date.now() + durSec * 1000
+      setAdaFocusTimeRemaining(durSec)
+    }
+
+    const intervalId = window.setInterval(() => {
+      if (!adaTargetTimestampRef.current) return
+      const now = Date.now()
+      const diffSec = Math.round((adaTargetTimestampRef.current - now) / 1000)
+
+      if (diffSec <= 0) {
+        // Dispara uma única vez e redefine o ciclo
+        triggerAdaAlert()
+      } else {
+        setAdaFocusTimeRemaining(diffSec)
+      }
+    }, 1000)
+
+    const handleAdaVisibilityChange = () => {
+      if (document.visibilityState === 'visible' && adaTargetTimestampRef.current) {
+        const now = Date.now()
+        const diffSec = Math.round((adaTargetTimestampRef.current - now) / 1000)
+        if (diffSec <= 0) {
+          // Voltou de background com tempo já esgotado: dispara uma única vez
+          triggerAdaAlert()
+        } else {
+          setAdaFocusTimeRemaining(diffSec)
+        }
+      }
+    }
+
+    document.addEventListener('visibilitychange', handleAdaVisibilityChange)
+
+    return () => {
+      clearInterval(intervalId)
+      document.removeEventListener('visibilitychange', handleAdaVisibilityChange)
+    }
+  }, [isAdaFocusActive, adaSettings.intervalMinutes, triggerAdaAlert])
 
   return (
     <FocusRadarContext.Provider
@@ -626,9 +739,25 @@ export function FocusRadarProvider({ children }: { children: ReactNode }) {
         selectedTaskId,
         setSelectedTaskId,
         taskSessionCounts,
+
+        // Ada Focus
+        adaFocus: adaSettings,
+        adaFocusActive: isAdaFocusActive,
+        adaFocusTimeRemaining,
+        adaFocusPopupOpen,
+        dismissAdaFocusPopup,
+        triggerAdaFocusPreview,
       }}
     >
       {children}
+      {/* Pop-up global do Ada Focus (visível em qualquer aba e acima do Estúdio) */}
+      <AdaFocusPopup
+        open={adaFocusPopupOpen}
+        message={adaSettings.message}
+        autoDismissSeconds={adaFocusIsTesting ? 5 : adaSettings.autoDismissSeconds}
+        onDismiss={dismissAdaFocusPopup}
+        isTesting={adaFocusIsTesting}
+      />
     </FocusRadarContext.Provider>
   )
 }

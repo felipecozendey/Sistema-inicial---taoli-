@@ -28,6 +28,15 @@ export type OfflineAction = {
 export type FocusPhase = 'focus' | 'short' | 'long'
 export type FocusMode = 'pomodoro' | 'radar'
 
+export type AdaFocusSettings = {
+  enabled: boolean
+  intervalMinutes: number
+  message: string
+  soundProfile: SoundProfile
+  autoDismissSeconds: number
+  onlyDuringFocus: boolean
+}
+
 export type FocusRadarSettings = {
   enabled: boolean
   interval: number
@@ -41,6 +50,7 @@ export type FocusRadarSettings = {
   autoStartNext: boolean
   currentCycle: number
   phase: FocusPhase
+  adaFocus: AdaFocusSettings
 }
 
 export type HydrationLog = { id: string; date: string; amount: number; timestamp: string }
@@ -981,12 +991,53 @@ export const AppStoreProvider = ({ children }: { children: ReactNode }) => {
   const [focusRadar, setFocusRadar] = useState<FocusRadarSettings>(() => {
     const s = localStorage.getItem('vt_focus_radar')
     const parsed = s ? JSON.parse(s) : {}
+    const rawMode = parsed.mode as FocusMode | undefined
+    const isLegacyRadarMode = rawMode === 'radar'
+
+    // Migração retrocompatível: se mode salvo era 'radar', migrar para mode: 'pomodoro' e ativar adaFocus
+    const legacyInterval = Number(parsed.interval) || 30
+    const legacyMessage = typeof parsed.message === 'string' ? parsed.message : 'Ainda focado? 👀'
+    const legacySound = (parsed.soundProfile as SoundProfile) || 'ding'
+    const legacyEnabled = typeof parsed.enabled === 'boolean' ? parsed.enabled : false
+
+    const parsedAda = parsed.adaFocus || {}
+    const adaEnabled =
+      typeof parsedAda.enabled === 'boolean'
+        ? parsedAda.enabled
+        : isLegacyRadarMode
+          ? legacyEnabled
+          : false
+
+    const adaIntervalMinutes =
+      Number(parsedAda.intervalMinutes) ||
+      (isLegacyRadarMode ? legacyInterval : Number(parsed.interval) || 30)
+
+    const adaMessage = typeof parsedAda.message === 'string' ? parsedAda.message : legacyMessage
+
+    const adaSoundProfile = (parsedAda.soundProfile as SoundProfile) || legacySound
+
+    const adaAutoDismissSeconds =
+      typeof parsedAda.autoDismissSeconds === 'number' ? parsedAda.autoDismissSeconds : 30
+
+    const adaOnlyDuringFocus =
+      typeof parsedAda.onlyDuringFocus === 'boolean' ? parsedAda.onlyDuringFocus : false
+
+    const migratedAdaFocus: AdaFocusSettings = {
+      enabled: adaEnabled,
+      intervalMinutes: Math.max(1, Math.min(180, Math.round(adaIntervalMinutes))),
+      message: adaMessage,
+      soundProfile: adaSoundProfile,
+      autoDismissSeconds: adaAutoDismissSeconds,
+      onlyDuringFocus: adaOnlyDuringFocus,
+    }
+
     return {
-      enabled: typeof parsed.enabled === 'boolean' ? parsed.enabled : false,
-      interval: Number(parsed.interval) || 30,
-      message: typeof parsed.message === 'string' ? parsed.message : 'Ainda focado? 👀',
-      soundProfile: (parsed.soundProfile as SoundProfile) || 'ding',
-      mode: (parsed.mode as FocusMode) || 'pomodoro',
+      // Se era radar mode legado, Pomodoro inicia desativado e o adaFocus herda o enabled
+      enabled: isLegacyRadarMode ? false : legacyEnabled,
+      interval: migratedAdaFocus.intervalMinutes,
+      message: migratedAdaFocus.message,
+      soundProfile: migratedAdaFocus.soundProfile,
+      mode: 'pomodoro', // Sempre pomodoro para o motor de timer
       focusMinutes: Number(parsed.focusMinutes) || 25,
       shortBreakMinutes: Number(parsed.shortBreakMinutes) || 5,
       longBreakMinutes: Number(parsed.longBreakMinutes) || 15,
@@ -994,6 +1045,7 @@ export const AppStoreProvider = ({ children }: { children: ReactNode }) => {
       autoStartNext: typeof parsed.autoStartNext === 'boolean' ? parsed.autoStartNext : false,
       currentCycle: Number(parsed.currentCycle) || 1,
       phase: (parsed.phase as FocusPhase) || 'focus',
+      adaFocus: migratedAdaFocus,
     }
   })
   const [offlineQueue, setOfflineQueue] = useState<OfflineAction[]>(() => {
@@ -3043,7 +3095,18 @@ export const AppStoreProvider = ({ children }: { children: ReactNode }) => {
     ;(supabase as any).from('nutrition_micro_goals').delete().eq('id', id).then()
   }
   const updateFocusRadar = (settings: Partial<FocusRadarSettings>) =>
-    setFocusRadar((p) => ({ ...p, ...settings }))
+    setFocusRadar((p) => {
+      // Se atualizar adaFocus, manter também os campos deprecados espelhados para compatibilidade
+      const nextAdaFocus = settings.adaFocus ? { ...p.adaFocus, ...settings.adaFocus } : p.adaFocus
+      return {
+        ...p,
+        ...settings,
+        adaFocus: nextAdaFocus,
+        interval: nextAdaFocus.intervalMinutes,
+        message: nextAdaFocus.message,
+        soundProfile: nextAdaFocus.soundProfile,
+      }
+    })
   const startFastingTimer = () => {
     const nowIso = new Date().toISOString()
     setActiveFastingStart(nowIso)
