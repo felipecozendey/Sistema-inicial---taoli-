@@ -10,6 +10,7 @@ import {
   GraduationCap,
   Wallet,
   ShieldCheck,
+  Share2,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useIsMaster } from '@/stores/useMasterStore'
@@ -26,6 +27,7 @@ interface NavItem {
 const navItems: NavItem[] = [
   { icon: LayoutDashboard, label: 'Dashboard', path: '/dashboard' },
   { icon: CheckSquare, label: 'Hábitos e Tarefas', path: '/tasks', featureKey: 'tasks' },
+  { icon: Share2, label: 'Social', path: '/social' },
   { icon: HeartPulse, label: 'Saúde', path: '/health', featureKey: 'health' },
   { icon: GraduationCap, label: 'Estudos', path: '/studies', featureKey: 'studies' },
   { icon: Wallet, label: 'Finanças', path: '/finance', featureKey: 'finance' },

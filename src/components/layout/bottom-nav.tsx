@@ -8,6 +8,7 @@ import {
   GraduationCap,
   Wallet,
   ShieldCheck,
+  Share2,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useIsMaster } from '@/stores/useMasterStore'
@@ -35,6 +36,12 @@ export function BottomNav() {
       shortLabel: 'Tarefas',
       path: '/tasks',
       featureKey: 'tasks',
+    },
+    {
+      icon: Share2,
+      label: 'Social',
+      shortLabel: 'Social',
+      path: '/social',
     },
     {
       icon: HeartPulse,

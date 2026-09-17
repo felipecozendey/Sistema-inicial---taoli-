@@ -25,6 +25,7 @@ import Dashboard from './pages/Dashboard'
 import Tasks from './pages/TasksAndHabits'
 import Settings from './pages/Settings'
 import Profile from './pages/Profile'
+import Social from './pages/Social'
 import Health from './pages/Health'
 import Studies from './pages/Studies'
 import Finance from './pages/Finance'
@@ -173,7 +174,9 @@ function AppInner() {
                     </ProfessionalRouteGuard>
                   }
                 />
+                <Route path="/social" element={<Social />} />
                 <Route path="/profile" element={<Profile />} />
+                <Route path="/u/:usernameParam" element={<Profile />} />
                 <Route path="/settings" element={<Settings />} />
               </Route>
               <Route path="*" element={<NotFound />} />
