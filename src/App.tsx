@@ -27,7 +27,6 @@ import Settings from './pages/Settings'
 import Profile from './pages/Profile'
 import Social from './pages/Social'
 import Health from './pages/Health'
-import Studies from './pages/Studies'
 import Finance from './pages/Finance'
 import Master from './pages/Master'
 import Professional from './pages/Professional'
@@ -141,14 +140,7 @@ function AppInner() {
                     </FeatureGate>
                   }
                 />
-                <Route
-                  path="/studies"
-                  element={
-                    <FeatureGate featureKey="studies">
-                      <Studies />
-                    </FeatureGate>
-                  }
-                />
+                <Route path="/studies" element={<Navigate to="/tasks?tab=estudos" replace />} />
                 <Route
                   path="/finance"
                   element={
@@ -175,7 +167,7 @@ function AppInner() {
                   }
                 />
                 <Route path="/social" element={<Social />} />
-                <Route path="/profile" element={<Profile />} />
+                <Route path="/profile" element={<Navigate to="/social?tab=perfil" replace />} />
                 <Route path="/u/:usernameParam" element={<Profile />} />
                 <Route path="/settings" element={<Settings />} />
               </Route>

@@ -76,7 +76,7 @@ export function MasterSystemTab() {
               className="rounded-xl px-4 py-2 text-xs font-black transition-all data-[state=active]:bg-[#1CB0F6] data-[state=active]:text-white data-[state=active]:shadow-sm flex items-center gap-2"
             >
               <CheckSquare className="w-4 h-4" />
-              <span>Hábitos e Tarefas</span>
+              <span>Performance</span>
             </TabsTrigger>
           </TabsList>
         </div>
@@ -91,7 +91,7 @@ export function MasterSystemTab() {
           <MasterExercisesSubTab />
         </TabsContent>
 
-        {/* Sub-aba 3: Hábitos e Tarefas */}
+        {/* Sub-aba 3: Performance */}
         <TabsContent value="tasks-habits" className="mt-4">
           <MasterTaskSettingsSubTab />
         </TabsContent>

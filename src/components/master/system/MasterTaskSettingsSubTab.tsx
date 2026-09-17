@@ -258,7 +258,7 @@ export function MasterTaskSettingsSubTab() {
             Visibilidade e Comportamento Visual
           </CardTitle>
           <CardDescription className="text-xs font-semibold">
-            Controle os recursos visíveis aos usuários na tela de Hábitos e Tarefas.
+            Controle os recursos visíveis aos usuários na tela de Performance.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -271,8 +271,8 @@ export function MasterTaskSettingsSubTab() {
                 </Label>
               </div>
               <p className="text-xs text-muted-foreground font-medium">
-                Quando desativado, oculta totalmente a aba Jardim na tela de Hábitos e Tarefas para
-                todos os usuários.
+                Quando desativado, oculta totalmente a aba Jardim na tela de Performance para todos
+                os usuários.
               </p>
             </div>
             <Switch

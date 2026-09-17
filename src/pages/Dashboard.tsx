@@ -147,7 +147,7 @@ export default function Dashboard() {
           {/* Anéis de progresso */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className="bg-card border-2 border-b-4 rounded-3xl p-6 flex flex-col items-center justify-center shadow-sm">
-              <h3 className="text-lg font-extrabold mb-4 text-[#1CB0F6]">Hábitos e Tarefas</h3>
+              <h3 className="text-lg font-extrabold mb-4 text-[#1CB0F6]">Performance</h3>
               <div className="[--ring:199_92%_54%] [--primary:199_92%_54%]">
                 <CircularProgress value={taskPercent} size={140} strokeWidth={12}>
                   <span className="text-3xl font-extrabold tracking-tighter">{taskPercent}%</span>

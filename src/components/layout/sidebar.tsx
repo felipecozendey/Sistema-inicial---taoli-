@@ -2,12 +2,9 @@ import { Link, useLocation } from 'react-router-dom'
 import {
   LayoutDashboard,
   CheckSquare,
-  BarChart2,
   Settings,
   Sparkles,
   HeartPulse,
-  UserCircle,
-  GraduationCap,
   Wallet,
   ShieldCheck,
   Share2,
@@ -26,12 +23,10 @@ interface NavItem {
 
 const navItems: NavItem[] = [
   { icon: LayoutDashboard, label: 'Dashboard', path: '/dashboard' },
-  { icon: CheckSquare, label: 'Hábitos e Tarefas', path: '/tasks', featureKey: 'tasks' },
+  { icon: CheckSquare, label: 'Performance', path: '/tasks', featureKey: 'tasks' },
   { icon: Share2, label: 'Social', path: '/social' },
   { icon: HeartPulse, label: 'Saúde', path: '/health', featureKey: 'health' },
-  { icon: GraduationCap, label: 'Estudos', path: '/studies', featureKey: 'studies' },
   { icon: Wallet, label: 'Finanças', path: '/finance', featureKey: 'finance' },
-  { icon: UserCircle, label: 'Perfil', path: '/profile' },
 ]
 
 export function Sidebar() {
@@ -73,24 +68,27 @@ export function Sidebar() {
                 />
                 <span className="truncate">{item.label}</span>
               </Link>
-              {/* Item no sidebar e bottom-nav abaixo de "Perfil", visível somente quando is_professional = true */}
-              {item.path === '/profile' && isProfessional && (
-                <Link
-                  to="/professional"
-                  className={cn(
-                    'mt-2 flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all duration-200 group font-bold border-b-2',
-                    location.pathname.startsWith('/professional')
-                      ? 'bg-[#1CB0F6]/20 text-[#1CB0F6] border-[#1CB0F6]'
-                      : 'text-[#1CB0F6] hover:bg-[#1CB0F6]/10 border-transparent',
-                  )}
-                >
-                  <StethoscopeIcon className="w-5 h-5 shrink-0 text-[#1CB0F6]" />
-                  <span className="truncate">Painel Pro</span>
-                </Link>
-              )}
             </div>
           )
         })}
+
+        {/* Item Painel Pro independente ao final da lista principal, visível somente quando is_professional = true */}
+        {isProfessional && (
+          <div className="pt-1">
+            <Link
+              to="/professional"
+              className={cn(
+                'flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all duration-200 group font-bold border-b-2',
+                location.pathname.startsWith('/professional')
+                  ? 'bg-[#1CB0F6]/20 text-[#1CB0F6] border-[#1CB0F6]'
+                  : 'text-[#1CB0F6] hover:bg-[#1CB0F6]/10 border-transparent',
+              )}
+            >
+              <StethoscopeIcon className="w-5 h-5 shrink-0 text-[#1CB0F6]" />
+              <span className="truncate">Painel Pro</span>
+            </Link>
+          </div>
+        )}
       </nav>
 
       <div className="mt-auto pt-4 border-t space-y-2 shrink-0">

@@ -10,7 +10,7 @@ export interface ScopeDefinition {
 export const CONSENT_SCOPES: ScopeDefinition[] = [
   {
     key: 'tarefas',
-    title: 'Hábitos e Tarefas',
+    title: 'Performance',
     description:
       'Tarefas agendadas, hábitos diários, taxa de conclusão e histórico de consistência, e poderá criar tarefas e hábitos para você, identificados com o nome dele.',
     icon: ({ className = 'w-5 h-5' }: { className?: string }) => (
@@ -123,7 +123,7 @@ export const CONSENT_SCOPES: ScopeDefinition[] = [
 ]
 
 export const SCOPE_LABELS: Record<string, string> = {
-  tarefas: 'Hábitos e Tarefas',
+  tarefas: 'Performance',
   saude: 'Saúde',
   mente: 'Mente',
   financas: 'Finanças',

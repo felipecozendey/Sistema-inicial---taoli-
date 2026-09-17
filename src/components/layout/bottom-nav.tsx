@@ -4,8 +4,6 @@ import {
   CheckSquare,
   Settings,
   HeartPulse,
-  UserCircle,
-  GraduationCap,
   Wallet,
   ShieldCheck,
   Share2,
@@ -32,8 +30,8 @@ export function BottomNav() {
     { icon: LayoutDashboard, label: 'Início', shortLabel: 'Início', path: '/dashboard' },
     {
       icon: CheckSquare,
-      label: 'Tarefas',
-      shortLabel: 'Tarefas',
+      label: 'Performance',
+      shortLabel: 'Perf.',
       path: '/tasks',
       featureKey: 'tasks',
     },
@@ -51,20 +49,12 @@ export function BottomNav() {
       featureKey: 'health',
     },
     {
-      icon: GraduationCap,
-      label: 'Estudos',
-      shortLabel: 'Estudos',
-      path: '/studies',
-      featureKey: 'studies',
-    },
-    {
       icon: Wallet,
       label: 'Finanças',
       shortLabel: 'Finanças',
       path: '/finance',
       featureKey: 'finance',
     },
-    { icon: UserCircle, label: 'Perfil', shortLabel: 'Perfil', path: '/profile' },
     ...(isProfessional
       ? [
           {

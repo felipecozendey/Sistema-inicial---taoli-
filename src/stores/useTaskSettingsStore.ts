@@ -118,7 +118,7 @@ export const useTaskSettingsStore = create<TaskSettingsState>((set, get) => ({
 
       toast({
         title: 'Configurações salvas',
-        description: 'Parâmetros de Hábitos e Tarefas atualizados com sucesso.',
+        description: 'Parâmetros de Performance atualizados com sucesso.',
       })
       return true
     } catch (err: any) {
