@@ -12,7 +12,9 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { GroupMember } from '@/services/social'
 import { useSocialStore } from '@/stores/useSocialStore'
 import { Link } from 'react-router-dom'
-import { Users, Check, X, UserX, Clock, Shield, Loader2, Crown } from 'lucide-react'
+import { Users, Check, X, UserX, Clock, Shield, Loader2, Crown, Tag } from 'lucide-react'
+import { isProUser } from '@/hooks/use-pro-features'
+import { AssignTagModal } from './pro/AssignTagModal'
 
 interface ManageGroupModalProps {
   open: boolean
@@ -28,9 +30,19 @@ export function ManageGroupModal({
   groupName,
 }: ManageGroupModalProps) {
   const { currentGroupMembers, respondMembershipRequest, removeMemberFromGroup } = useSocialStore()
-
   const [activeTab, setActiveTab] = useState<'pending' | 'members'>('pending')
   const [processingId, setProcessingId] = useState<string | null>(null)
+  const [tagModalOpen, setTagModalOpen] = useState(false)
+  const [selectedUserForTag, setSelectedUserForTag] = useState<{ id: string; name: string } | null>(
+    null,
+  )
+
+  const isPro = isProUser({ is_professional: true })
+
+  const handleOpenTag = (uid: string, uname: string) => {
+    setSelectedUserForTag({ id: uid, name: uname })
+    setTagModalOpen(true)
+  }
 
   const pendingMembers = currentGroupMembers.filter((m) => m.status === 'pending')
   const activeMembers = currentGroupMembers.filter((m) => m.status === 'member')
@@ -222,31 +234,58 @@ export function ManageGroupModal({
                     </div>
                   </div>
 
-                  {!isOwner && (
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => handleRemove(member.user_id)}
-                      disabled={isProcessing}
-                      title="Remover membro do grupo"
-                      className="rounded-xl h-8 px-2.5 font-bold text-xs text-destructive hover:text-destructive border-2 gap-1 cursor-pointer shrink-0"
-                    >
-                      {isProcessing ? (
-                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                      ) : (
-                        <>
-                          <UserX className="w-3.5 h-3.5" />
-                          <span className="hidden sm:inline">Remover</span>
-                        </>
-                      )}
-                    </Button>
-                  )}
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    {/* Pro feature: Conceder tag */}
+                    {isPro && (
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => handleOpenTag(member.user_id, user?.username || displayName)}
+                        title="Conceder Tag neste grupo"
+                        className="rounded-xl h-8 px-2 text-xs font-bold text-[#CE82FF] hover:bg-[#CE82FF]/10 gap-1 cursor-pointer"
+                      >
+                        <Tag className="w-3.5 h-3.5" />
+                        <span className="hidden sm:inline">Tag</span>
+                      </Button>
+                    )}
+
+                    {!isOwner && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => handleRemove(member.user_id)}
+                        disabled={isProcessing}
+                        title="Remover membro do grupo"
+                        className="rounded-xl h-8 px-2.5 font-bold text-xs text-destructive hover:text-destructive border-2 gap-1 cursor-pointer"
+                      >
+                        {isProcessing ? (
+                          <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                        ) : (
+                          <>
+                            <UserX className="w-3.5 h-3.5" />
+                            <span className="hidden sm:inline">Remover</span>
+                          </>
+                        )}
+                      </Button>
+                    )}
+                  </div>
                 </div>
               )
             })}
           </TabsContent>
         </Tabs>
       </DialogContent>
+
+      {/* Assign Tag Modal */}
+      {selectedUserForTag && (
+        <AssignTagModal
+          open={tagModalOpen}
+          onOpenChange={setTagModalOpen}
+          groupId={groupId}
+          targetUserId={selectedUserForTag.id}
+          targetUserName={selectedUserForTag.name}
+        />
+      )}
     </Dialog>
   )
 }

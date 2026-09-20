@@ -19,6 +19,8 @@ import {
   PatientMenteData,
 } from '@/stores/useProfessionalStore'
 import { PatientMenteView } from './PatientMenteView'
+import { PatientSocialHistoryTab } from './PatientSocialHistoryTab'
+import { PatientSocialHistoryData } from '@/services/social'
 import {
   Scale,
   Activity,
@@ -112,6 +114,7 @@ export function PatientDetailsDrawer({ patient, open, onOpenChange }: PatientDet
   const [financasData, setFinancasData] = useState<PatientFinancasData | null>(null)
   const [estudosData, setEstudosData] = useState<PatientEstudosData | null>(null)
   const [menteData, setMenteData] = useState<PatientMenteData | null>(null)
+  const [socialHistoryData, setSocialHistoryData] = useState<PatientSocialHistoryData | null>(null)
 
   // Loading flags per tab
   const [loadingMap, setLoadingMap] = useState<Record<string, boolean>>({})
@@ -192,7 +195,7 @@ export function PatientDetailsDrawer({ patient, open, onOpenChange }: PatientDet
   const grantedPages = React.useMemo(() => {
     if (!patient || !Array.isArray(patient.granted_pages)) return []
     return patient.granted_pages.filter((p) =>
-      ['tarefas', 'saude', 'mente', 'financas', 'estudos'].includes(p),
+      ['tarefas', 'saude', 'mente', 'financas', 'estudos', 'historico_social'].includes(p),
     )
   }, [patient])
 
@@ -228,6 +231,7 @@ export function PatientDetailsDrawer({ patient, open, onOpenChange }: PatientDet
       setFinancasData(null)
       setEstudosData(null)
       setMenteData(null)
+      setSocialHistoryData(null)
       setLoadingMap({})
     }
   }, [patient?.id])
@@ -261,6 +265,19 @@ export function PatientDetailsDrawer({ patient, open, onOpenChange }: PatientDet
       fetchPatientMente(patient.patient_id)
         .then((res) => setMenteData(res))
         .finally(() => setLoadingMap((m) => ({ ...m, mente: false })))
+    } else if (
+      activeTab === 'historico_social' &&
+      !socialHistoryData &&
+      !loadingMap['historico_social'] &&
+      currentUserId
+    ) {
+      setLoadingMap((m) => ({ ...m, historico_social: true }))
+      import('@/services/social').then(({ getPatientSocialHistory }) => {
+        getPatientSocialHistory(patient.patient_id, currentUserId)
+          .then((res) => setSocialHistoryData(res))
+          .catch((err) => console.error('Erro ao buscar histórico social do paciente:', err))
+          .finally(() => setLoadingMap((m) => ({ ...m, historico_social: false })))
+      })
     }
   }, [
     open,
@@ -271,6 +288,8 @@ export function PatientDetailsDrawer({ patient, open, onOpenChange }: PatientDet
     financasData,
     estudosData,
     menteData,
+    socialHistoryData,
+    currentUserId,
     loadingMap,
     fetchPatientTarefas,
     fetchPatientSaude,
@@ -1925,6 +1944,14 @@ export function PatientDetailsDrawer({ patient, open, onOpenChange }: PatientDet
                       </>
                     )}
                   </div>
+                )}
+
+                {/* ABA 6: HISTÓRICO SOCIAL (Exclusivo Pro, grupos criados pelo profissional logado) */}
+                {activeTab === 'historico_social' && (
+                  <PatientSocialHistoryTab
+                    data={socialHistoryData}
+                    loading={Boolean(loadingMap['historico_social'])}
+                  />
                 )}
               </>
             )}

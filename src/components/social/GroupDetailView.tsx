@@ -5,6 +5,10 @@ import { useAuth } from '@/hooks/use-auth'
 import { PostComposer } from '@/components/social/PostComposer'
 import { PostCard } from '@/components/social/PostCard'
 import { ManageGroupModal } from '@/components/social/ManageGroupModal'
+import { CreatePollModal } from './pro/CreatePollModal'
+import { PollCard } from './pro/PollCard'
+import { GroupAdminModal } from './pro/GroupAdminModal'
+import { isProUser } from '@/hooks/use-pro-features'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
@@ -20,6 +24,8 @@ import {
   Loader2,
   Crown,
   Share2,
+  BarChart2,
+  PlusCircle,
 } from 'lucide-react'
 import { toast } from 'sonner'
 
@@ -33,25 +39,42 @@ export function GroupDetailView({ groupId, onBack }: GroupDetailViewProps) {
   const {
     currentGroup,
     currentGroupPosts,
+    currentGroupPolls,
     loadingGroupDetails,
     loadingGroupPosts,
     loadGroupDetails,
     loadGroupPosts,
     loadGroupMembers,
+    loadGroupPolls,
     toggleGroupMembership,
     removeGroupPost,
   } = useSocialStore()
 
   const [manageOpen, setManageOpen] = useState(false)
+  const [createPollOpen, setCreatePollOpen] = useState(false)
+  const [adminOpen, setAdminOpen] = useState(false)
   const [membershipLoading, setMembershipLoading] = useState(false)
+
+  const isGroupOwner = Boolean(
+    currentGroup?.current_user_role === 'owner' || currentGroup?.created_by === user?.id,
+  )
 
   useEffect(() => {
     if (groupId) {
       loadGroupDetails(groupId, user?.id)
       loadGroupPosts(groupId)
       loadGroupMembers(groupId)
+      loadGroupPolls(groupId, user?.id, isGroupOwner)
     }
-  }, [groupId, user?.id, loadGroupDetails, loadGroupPosts, loadGroupMembers])
+  }, [
+    groupId,
+    user?.id,
+    isGroupOwner,
+    loadGroupDetails,
+    loadGroupPosts,
+    loadGroupMembers,
+    loadGroupPolls,
+  ])
 
   if (loadingGroupDetails) {
     return (
@@ -86,7 +109,7 @@ export function GroupDetailView({ groupId, onBack }: GroupDetailViewProps) {
     )
   }
 
-  const isOwner = currentGroup.current_user_role === 'owner' || currentGroup.created_by === user?.id
+  const isOwner = isGroupOwner
   const isMember = currentGroup.current_user_status === 'member'
   const isPending = currentGroup.current_user_status === 'pending'
   const isClosed = currentGroup.is_closed
@@ -210,16 +233,28 @@ export function GroupDetailView({ groupId, onBack }: GroupDetailViewProps) {
             </div>
 
             {/* Action Button */}
-            <div className="shrink-0 flex items-center gap-2">
+            <div className="shrink-0 flex items-center gap-2 flex-wrap">
               {isOwner ? (
-                <Button
-                  onClick={() => setManageOpen(true)}
-                  variant="outline"
-                  className="rounded-2xl h-11 px-5 font-bold border-2 text-xs flex items-center gap-1.5 cursor-pointer"
-                >
-                  <Settings className="w-4 h-4 text-[#58CC02]" />
-                  <span>Gerenciar</span>
-                </Button>
+                <>
+                  <Button
+                    onClick={() => setManageOpen(true)}
+                    variant="outline"
+                    className="rounded-2xl h-11 px-4 font-bold border-2 text-xs flex items-center gap-1.5 cursor-pointer hover:bg-muted"
+                  >
+                    <Settings className="w-4 h-4 text-[#58CC02]" />
+                    <span>Gerenciar</span>
+                  </Button>
+
+                  {isProUser({ is_professional: true }) && (
+                    <Button
+                      onClick={() => setAdminOpen(true)}
+                      className="rounded-2xl h-11 px-4 font-black text-xs bg-[#1CB0F6] hover:bg-[#1CB0F6]/90 border-b-4 border-[#1899D6] text-white flex items-center gap-1.5 cursor-pointer active:translate-y-0.5"
+                    >
+                      <BarChart2 className="w-4 h-4" />
+                      <span>Administração</span>
+                    </Button>
+                  )}
+                </>
               ) : isMember ? (
                 <Button
                   onClick={handleToggleMembership}
@@ -281,6 +316,34 @@ export function GroupDetailView({ groupId, onBack }: GroupDetailViewProps) {
       {/* Main Content Area based on membership */}
       {isMember || isOwner ? (
         <div className="space-y-6">
+          {/* Pro Owner Action Bar (Nova Pesquisa) */}
+          {isOwner && isProUser({ is_professional: true }) && (
+            <div className="flex items-center justify-between p-3.5 rounded-3xl bg-[#58CC02]/10 border-2 border-[#58CC02]/30">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-xl bg-[#58CC02] text-white flex items-center justify-center font-black">
+                  PRO
+                </div>
+                <div>
+                  <h4 className="text-xs sm:text-sm font-black text-foreground">
+                    Recursos Profissionais do Grupo
+                  </h4>
+                  <p className="text-[11px] text-muted-foreground font-semibold">
+                    Crie pesquisas com relatório de votos e gerencie seus membros.
+                  </p>
+                </div>
+              </div>
+
+              <Button
+                onClick={() => setCreatePollOpen(true)}
+                size="sm"
+                className="rounded-2xl h-9 px-3.5 font-black text-xs bg-[#58CC02] hover:bg-[#58CC02]/90 border-b-4 border-[#46A302] text-white shadow-xs cursor-pointer active:translate-y-0.5 shrink-0 gap-1.5"
+              >
+                <PlusCircle className="w-4 h-4" />
+                <span className="hidden sm:inline">Nova Pesquisa</span>
+              </Button>
+            </div>
+          )}
+
           {/* Group Composer */}
           <PostComposer
             groupId={groupId}
@@ -288,6 +351,23 @@ export function GroupDetailView({ groupId, onBack }: GroupDetailViewProps) {
             placeholderPhoto="Compartilhe uma foto com o grupo..."
             onPublished={() => loadGroupPosts(groupId)}
           />
+
+          {/* Group Polls Section if any */}
+          {currentGroupPolls.length > 0 && (
+            <div className="space-y-3">
+              <div className="flex items-center justify-between px-1">
+                <h3 className="text-xs sm:text-sm font-black uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                  <BarChart2 className="w-4 h-4 text-[#1CB0F6]" />
+                  Pesquisas Ativas ({currentGroupPolls.length})
+                </h3>
+              </div>
+              <div className="space-y-3">
+                {currentGroupPolls.map((poll) => (
+                  <PollCard key={poll.id} poll={poll} groupId={groupId} isOwner={isOwner} />
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* Group Posts List */}
           <div className="space-y-4">
@@ -321,6 +401,7 @@ export function GroupDetailView({ groupId, onBack }: GroupDetailViewProps) {
                     post={post as any}
                     isGroupPost={true}
                     isGroupOwner={isOwner}
+                    groupId={groupId}
                     onDeleteGroupPost={handleDeletePost}
                   />
                 ))}
@@ -408,6 +489,23 @@ export function GroupDetailView({ groupId, onBack }: GroupDetailViewProps) {
           groupId={groupId}
           groupName={currentGroup.name}
         />
+      )}
+
+      {/* Pro Features Modals */}
+      {isOwner && isProUser({ is_professional: true }) && (
+        <>
+          <CreatePollModal
+            open={createPollOpen}
+            onOpenChange={setCreatePollOpen}
+            groupId={groupId}
+          />
+          <GroupAdminModal
+            open={adminOpen}
+            onOpenChange={setAdminOpen}
+            groupId={groupId}
+            groupName={currentGroup.name}
+          />
+        </>
       )}
     </div>
   )

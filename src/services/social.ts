@@ -41,6 +41,13 @@ export interface ModerationAction {
     | 'delete_group_post'
     | 'restore_group_post'
     | 'delete_group'
+    | 'pin_group_post'
+    | 'unpin_group_post'
+    | 'create_group_poll'
+    | 'delete_group_poll'
+    | 'tag_member'
+    | 'remove_member_tag'
+    | 'remove_group_member'
   target_user_id: string | null
   target_post_id: string | null
   details: Record<string, any>
@@ -84,12 +91,95 @@ export interface GroupPost {
   image_url: string | null
   created_at: string
   is_deleted: boolean
+  pinned_at?: string | null
+  pinned_by?: string | null
+  pinned_by_user?: PublicProfile | null
   author?: PublicProfile
+  author_tag?: GroupMemberTag | null
   group?: {
     id: string
     name: string
     cover_url: string | null
   }
+}
+
+export interface GroupPollOption {
+  id: string
+  poll_id: string
+  option_text: string
+  position: number
+  created_at: string
+  vote_count?: number
+  percentage?: number
+  voters?: PublicProfile[]
+}
+
+export interface GroupPoll {
+  id: string
+  group_id: string
+  question: string
+  created_by: string
+  closes_at: string | null
+  is_deleted: boolean
+  created_at: string
+  creator?: PublicProfile
+  options: GroupPollOption[]
+  user_voted_option_id?: string | null
+  total_votes?: number
+  participation_rate?: number // voters / active_members
+  is_closed?: boolean
+}
+
+export interface GroupMemberTag {
+  id: string
+  group_id: string
+  user_id: string
+  label: string
+  color: string
+  expires_at: string | null
+  created_by: string
+  created_at: string
+  is_expired?: boolean
+  creator?: PublicProfile
+  group?: {
+    id: string
+    name: string
+  }
+}
+
+export interface GroupMemberEvent {
+  id: string
+  group_id: string
+  user_id: string
+  event: 'joined' | 'left' | 'removed' | 'approved' | 'rejected' | 'request_sent'
+  actor_id: string | null
+  created_at: string
+  user?: PublicProfile
+  actor?: PublicProfile
+  group?: {
+    id: string
+    name: string
+  }
+}
+
+export interface GroupAdminMetrics {
+  period: '7d' | '30d' | 'all'
+  joined_count: number
+  left_count: number
+  removed_count: number
+  posts_count: number
+  posts_per_day: number
+  active_members: number
+  pending_members: number
+  approval_rate: number // approved / (approved + rejected)
+  activity_timeline: { date: string; posts: number; joined: number; votes: number }[]
+  top_active_members: {
+    user: PublicProfile
+    post_count: number
+    vote_count: number
+    total_interactions: number
+    tags?: GroupMemberTag[]
+  }[]
 }
 
 // 1. Upload files to 'social' bucket (avatars, banners, posts, groups)
@@ -751,24 +841,809 @@ export async function getGroupPosts(groupId: string): Promise<GroupPost[]> {
     .select('*')
     .eq('group_id', groupId)
     .eq('is_deleted', false)
+    .order('pinned_at', { ascending: false, nullsFirst: false })
     .order('created_at', { ascending: false })
 
   if (error || !posts) return []
 
   const authorIds = Array.from(new Set((posts as any[]).map((p) => p.author_id)))
-  const { data: profiles } = await (supabase.from as any)('public_profiles')
-    .select('*')
-    .in('id', authorIds)
+  const pinnerIds = Array.from(
+    new Set((posts as any[]).filter((p) => p.pinned_by).map((p) => p.pinned_by)),
+  )
+  const allUserIds = Array.from(new Set([...authorIds, ...pinnerIds]))
+
+  const [{ data: profiles }, { data: tags }] = await Promise.all([
+    (supabase.from as any)('public_profiles').select('*').in('id', allUserIds),
+    (supabase.from as any)('group_member_tags')
+      .select('*')
+      .eq('group_id', groupId)
+      .in('user_id', authorIds),
+  ])
 
   const profileMap = new Map<string, PublicProfile>()
   for (const p of (profiles as any[]) || []) {
     profileMap.set(p.id, p as PublicProfile)
   }
 
+  const nowStr = new Date().toISOString()
+  const tagMap = new Map<string, GroupMemberTag>()
+  for (const t of (tags as any[]) || []) {
+    // only active non-expired tag
+    if (!t.expires_at || t.expires_at > nowStr) {
+      tagMap.set(t.user_id, t as GroupMemberTag)
+    }
+  }
+
   return (posts as any[]).map((p) => ({
     ...p,
     author: profileMap.get(p.author_id),
+    pinned_by_user: p.pinned_by ? profileMap.get(p.pinned_by) : null,
+    author_tag: tagMap.get(p.author_id) || null,
   }))
+}
+
+// 14.1 Pin / Unpin Group Post
+export async function pinGroupPostAction(groupId: string, postId: string) {
+  const { error } = await (supabase.rpc as any)('pin_group_post', {
+    p_group_id: groupId,
+    p_post_id: postId,
+  })
+  if (error) throw error
+}
+
+export async function unpinGroupPostAction(groupId: string, postId: string) {
+  const { error } = await (supabase.rpc as any)('unpin_group_post', {
+    p_group_id: groupId,
+    p_post_id: postId,
+  })
+  if (error) throw error
+}
+
+// 14.2 Group Polls API
+export async function getGroupPolls(
+  groupId: string,
+  currentUserId?: string,
+  isOwner = false,
+): Promise<GroupPoll[]> {
+  const { data: rawPolls, error } = await (supabase.from as any)('group_polls')
+    .select('*')
+    .eq('group_id', groupId)
+    .eq('is_deleted', false)
+    .order('created_at', { ascending: false })
+
+  if (error || !rawPolls || rawPolls.length === 0) return []
+
+  const pollIds = (rawPolls as any[]).map((p) => p.id)
+
+  // Fetch options
+  const { data: optionsData } = await (supabase.from as any)('group_poll_options')
+    .select('*')
+    .in('poll_id', pollIds)
+    .order('position', { ascending: true })
+
+  const optionsList = (optionsData as any[]) || []
+
+  // Fetch votes: if owner, fetch all votes with voter details. If regular member, fetch aggregated counts + user's own vote
+  let votesList: any[] = []
+  if (isOwner) {
+    const { data: rawVotes } = await (supabase.from as any)('group_poll_votes')
+      .select('poll_id, option_id, user_id, created_at')
+      .in('poll_id', pollIds)
+    votesList = rawVotes || []
+  } else if (currentUserId) {
+    const { data: myVotes } = await (supabase.from as any)('group_poll_votes')
+      .select('poll_id, option_id, user_id, created_at')
+      .in('poll_id', pollIds)
+      .eq('user_id', currentUserId)
+    votesList = myVotes || []
+  }
+
+  // Voter profiles if owner
+  const voterProfileMap = new Map<string, PublicProfile>()
+  if (isOwner && votesList.length > 0) {
+    const voterIds = Array.from(new Set(votesList.map((v) => v.user_id)))
+    const { data: voterProfiles } = await (supabase.from as any)('public_profiles')
+      .select('*')
+      .in('id', voterIds)
+    for (const vp of (voterProfiles as any[]) || []) {
+      voterProfileMap.set(vp.id, vp as PublicProfile)
+    }
+  }
+
+  // Also get aggregated vote counts per option from RPC get_group_poll_results
+  const optionCountMap = new Map<string, number>()
+  await Promise.all(
+    pollIds.map(async (pid) => {
+      try {
+        const { data: results } = await (supabase.rpc as any)('get_group_poll_results', {
+          p_poll_id: pid,
+        })
+        if (results && Array.isArray(results)) {
+          for (const r of results) {
+            optionCountMap.set(r.option_id, Number(r.vote_count) || 0)
+          }
+        }
+      } catch (err) {
+        // fallback to votesList count if RPC fails
+        console.warn('Fallback get_group_poll_results:', err)
+      }
+    }),
+  )
+
+  // Fetch active member count for participation rate
+  const { count: activeMembersCount } = await (supabase.from as any)('group_members')
+    .select('*', { count: 'exact', head: true })
+    .eq('group_id', groupId)
+    .eq('status', 'member')
+
+  const nowIso = new Date().toISOString()
+
+  return (rawPolls as any[]).map((poll) => {
+    const pOptions = optionsList.filter((o) => o.poll_id === poll.id)
+    const pVotes = votesList.filter((v) => v.poll_id === poll.id)
+    const myVote = currentUserId ? pVotes.find((v) => v.user_id === currentUserId) : null
+
+    // compute total votes
+    let totalVotes = 0
+    pOptions.forEach((opt) => {
+      const cnt = optionCountMap.has(opt.id)
+        ? optionCountMap.get(opt.id)!
+        : isOwner
+          ? pVotes.filter((v) => v.option_id === opt.id).length
+          : 0
+      totalVotes += cnt
+    })
+
+    const mappedOptions: GroupPollOption[] = pOptions.map((opt) => {
+      const cnt = optionCountMap.has(opt.id)
+        ? optionCountMap.get(opt.id)!
+        : isOwner
+          ? pVotes.filter((v) => v.option_id === opt.id).length
+          : 0
+      const pct = totalVotes > 0 ? Math.round((cnt / totalVotes) * 100) : 0
+      const optionVoters = isOwner
+        ? (pVotes
+            .filter((v) => v.option_id === opt.id)
+            .map((v) => voterProfileMap.get(v.user_id))
+            .filter(Boolean) as PublicProfile[])
+        : undefined
+
+      return {
+        ...opt,
+        vote_count: cnt,
+        percentage: pct,
+        voters: optionVoters,
+      }
+    })
+
+    const isClosed = Boolean(poll.closes_at && poll.closes_at <= nowIso)
+    const activeTotal = activeMembersCount || 1
+    const participationRate =
+      totalVotes > 0 ? Math.min(100, Math.round((totalVotes / activeTotal) * 100)) : 0
+
+    return {
+      ...poll,
+      options: mappedOptions,
+      user_voted_option_id: myVote?.option_id || null,
+      total_votes: totalVotes,
+      participation_rate: participationRate,
+      is_closed: isClosed,
+    }
+  })
+}
+
+export async function createGroupPoll(
+  groupId: string,
+  creatorId: string,
+  question: string,
+  options: string[],
+  closesAt?: string | null,
+): Promise<GroupPoll> {
+  const cleanQ = question.trim()
+  if (!cleanQ) throw new Error('A pergunta da enquete é obrigatória.')
+  const cleanOpts = options.map((o) => o.trim()).filter(Boolean)
+  if (cleanOpts.length < 2 || cleanOpts.length > 6) {
+    throw new Error('A enquete deve ter entre 2 e 6 opções.')
+  }
+
+  // 1. Insert poll
+  const { data: newPoll, error: pollErr } = await (supabase.from as any)('group_polls')
+    .insert({
+      group_id: groupId,
+      question: cleanQ,
+      created_by: creatorId,
+      closes_at: closesAt || null,
+    })
+    .select()
+    .single()
+
+  if (pollErr) throw pollErr
+
+  // 2. Insert options
+  const optionPayloads = cleanOpts.map((text, idx) => ({
+    poll_id: newPoll.id,
+    option_text: text,
+    position: idx,
+  }))
+
+  const { data: createdOptions, error: optErr } = await (supabase.from as any)('group_poll_options')
+    .insert(optionPayloads)
+    .select()
+
+  if (optErr) throw optErr
+
+  // 3. Audit in moderation_actions
+  await (supabase.from as any)('moderation_actions').insert({
+    actor_id: creatorId,
+    action: 'create_group_poll',
+    details: {
+      group_id: groupId,
+      poll_id: newPoll.id,
+      question: cleanQ,
+      timestamp: new Date().toISOString(),
+    },
+  })
+
+  return {
+    ...newPoll,
+    options: (createdOptions as any[]).map((o) => ({
+      ...o,
+      vote_count: 0,
+      percentage: 0,
+    })),
+    total_votes: 0,
+    user_voted_option_id: null,
+    is_closed: false,
+  }
+}
+
+export async function voteGroupPoll(pollId: string, optionId: string, userId: string) {
+  // Upsert vote (PK: poll_id, user_id)
+  const { error } = await (supabase.from as any)('group_poll_votes').upsert(
+    {
+      poll_id: pollId,
+      option_id: optionId,
+      user_id: userId,
+      created_at: new Date().toISOString(),
+    },
+    { onConflict: 'poll_id,user_id' },
+  )
+
+  if (error) throw error
+}
+
+export async function closeGroupPoll(pollId: string) {
+  const { error } = await (supabase.from as any)('group_polls')
+    .update({ closes_at: new Date().toISOString() })
+    .eq('id', pollId)
+
+  if (error) throw error
+}
+
+export async function deleteGroupPoll(pollId: string, userId: string, groupId: string) {
+  const { error } = await (supabase.from as any)('group_polls')
+    .update({ is_deleted: true })
+    .eq('id', pollId)
+
+  if (error) throw error
+
+  await (supabase.from as any)('moderation_actions').insert({
+    actor_id: userId,
+    action: 'delete_group_poll',
+    details: {
+      group_id: groupId,
+      poll_id: pollId,
+      timestamp: new Date().toISOString(),
+    },
+  })
+}
+
+// 14.3 Group Member Tags API
+export async function getGroupMemberTags(
+  groupId: string,
+  includeExpired = false,
+): Promise<GroupMemberTag[]> {
+  let query = (supabase.from as any)('group_member_tags')
+    .select('*')
+    .eq('group_id', groupId)
+    .order('created_at', { ascending: false })
+
+  const { data: rawTags, error } = await query
+  if (error || !rawTags) return []
+
+  const nowIso = new Date().toISOString()
+  const userIds = Array.from(new Set((rawTags as any[]).map((t) => t.user_id)))
+  const { data: profiles } = await (supabase.from as any)('public_profiles')
+    .select('*')
+    .in('id', userIds)
+
+  const profileMap = new Map<string, PublicProfile>()
+  for (const p of (profiles as any[]) || []) {
+    profileMap.set(p.id, p as PublicProfile)
+  }
+
+  const mapped = (rawTags as any[]).map((t) => ({
+    ...t,
+    is_expired: Boolean(t.expires_at && t.expires_at <= nowIso),
+    creator: profileMap.get(t.created_by),
+  }))
+
+  if (!includeExpired) {
+    return mapped.filter((t) => !t.is_expired)
+  }
+  return mapped
+}
+
+export async function addMemberTag(
+  groupId: string,
+  userId: string,
+  creatorId: string,
+  label: string,
+  color: string,
+  expiresAt?: string | null,
+): Promise<GroupMemberTag> {
+  const clean = label.trim()
+  if (!clean) throw new Error('A tag deve ter um rótulo.')
+
+  const { data: newTag, error } = await (supabase.from as any)('group_member_tags')
+    .insert({
+      group_id: groupId,
+      user_id: userId,
+      label: clean,
+      color: color || '#58CC02',
+      expires_at: expiresAt || null,
+      created_by: creatorId,
+    })
+    .select()
+    .single()
+
+  if (error) throw error
+
+  // Log in moderation_actions
+  await (supabase.from as any)('moderation_actions').insert({
+    actor_id: creatorId,
+    action: 'tag_member',
+    target_user_id: userId,
+    details: {
+      group_id: groupId,
+      tag_id: newTag.id,
+      label: clean,
+      color: color || '#58CC02',
+      expires_at: expiresAt || null,
+      timestamp: new Date().toISOString(),
+    },
+  })
+
+  return newTag as GroupMemberTag
+}
+
+export async function removeMemberTag(tagId: string, actorId: string, groupId: string) {
+  const { data: existingTag } = await (supabase.from as any)('group_member_tags')
+    .select('*')
+    .eq('id', tagId)
+    .maybeSingle()
+
+  const { error } = await (supabase.from as any)('group_member_tags').delete().eq('id', tagId)
+  if (error) throw error
+
+  if (existingTag) {
+    await (supabase.from as any)('moderation_actions').insert({
+      actor_id: actorId,
+      action: 'remove_member_tag',
+      target_user_id: existingTag.user_id,
+      details: {
+        group_id: groupId,
+        tag_id: tagId,
+        label: existingTag.label,
+        timestamp: new Date().toISOString(),
+      },
+    })
+  }
+}
+
+// 14.4 Group Member Events API (History of entries, exits, removals)
+export async function getGroupMemberEvents(groupId: string): Promise<GroupMemberEvent[]> {
+  const { data: rawEvents, error } = await (supabase.from as any)('group_member_events')
+    .select('*')
+    .eq('group_id', groupId)
+    .order('created_at', { ascending: false })
+
+  if (error || !rawEvents) return []
+
+  const userIds = Array.from(
+    new Set((rawEvents as any[]).flatMap((e) => [e.user_id, e.actor_id]).filter(Boolean)),
+  )
+
+  const { data: profiles } = await (supabase.from as any)('public_profiles')
+    .select('*')
+    .in('id', userIds)
+
+  const profileMap = new Map<string, PublicProfile>()
+  for (const p of (profiles as any[]) || []) {
+    profileMap.set(p.id, p as PublicProfile)
+  }
+
+  return (rawEvents as any[]).map((e) => ({
+    ...e,
+    user: profileMap.get(e.user_id),
+    actor: e.actor_id ? profileMap.get(e.actor_id) : undefined,
+  }))
+}
+
+// 14.5 Group Administration Metrics & Activity Timeline
+export async function getGroupAdminMetrics(
+  groupId: string,
+  period: '7d' | '30d' | 'all' = '30d',
+): Promise<GroupAdminMetrics> {
+  const now = new Date()
+  let cutoffDate: Date | null = null
+  let daysCount = 30
+
+  if (period === '7d') {
+    cutoffDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000)
+    daysCount = 7
+  } else if (period === '30d') {
+    cutoffDate = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000)
+    daysCount = 30
+  }
+
+  const cutoffIso = cutoffDate ? cutoffDate.toISOString() : null
+
+  // Fetch parallel datasets
+  const [eventsRes, postsRes, membersRes, tagsRes, pollsRes] = await Promise.all([
+    (supabase.from as any)('group_member_events')
+      .select('*')
+      .eq('group_id', groupId)
+      .order('created_at', { ascending: true }),
+    (supabase.from as any)('group_posts')
+      .select('id, author_id, created_at, is_deleted')
+      .eq('group_id', groupId)
+      .eq('is_deleted', false),
+    (supabase.from as any)('group_members').select('user_id, status').eq('group_id', groupId),
+    (supabase.from as any)('group_member_tags').select('*').eq('group_id', groupId),
+    (supabase.from as any)('group_polls')
+      .select('id')
+      .eq('group_id', groupId)
+      .eq('is_deleted', false),
+  ])
+
+  const allEvents = (eventsRes.data as any[]) || []
+  const allPosts = (postsRes.data as any[]) || []
+  const allMembers = (membersRes.data as any[]) || []
+  const allTags = (tagsRes.data as any[]) || []
+  const allPolls = (pollsRes.data as any[]) || []
+
+  // Filter by period
+  const periodEvents = cutoffIso ? allEvents.filter((e) => e.created_at >= cutoffIso) : allEvents
+  const periodPosts = cutoffIso ? allPosts.filter((p) => p.created_at >= cutoffIso) : allPosts
+
+  // Fetch votes for polls in this group to calculate interactions
+  let periodVotes: any[] = []
+  if (allPolls.length > 0) {
+    const pollIds = allPolls.map((p) => p.id)
+    let voteQuery = (supabase.from as any)('group_poll_votes')
+      .select('poll_id, user_id, created_at')
+      .in('poll_id', pollIds)
+    if (cutoffIso) {
+      voteQuery = voteQuery.gte('created_at', cutoffIso)
+    }
+    const { data: vData } = await voteQuery
+    periodVotes = vData || []
+  }
+
+  // Counters
+  const joinedCount = periodEvents.filter(
+    (e) => e.event === 'joined' || e.event === 'approved',
+  ).length
+  const leftCount = periodEvents.filter((e) => e.event === 'left').length
+  const removedCount = periodEvents.filter((e) => e.event === 'removed').length
+  const postsCount = periodPosts.length
+  const postsPerDay = Number((postsCount / Math.max(1, daysCount)).toFixed(1))
+
+  const activeMembers = allMembers.filter((m) => m.status === 'member').length
+  const pendingMembers = allMembers.filter((m) => m.status === 'pending').length
+
+  const approvedEventsCount = periodEvents.filter((e) => e.event === 'approved').length
+  const rejectedEventsCount = periodEvents.filter((e) => e.event === 'rejected').length
+  const totalDecided = approvedEventsCount + rejectedEventsCount
+  const approvalRate =
+    totalDecided > 0 ? Math.round((approvedEventsCount / totalDecided) * 100) : 100
+
+  // Activity timeline map: date YYYY-MM-DD -> { posts, joined, votes }
+  const timelineMap = new Map<string, { posts: number; joined: number; votes: number }>()
+
+  // initialize dates for period
+  const startDay = cutoffDate || new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000)
+  for (let d = new Date(startDay); d <= now; d.setDate(d.getDate() + 1)) {
+    const key = d.toISOString().slice(0, 10)
+    timelineMap.set(key, { posts: 0, joined: 0, votes: 0 })
+  }
+
+  periodPosts.forEach((p) => {
+    const key = p.created_at.slice(0, 10)
+    const entry = timelineMap.get(key) || { posts: 0, joined: 0, votes: 0 }
+    entry.posts += 1
+    timelineMap.set(key, entry)
+  })
+
+  periodEvents.forEach((e) => {
+    if (e.event === 'joined' || e.event === 'approved') {
+      const key = e.created_at.slice(0, 10)
+      const entry = timelineMap.get(key) || { posts: 0, joined: 0, votes: 0 }
+      entry.joined += 1
+      timelineMap.set(key, entry)
+    }
+  })
+
+  periodVotes.forEach((v) => {
+    const key = v.created_at.slice(0, 10)
+    const entry = timelineMap.get(key) || { posts: 0, joined: 0, votes: 0 }
+    entry.votes += 1
+    timelineMap.set(key, entry)
+  })
+
+  const activityTimeline = Array.from(timelineMap.entries())
+    .map(([date, counts]) => ({
+      date: date.slice(5), // MM-DD
+      ...counts,
+    }))
+    .slice(-30)
+
+  // Top interacting members: count posts + votes
+  const userInteractions = new Map<string, { posts: number; votes: number }>()
+  periodPosts.forEach((p) => {
+    const cur = userInteractions.get(p.author_id) || { posts: 0, votes: 0 }
+    cur.posts += 1
+    userInteractions.set(p.author_id, cur)
+  })
+
+  periodVotes.forEach((v) => {
+    const cur = userInteractions.get(v.user_id) || { posts: 0, votes: 0 }
+    cur.votes += 1
+    userInteractions.set(v.user_id, cur)
+  })
+
+  const topUserEntries = Array.from(userInteractions.entries())
+    .map(([uid, stats]) => ({
+      userId: uid,
+      post_count: stats.posts,
+      vote_count: stats.votes,
+      total_interactions: stats.posts + stats.votes,
+    }))
+    .sort((a, b) => b.total_interactions - a.total_interactions)
+    .slice(0, 5)
+
+  // Fetch profiles of top users
+  let topActiveMembers: GroupAdminMetrics['top_active_members'] = []
+  if (topUserEntries.length > 0) {
+    const uids = topUserEntries.map((e) => e.userId)
+    const { data: userProfiles } = await (supabase.from as any)('public_profiles')
+      .select('*')
+      .in('id', uids)
+
+    const uMap = new Map<string, PublicProfile>()
+    for (const p of (userProfiles as any[]) || []) {
+      uMap.set(p.id, p as PublicProfile)
+    }
+
+    const nowIso = new Date().toISOString()
+    topActiveMembers = topUserEntries.map((entry) => {
+      const uTags = allTags
+        .filter((t) => t.user_id === entry.userId)
+        .map((t) => ({
+          ...t,
+          is_expired: Boolean(t.expires_at && t.expires_at <= nowIso),
+        }))
+      return {
+        user: uMap.get(entry.userId) || {
+          id: entry.userId,
+          username: 'user',
+          display_name: null,
+          avatar_url: null,
+          banner_url: null,
+          bio: null,
+          motivational_phrase: null,
+          is_private: false,
+          is_banned: false,
+          created_at: '',
+        },
+        post_count: entry.post_count,
+        vote_count: entry.vote_count,
+        total_interactions: entry.total_interactions,
+        tags: uTags,
+      }
+    })
+  }
+
+  return {
+    period,
+    joined_count: joinedCount,
+    left_count: leftCount,
+    removed_count: removedCount,
+    posts_count: postsCount,
+    posts_per_day: postsPerDay,
+    active_members: activeMembers,
+    pending_members: pendingMembers,
+    approval_rate: approvalRate,
+    activity_timeline: activityTimeline,
+    top_active_members: topActiveMembers,
+  }
+}
+
+// 14.6 Patient Social History API for PatientDetailsDrawer
+// strictly anchored to groups.created_by = currentUserId (the logged in professional)
+export interface PatientSocialHistoryData {
+  groups: {
+    group: SocialGroup
+    membership_status: 'member' | 'pending' | 'former'
+    joined_at?: string
+    exit_event?: GroupMemberEvent | null
+  }[]
+  tags: GroupMemberTag[]
+  posts: (GroupPost & { was_moderated?: boolean })[]
+  moderation_timeline: {
+    id: string
+    action: string
+    created_at: string
+    details: any
+    label: string
+  }[]
+}
+
+export async function getPatientSocialHistory(
+  patientId: string,
+  professionalId: string,
+): Promise<PatientSocialHistoryData> {
+  // 1. Fetch only groups created by this professional
+  const { data: proGroups } = await (supabase.from as any)('groups')
+    .select('*')
+    .eq('created_by', professionalId)
+    .order('created_at', { ascending: false })
+
+  const groupsList = (proGroups as any[]) || []
+  if (groupsList.length === 0) {
+    return {
+      groups: [],
+      tags: [],
+      posts: [],
+      moderation_timeline: [],
+    }
+  }
+
+  const groupIds = groupsList.map((g) => g.id)
+  const groupMap = new Map<string, SocialGroup>()
+  groupsList.forEach((g) => groupMap.set(g.id, g as SocialGroup))
+
+  // 2. Fetch patient's membership & events in these groups
+  const [membershipsRes, eventsRes, tagsRes, postsRes, moderationRes] = await Promise.all([
+    (supabase.from as any)('group_members')
+      .select('*')
+      .in('group_id', groupIds)
+      .eq('user_id', patientId),
+    (supabase.from as any)('group_member_events')
+      .select('*')
+      .in('group_id', groupIds)
+      .eq('user_id', patientId)
+      .order('created_at', { ascending: false }),
+    (supabase.from as any)('group_member_tags')
+      .select('*')
+      .in('group_id', groupIds)
+      .eq('user_id', patientId)
+      .order('created_at', { ascending: false }),
+    (supabase.from as any)('group_posts')
+      .select('*')
+      .in('group_id', groupIds)
+      .eq('author_id', patientId)
+      .order('created_at', { ascending: false }),
+    (supabase.from as any)('moderation_actions')
+      .select('*')
+      .eq('target_user_id', patientId)
+      .order('created_at', { ascending: false })
+      .limit(50),
+  ])
+
+  const activeMemberships = (membershipsRes.data as any[]) || []
+  const allEvents = (eventsRes.data as any[]) || []
+  const allTags = (tagsRes.data as any[]) || []
+  const allPosts = (postsRes.data as any[]) || []
+  const allModeration = (moderationRes.data as any[]) || []
+
+  // Combine groups where patient is or was a member
+  const patientGroupIds = Array.from(
+    new Set([
+      ...activeMemberships.map((m) => m.group_id),
+      ...allEvents.map((e) => e.group_id),
+      ...allPosts.map((p) => p.group_id),
+    ]),
+  )
+
+  const nowIso = new Date().toISOString()
+
+  const groupsData = patientGroupIds.map((gid) => {
+    const grp = groupMap.get(gid)!
+    const activeMem = activeMemberships.find((m) => m.group_id === gid)
+    const grpEvents = allEvents.filter((e) => e.group_id === gid)
+    const lastExit = grpEvents.find((e) => e.event === 'left' || e.event === 'removed')
+
+    let status: 'member' | 'pending' | 'former' = 'former'
+    if (activeMem) {
+      status = activeMem.status === 'member' ? 'member' : 'pending'
+    }
+
+    return {
+      group: grp,
+      membership_status: status,
+      joined_at: activeMem?.joined_at || grpEvents.find((e) => e.event === 'joined')?.created_at,
+      exit_event: status === 'former' ? lastExit || null : null,
+    }
+  })
+
+  // Format tags
+  const mappedTags: GroupMemberTag[] = allTags.map((t) => ({
+    ...t,
+    is_expired: Boolean(t.expires_at && t.expires_at <= nowIso),
+    group: groupMap.get(t.group_id)
+      ? { id: t.group_id, name: groupMap.get(t.group_id)!.name }
+      : undefined,
+  }))
+
+  // Format posts
+  const mappedPosts: (GroupPost & { was_moderated?: boolean })[] = allPosts.map((p) => ({
+    ...p,
+    group: groupMap.get(p.group_id)
+      ? { id: p.group_id, name: groupMap.get(p.group_id)!.name, cover_url: null }
+      : undefined,
+    was_moderated: Boolean(
+      p.is_deleted &&
+      allModeration.some(
+        (m) =>
+          m.target_post_id === p.id ||
+          m.details?.post_id === p.id ||
+          m.action === 'delete_group_post',
+      ),
+    ),
+  }))
+
+  // Filter moderation timeline to actions relevant to these pro groups
+  const relevantModeration = allModeration.filter((m) => {
+    const targetGid = m.details?.group_id
+    return !targetGid || groupIds.includes(targetGid)
+  })
+
+  const moderationTimeline = [
+    ...relevantModeration.map((m) => ({
+      id: m.id,
+      action: m.action,
+      created_at: m.created_at,
+      details: m.details,
+      label:
+        m.action === 'remove_group_member'
+          ? 'Removido de grupo'
+          : m.action === 'delete_group_post'
+            ? 'Post moderado / apagado'
+            : m.action === 'tag_member'
+              ? `Tag concedida: "${m.details?.label || ''}"`
+              : m.action === 'remove_member_tag'
+                ? `Tag removida: "${m.details?.label || ''}"`
+                : m.action,
+    })),
+    ...allEvents
+      .filter((e) => e.event === 'removed')
+      .map((e) => ({
+        id: e.id,
+        action: 'removed',
+        created_at: e.created_at,
+        details: { group_id: e.group_id },
+        label: `Removido do grupo ${groupMap.get(e.group_id)?.name || ''}`,
+      })),
+  ].sort((a, b) => b.created_at.localeCompare(a.created_at))
+
+  return {
+    groups: groupsData,
+    tags: mappedTags,
+    posts: mappedPosts,
+    moderation_timeline: moderationTimeline,
+  }
 }
 
 export async function createGroupPost(

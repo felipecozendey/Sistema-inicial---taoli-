@@ -11,6 +11,7 @@ import { PatientDetailsDrawer } from '@/components/professional/PatientDetailsDr
 import { AppointmentModal } from '@/components/professional/AppointmentModal'
 import { NoteModal } from '@/components/professional/NoteModal'
 import { InvitePatientModal } from '@/components/professional/InvitePatientModal'
+import { ProfessionalGroupsTab } from '@/components/professional/ProfessionalGroupsTab'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
@@ -30,6 +31,7 @@ import {
   AlertCircle,
   Trash2,
   Lock,
+  MessageCircle,
 } from 'lucide-react'
 
 export default function ProfessionalPage() {
@@ -45,9 +47,9 @@ export default function ProfessionalPage() {
     deleteClinicalNote,
   } = useProfessionalStore()
 
-  const [activeTab, setActiveTab] = useState<'overview' | 'patients' | 'appointments' | 'notes'>(
-    'overview',
-  )
+  const [activeTab, setActiveTab] = useState<
+    'overview' | 'patients' | 'appointments' | 'notes' | 'groups_pro'
+  >('overview')
   const [clinicModalOpen, setClinicModalOpen] = useState(false)
   const [inviteModalOpen, setInviteModalOpen] = useState(false)
   const [appointmentModalOpen, setAppointmentModalOpen] = useState(false)
@@ -222,6 +224,22 @@ export default function ProfessionalPage() {
         >
           <FileText className="w-4 h-4" />
           <span>Anotações Clínicas</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveTab('groups_pro')}
+          className={`flex items-center gap-2 px-4 py-2.5 rounded-2xl text-xs font-black transition-all shrink-0 border-2 ${
+            activeTab === 'groups_pro'
+              ? 'bg-[#58CC02] text-white border-[#58CC02] border-b-4 shadow-sm'
+              : 'bg-card text-muted-foreground border-transparent hover:bg-muted'
+          }`}
+        >
+          <MessageCircle className="w-4 h-4 text-[#58CC02] group-hover:text-inherit" />
+          <span>Grupos Pro</span>
+          <Badge className="bg-[#CE82FF] text-white text-[9px] font-black uppercase px-1.5 py-0.2 rounded-md">
+            Pro
+          </Badge>
         </button>
       </div>
 
@@ -589,6 +607,12 @@ export default function ProfessionalPage() {
           </div>
         </div>
       )}
+
+      {/* ABA 5: GRUPOS PRO */}
+      {activeTab === 'groups_pro' && <ProfessionalGroupsTab />}
+
+      {/* ABA 5: GRUPOS PRO */}
+      {activeTab === 'groups_pro' && <ProfessionalGroupsTab />}
 
       {/* ABA 4: ANOTAÇÕES CLÍNICAS */}
       {activeTab === 'notes' && (

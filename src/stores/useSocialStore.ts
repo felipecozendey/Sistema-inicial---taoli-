@@ -96,6 +96,38 @@ interface SocialState {
     action: 'member' | 'reject',
   ) => Promise<boolean>
   removeMemberFromGroup: (groupId: string, targetUserId: string) => Promise<boolean>
+
+  // Group Pro features
+  currentGroupPolls: import('@/services/social').GroupPoll[]
+  currentGroupTags: import('@/services/social').GroupMemberTag[]
+  currentGroupEvents: import('@/services/social').GroupMemberEvent[]
+  currentGroupMetrics: import('@/services/social').GroupAdminMetrics | null
+  loadingGroupPolls: boolean
+  loadingGroupAdmin: boolean
+  loadGroupPolls: (groupId: string, currentUserId?: string, isOwner?: boolean) => Promise<void>
+  loadGroupTags: (groupId: string, includeExpired?: boolean) => Promise<void>
+  loadGroupAdminMetrics: (groupId: string, period?: '7d' | '30d' | 'all') => Promise<void>
+  pinPost: (groupId: string, postId: string) => Promise<boolean>
+  unpinPost: (groupId: string, postId: string) => Promise<boolean>
+  publishPoll: (
+    groupId: string,
+    creatorId: string,
+    question: string,
+    options: string[],
+    closesAt?: string | null,
+  ) => Promise<boolean>
+  votePoll: (pollId: string, optionId: string, userId: string, groupId: string) => Promise<boolean>
+  endPoll: (pollId: string, groupId: string) => Promise<boolean>
+  removePoll: (pollId: string, userId: string, groupId: string) => Promise<boolean>
+  assignTag: (
+    groupId: string,
+    userId: string,
+    creatorId: string,
+    label: string,
+    color: string,
+    expiresAt?: string | null,
+  ) => Promise<boolean>
+  deleteTag: (tagId: string, actorId: string, groupId: string) => Promise<boolean>
 }
 
 export const useSocialStore = create<SocialState>((set, get) => ({
@@ -119,6 +151,12 @@ export const useSocialStore = create<SocialState>((set, get) => ({
   currentGroupMembers: [],
   loadingGroupDetails: false,
   loadingGroupPosts: false,
+  currentGroupPolls: [],
+  currentGroupTags: [],
+  currentGroupEvents: [],
+  currentGroupMetrics: null,
+  loadingGroupPolls: false,
+  loadingGroupAdmin: false,
 
   loadMyProfile: async (userId: string) => {
     try {
@@ -660,6 +698,272 @@ export const useSocialStore = create<SocialState>((set, get) => ({
       return true
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Erro ao remover membro'
+      toast.error(msg)
+      return false
+    }
+  },
+
+  // Pro Features Implementations
+  loadGroupPolls: async (groupId, currentUserId, isOwner = false) => {
+    set({ loadingGroupPolls: true })
+    try {
+      const { getGroupPolls } = await import('@/services/social')
+      const polls = await getGroupPolls(groupId, currentUserId, isOwner)
+      set({ currentGroupPolls: polls, loadingGroupPolls: false })
+    } catch (err) {
+      console.error('Erro ao carregar enquetes do grupo:', err)
+      set({ currentGroupPolls: [], loadingGroupPolls: false })
+    }
+  },
+
+  loadGroupTags: async (groupId, includeExpired = true) => {
+    try {
+      const { getGroupMemberTags } = await import('@/services/social')
+      const tags = await getGroupMemberTags(groupId, includeExpired)
+      set({ currentGroupTags: tags })
+    } catch (err) {
+      console.error('Erro ao carregar tags do grupo:', err)
+      set({ currentGroupTags: [] })
+    }
+  },
+
+  loadGroupAdminMetrics: async (groupId, period = '30d') => {
+    set({ loadingGroupAdmin: true })
+    try {
+      const { getGroupAdminMetrics, getGroupMemberEvents } = await import('@/services/social')
+      const [metrics, events] = await Promise.all([
+        getGroupAdminMetrics(groupId, period),
+        getGroupMemberEvents(groupId),
+      ])
+      set({
+        currentGroupMetrics: metrics,
+        currentGroupEvents: events,
+        loadingGroupAdmin: false,
+      })
+    } catch (err) {
+      console.error('Erro ao carregar métricas de administração:', err)
+      set({ currentGroupMetrics: null, currentGroupEvents: [], loadingGroupAdmin: false })
+    }
+  },
+
+  pinPost: async (groupId, postId) => {
+    const prevPosts = get().currentGroupPosts
+    const nowIso = new Date().toISOString()
+    const myProfile = get().myProfile
+
+    // Optimistic: unpin others, pin target
+    set({
+      currentGroupPosts: prevPosts
+        .map((p) => {
+          if (p.id === postId) {
+            return {
+              ...p,
+              pinned_at: nowIso,
+              pinned_by: myProfile?.id || null,
+              pinned_by_user: myProfile || null,
+            }
+          }
+          return {
+            ...p,
+            pinned_at: null,
+            pinned_by: null,
+            pinned_by_user: null,
+          }
+        })
+        .sort((a, b) => {
+          if (a.pinned_at && !b.pinned_at) return -1
+          if (!a.pinned_at && b.pinned_at) return 1
+          return new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+        }),
+    })
+
+    try {
+      const { pinGroupPostAction } = await import('@/services/social')
+      await pinGroupPostAction(groupId, postId)
+      toast.success('Publicação fixada no topo! 📌')
+      return true
+    } catch (err) {
+      set({ currentGroupPosts: prevPosts })
+      const msg = err instanceof Error ? err.message : 'Erro ao fixar publicação'
+      toast.error(msg)
+      return false
+    }
+  },
+
+  unpinPost: async (groupId, postId) => {
+    const prevPosts = get().currentGroupPosts
+    // Optimistic
+    set({
+      currentGroupPosts: prevPosts
+        .map((p) => {
+          if (p.id === postId) {
+            return {
+              ...p,
+              pinned_at: null,
+              pinned_by: null,
+              pinned_by_user: null,
+            }
+          }
+          return p
+        })
+        .sort((a, b) => {
+          if (a.pinned_at && !b.pinned_at) return -1
+          if (!a.pinned_at && b.pinned_at) return 1
+          return new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+        }),
+    })
+
+    try {
+      const { unpinGroupPostAction } = await import('@/services/social')
+      await unpinGroupPostAction(groupId, postId)
+      toast.info('Publicação desafixada do topo.')
+      return true
+    } catch (err) {
+      set({ currentGroupPosts: prevPosts })
+      const msg = err instanceof Error ? err.message : 'Erro ao desafixar publicação'
+      toast.error(msg)
+      return false
+    }
+  },
+
+  publishPoll: async (groupId, creatorId, question, options, closesAt) => {
+    try {
+      const { createGroupPoll } = await import('@/services/social')
+      const poll = await createGroupPoll(groupId, creatorId, question, options, closesAt)
+      set((state) => ({
+        currentGroupPolls: [poll, ...state.currentGroupPolls],
+      }))
+      toast.success('Enquete publicada no grupo! 📊')
+      return true
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Erro ao criar enquete'
+      toast.error(msg)
+      return false
+    }
+  },
+
+  votePoll: async (pollId, optionId, userId, groupId) => {
+    const prevPolls = get().currentGroupPolls
+    const isOwner = get().currentGroup?.created_by === userId
+
+    // Optimistic vote update
+    set({
+      currentGroupPolls: prevPolls.map((poll) => {
+        if (poll.id !== pollId) return poll
+        const hadPreviousVote = Boolean(poll.user_voted_option_id)
+        const prevOptId = poll.user_voted_option_id
+
+        const updatedOptions = poll.options.map((opt) => {
+          let count = opt.vote_count || 0
+          if (hadPreviousVote && opt.id === prevOptId) {
+            count = Math.max(0, count - 1)
+          }
+          if (opt.id === optionId) {
+            count += 1
+          }
+          return { ...opt, vote_count: count }
+        })
+
+        const totalVotes = updatedOptions.reduce((acc, o) => acc + (o.vote_count || 0), 0)
+        const optsWithPct = updatedOptions.map((opt) => ({
+          ...opt,
+          percentage: totalVotes > 0 ? Math.round(((opt.vote_count || 0) / totalVotes) * 100) : 0,
+        }))
+
+        return {
+          ...poll,
+          user_voted_option_id: optionId,
+          total_votes: totalVotes,
+          options: optsWithPct,
+        }
+      }),
+    })
+
+    try {
+      const { voteGroupPoll } = await import('@/services/social')
+      await voteGroupPoll(pollId, optionId, userId)
+      toast.success('Voto registrado! 🗳️')
+      // re-sync to get official backend numbers
+      get().loadGroupPolls(groupId, userId, isOwner)
+      return true
+    } catch (err) {
+      set({ currentGroupPolls: prevPolls })
+      const msg = err instanceof Error ? err.message : 'Erro ao votar'
+      toast.error(msg)
+      return false
+    }
+  },
+
+  endPoll: async (pollId, groupId) => {
+    try {
+      const { closeGroupPoll } = await import('@/services/social')
+      await closeGroupPoll(pollId)
+      set((state) => ({
+        currentGroupPolls: state.currentGroupPolls.map((p) =>
+          p.id === pollId ? { ...p, is_closed: true, closes_at: new Date().toISOString() } : p,
+        ),
+      }))
+      toast.success('Enquete encerrada.')
+      return true
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Erro ao encerrar enquete'
+      toast.error(msg)
+      return false
+    }
+  },
+
+  removePoll: async (pollId, userId, groupId) => {
+    const prevPolls = get().currentGroupPolls
+    set({
+      currentGroupPolls: prevPolls.filter((p) => p.id !== pollId),
+    })
+
+    try {
+      const { deleteGroupPoll } = await import('@/services/social')
+      await deleteGroupPoll(pollId, userId, groupId)
+      toast.success('Enquete excluída.')
+      return true
+    } catch (err) {
+      set({ currentGroupPolls: prevPolls })
+      const msg = err instanceof Error ? err.message : 'Erro ao excluir enquete'
+      toast.error(msg)
+      return false
+    }
+  },
+
+  assignTag: async (groupId, userId, creatorId, label, color, expiresAt) => {
+    try {
+      const { addMemberTag } = await import('@/services/social')
+      const newTag = await addMemberTag(groupId, userId, creatorId, label, color, expiresAt)
+      set((state) => ({
+        currentGroupTags: [newTag, ...state.currentGroupTags],
+      }))
+      // refresh posts & metrics so tags appear on cards
+      get().loadGroupPosts(groupId)
+      toast.success(`Tag "${label}" concedida com sucesso! 🏷️`)
+      return true
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Erro ao conceder tag'
+      toast.error(msg)
+      return false
+    }
+  },
+
+  deleteTag: async (tagId, actorId, groupId) => {
+    const prevTags = get().currentGroupTags
+    set({
+      currentGroupTags: prevTags.filter((t) => t.id !== tagId),
+    })
+
+    try {
+      const { removeMemberTag } = await import('@/services/social')
+      await removeMemberTag(tagId, actorId, groupId)
+      get().loadGroupPosts(groupId)
+      toast.info('Tag removida do membro.')
+      return true
+    } catch (err) {
+      set({ currentGroupTags: prevTags })
+      const msg = err instanceof Error ? err.message : 'Erro ao remover tag'
       toast.error(msg)
       return false
     }
