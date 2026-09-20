@@ -61,6 +61,41 @@ interface SocialState {
       is_private?: boolean
     },
   ) => Promise<boolean>
+
+  // Groups State & Actions
+  groups: import('@/services/social').SocialGroup[]
+  loadingGroups: boolean
+  currentGroup: import('@/services/social').SocialGroup | null
+  currentGroupPosts: import('@/services/social').GroupPost[]
+  currentGroupMembers: import('@/services/social').GroupMember[]
+  loadingGroupDetails: boolean
+  loadingGroupPosts: boolean
+  loadGroups: (userId: string, filter?: 'all' | 'my', search?: string) => Promise<void>
+  loadGroupDetails: (groupId: string, userId?: string) => Promise<void>
+  loadGroupPosts: (groupId: string) => Promise<void>
+  loadGroupMembers: (groupId: string) => Promise<void>
+  createNewGroup: (
+    creatorId: string,
+    data: { name: string; description?: string; coverFile?: File | null; isClosed?: boolean },
+  ) => Promise<import('@/services/social').SocialGroup | null>
+  toggleGroupMembership: (
+    group: import('@/services/social').SocialGroup,
+    userId: string,
+  ) => Promise<boolean>
+  publishGroupPost: (
+    groupId: string,
+    authorId: string,
+    kind: 'photo' | 'reminder',
+    content?: string,
+    imageFile?: File | null,
+  ) => Promise<boolean>
+  removeGroupPost: (postId: string, userId: string) => Promise<boolean>
+  respondMembershipRequest: (
+    groupId: string,
+    targetUserId: string,
+    action: 'member' | 'reject',
+  ) => Promise<boolean>
+  removeMemberFromGroup: (groupId: string, targetUserId: string) => Promise<boolean>
 }
 
 export const useSocialStore = create<SocialState>((set, get) => ({
@@ -75,6 +110,15 @@ export const useSocialStore = create<SocialState>((set, get) => ({
   loadingProfile: false,
   loadingSearch: false,
   posting: false,
+
+  // Groups Initial State
+  groups: [],
+  loadingGroups: false,
+  currentGroup: null,
+  currentGroupPosts: [],
+  currentGroupMembers: [],
+  loadingGroupDetails: false,
+  loadingGroupPosts: false,
 
   loadMyProfile: async (userId: string) => {
     try {
@@ -369,6 +413,253 @@ export const useSocialStore = create<SocialState>((set, get) => ({
       return true
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Falha ao atualizar perfil'
+      toast.error(msg)
+      return false
+    }
+  },
+
+  // Groups Actions
+  loadGroups: async (userId: string, filter = 'all', search = '') => {
+    set({ loadingGroups: true })
+    try {
+      const { getGroupsList } = await import('@/services/social')
+      const groups = await getGroupsList(userId, filter, search)
+      set({ groups, loadingGroups: false })
+    } catch (err) {
+      console.error('Erro ao carregar grupos:', err)
+      set({ groups: [], loadingGroups: false })
+    }
+  },
+
+  loadGroupDetails: async (groupId: string, userId?: string) => {
+    set({ loadingGroupDetails: true })
+    try {
+      const { getGroupDetails } = await import('@/services/social')
+      const group = await getGroupDetails(groupId, userId)
+      set({ currentGroup: group, loadingGroupDetails: false })
+    } catch (err) {
+      console.error('Erro ao carregar detalhes do grupo:', err)
+      set({ currentGroup: null, loadingGroupDetails: false })
+    }
+  },
+
+  loadGroupPosts: async (groupId: string) => {
+    set({ loadingGroupPosts: true })
+    try {
+      const { getGroupPosts } = await import('@/services/social')
+      const posts = await getGroupPosts(groupId)
+      set({ currentGroupPosts: posts, loadingGroupPosts: false })
+    } catch (err) {
+      console.error('Erro ao carregar posts do grupo:', err)
+      set({ currentGroupPosts: [], loadingGroupPosts: false })
+    }
+  },
+
+  loadGroupMembers: async (groupId: string) => {
+    try {
+      const { getGroupMembersList } = await import('@/services/social')
+      const members = await getGroupMembersList(groupId)
+      set({ currentGroupMembers: members })
+    } catch (err) {
+      console.error('Erro ao carregar membros do grupo:', err)
+      set({ currentGroupMembers: [] })
+    }
+  },
+
+  createNewGroup: async (creatorId, data) => {
+    try {
+      let coverUrl: string | undefined = undefined
+      if (data.coverFile) {
+        coverUrl = await uploadSocialImage(data.coverFile, 'groups', creatorId)
+      }
+      const { createSocialGroup } = await import('@/services/social')
+      const newGroup = await createSocialGroup(creatorId, {
+        name: data.name,
+        description: data.description,
+        coverUrl,
+        isClosed: data.isClosed,
+      })
+
+      set((state) => ({
+        groups: [newGroup, ...state.groups],
+      }))
+
+      toast.success('Grupo criado com sucesso! 🎉')
+      return newGroup
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Falha ao criar grupo'
+      toast.error(msg)
+      return null
+    }
+  },
+
+  toggleGroupMembership: async (group, userId) => {
+    const isMember = group.current_user_status === 'member'
+    const isPending = group.current_user_status === 'pending'
+    const wasJoined = Boolean(isMember || isPending)
+
+    const prevGroups = get().groups
+    const prevCurrentGroup = get().currentGroup
+
+    // Optimistic update
+    const nextStatus = wasJoined ? null : group.is_closed ? 'pending' : 'member'
+    const countDiff = nextStatus === 'member' ? 1 : wasJoined && isMember ? -1 : 0
+
+    const updateGroupObj = (g: any) => {
+      if (g.id !== group.id) return g
+      return {
+        ...g,
+        current_user_status: nextStatus,
+        members_count: Math.max(0, (g.members_count || 0) + countDiff),
+      }
+    }
+
+    set((state) => ({
+      groups: state.groups.map(updateGroupObj),
+      currentGroup:
+        state.currentGroup && state.currentGroup.id === group.id
+          ? updateGroupObj(state.currentGroup)
+          : state.currentGroup,
+    }))
+
+    try {
+      const { joinOrRequestGroup, leaveGroup } = await import('@/services/social')
+      if (wasJoined) {
+        await leaveGroup(group.id, userId)
+        toast.info(isPending ? 'Solicitação cancelada' : 'Você saiu do grupo')
+      } else {
+        const resStatus = await joinOrRequestGroup(group.id, userId, group.is_closed)
+        if (resStatus === 'pending') {
+          toast.success('Solicitação de entrada enviada! Aguarde a aprovação do dono ⏳')
+        } else {
+          toast.success('Você entrou no grupo! Bem-vindo(a) 🌱')
+        }
+      }
+      return true
+    } catch (err) {
+      // Rollback
+      set({
+        groups: prevGroups,
+        currentGroup: prevCurrentGroup,
+      })
+      const msg = err instanceof Error ? err.message : 'Erro ao atualizar participação no grupo'
+      toast.error(msg)
+      return false
+    }
+  },
+
+  publishGroupPost: async (groupId, authorId, kind, content, imageFile) => {
+    set({ posting: true })
+    try {
+      let imageUrl: string | undefined = undefined
+      if (kind === 'photo') {
+        if (!imageFile) {
+          toast.error('Selecione uma imagem para publicar.')
+          set({ posting: false })
+          return false
+        }
+        imageUrl = await uploadSocialImage(imageFile, 'posts', authorId)
+      } else {
+        if (!content || !content.trim()) {
+          toast.error('Digite uma mensagem para o lembrete.')
+          set({ posting: false })
+          return false
+        }
+      }
+
+      const { createGroupPost } = await import('@/services/social')
+      const newPost = await createGroupPost(groupId, authorId, kind, content, imageUrl)
+
+      const myProfile = get().myProfile
+      const fullPost = {
+        ...newPost,
+        author: myProfile || undefined,
+      }
+
+      set((state) => ({
+        currentGroupPosts: [fullPost, ...state.currentGroupPosts],
+        posting: false,
+      }))
+
+      toast.success('Publicação no grupo enviada! ✨')
+      return true
+    } catch (err) {
+      set({ posting: false })
+      const msg = err instanceof Error ? err.message : 'Falha ao criar publicação no grupo'
+      toast.error(msg)
+      return false
+    }
+  },
+
+  removeGroupPost: async (postId, userId) => {
+    const prevPosts = get().currentGroupPosts
+    set({
+      currentGroupPosts: prevPosts.filter((p) => p.id !== postId),
+    })
+
+    try {
+      const { deleteGroupPost } = await import('@/services/social')
+      await deleteGroupPost(postId, userId)
+      toast.success('Publicação removida do grupo.')
+      return true
+    } catch (err) {
+      set({ currentGroupPosts: prevPosts })
+      const msg = err instanceof Error ? err.message : 'Erro ao excluir publicação'
+      toast.error(msg)
+      return false
+    }
+  },
+
+  respondMembershipRequest: async (groupId, targetUserId, action) => {
+    try {
+      const { updateGroupMemberStatus } = await import('@/services/social')
+      await updateGroupMemberStatus(groupId, targetUserId, action)
+
+      set((state) => ({
+        currentGroupMembers:
+          action === 'reject'
+            ? state.currentGroupMembers.filter((m) => m.user_id !== targetUserId)
+            : state.currentGroupMembers.map((m) =>
+                m.user_id === targetUserId ? { ...m, status: 'member' } : m,
+              ),
+        currentGroup:
+          state.currentGroup && action === 'member'
+            ? { ...state.currentGroup, members_count: (state.currentGroup.members_count || 0) + 1 }
+            : state.currentGroup,
+      }))
+
+      toast.success(
+        action === 'member'
+          ? 'Membro aprovado com sucesso! 🎉'
+          : 'Solicitação recusada e removida.',
+      )
+      return true
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Erro ao processar solicitação'
+      toast.error(msg)
+      return false
+    }
+  },
+
+  removeMemberFromGroup: async (groupId, targetUserId) => {
+    try {
+      const { removeGroupMember } = await import('@/services/social')
+      await removeGroupMember(groupId, targetUserId)
+
+      set((state) => ({
+        currentGroupMembers: state.currentGroupMembers.filter((m) => m.user_id !== targetUserId),
+        currentGroup: state.currentGroup
+          ? {
+              ...state.currentGroup,
+              members_count: Math.max(0, (state.currentGroup.members_count || 1) - 1),
+            }
+          : null,
+      }))
+
+      toast.success('Membro removido do grupo.')
+      return true
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Erro ao remover membro'
       toast.error(msg)
       return false
     }

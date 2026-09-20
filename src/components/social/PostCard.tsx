@@ -25,21 +25,34 @@ import { ptBR } from 'date-fns/locale'
 
 interface PostCardProps {
   post: SocialPost
+  isGroupPost?: boolean
+  isGroupOwner?: boolean
+  onDeleteGroupPost?: (postId: string) => Promise<void>
 }
 
-export function PostCard({ post }: PostCardProps) {
+export function PostCard({
+  post,
+  isGroupPost = false,
+  isGroupOwner = false,
+  onDeleteGroupPost,
+}: PostCardProps) {
   const { user } = useAuth()
   const { removePost } = useSocialStore()
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)
 
   const isAuthor = user && user.id === post.author_id
+  const canDelete = isAuthor || (isGroupPost && isGroupOwner)
   const authorName = post.author?.display_name || post.author?.username || 'Usuário'
   const authorUsername = post.author?.username || 'user'
   const authorAvatar = post.author?.avatar_url
 
   const handleDelete = async () => {
     if (!user) return
-    await removePost(post.id, user.id)
+    if (isGroupPost && onDeleteGroupPost) {
+      await onDeleteGroupPost(post.id)
+    } else {
+      await removePost(post.id, user.id)
+    }
     setDeleteConfirmOpen(false)
   }
 
@@ -78,10 +91,10 @@ export function PostCard({ post }: PostCardProps) {
           </div>
         </Link>
 
-        {isAuthor && (
+        {canDelete && (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <button className="p-1.5 rounded-xl hover:bg-muted text-muted-foreground transition-colors">
+              <button className="p-1.5 rounded-xl hover:bg-muted text-muted-foreground transition-colors cursor-pointer">
                 <MoreVertical className="w-4 h-4" />
               </button>
             </DropdownMenuTrigger>
@@ -90,7 +103,8 @@ export function PostCard({ post }: PostCardProps) {
                 onClick={() => setDeleteConfirmOpen(true)}
                 className="text-xs font-bold text-destructive rounded-xl cursor-pointer"
               >
-                <Trash2 className="w-3.5 h-3.5 mr-2" /> Excluir post
+                <Trash2 className="w-3.5 h-3.5 mr-2" />
+                {isAuthor ? 'Excluir post' : 'Excluir post (como Dono)'}
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
@@ -127,7 +141,7 @@ export function PostCard({ post }: PostCardProps) {
               Excluir este post?
             </AlertDialogTitle>
             <AlertDialogDescription className="text-center text-xs font-semibold text-muted-foreground">
-              Esta ação removerá o post da comunidade. Você não poderá recuperá-lo.
+              Esta ação removerá o post da comunidade ou grupo. Você não poderá recuperá-lo.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter className="flex-col sm:flex-row gap-2 mt-2">

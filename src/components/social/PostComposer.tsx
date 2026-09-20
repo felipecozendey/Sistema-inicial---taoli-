@@ -6,9 +6,21 @@ import { useAuth } from '@/hooks/use-auth'
 import { MessageSquare, Camera, Sparkles, X, Loader2, ImagePlus } from 'lucide-react'
 import { toast } from 'sonner'
 
-export function PostComposer() {
+interface PostComposerProps {
+  groupId?: string
+  placeholderReminder?: string
+  placeholderPhoto?: string
+  onPublished?: () => void
+}
+
+export function PostComposer({
+  groupId,
+  placeholderReminder,
+  placeholderPhoto,
+  onPublished,
+}: PostComposerProps) {
   const { user } = useAuth()
-  const { publishPost, posting, myProfile } = useSocialStore()
+  const { publishPost, publishGroupPost, posting, myProfile } = useSocialStore()
 
   const [mode, setMode] = useState<'reminder' | 'photo'>('reminder')
   const [content, setContent] = useState('')
@@ -55,10 +67,17 @@ export function PostComposer() {
       return
     }
 
-    const ok = await publishPost(user.id, mode, content, selectedImage)
+    let ok = false
+    if (groupId) {
+      ok = await publishGroupPost(groupId, user.id, mode, content, selectedImage)
+    } else {
+      ok = await publishPost(user.id, mode, content, selectedImage)
+    }
+
     if (ok) {
       setContent('')
       handleRemoveImage()
+      if (onPublished) onPublished()
     }
   }
 
@@ -116,8 +135,11 @@ export function PostComposer() {
             onChange={(e) => setContent(e.target.value)}
             placeholder={
               mode === 'reminder'
-                ? 'Deixe um lembrete para quem te segue 💚'
-                : 'Adicione uma legenda para sua foto (opcional)...'
+                ? placeholderReminder ||
+                  (groupId
+                    ? 'Compartilhe um lembrete com os membros do grupo 💚'
+                    : 'Deixe um lembrete para quem te segue 💚')
+                : placeholderPhoto || 'Adicione uma legenda para sua foto (opcional)...'
             }
             className="rounded-2xl border-2 font-medium resize-none min-h-[75px] max-h-[140px] text-xs sm:text-sm"
             maxLength={500}
