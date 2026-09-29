@@ -85,11 +85,19 @@ export default function Settings() {
     setAcceptingInvite(invite)
   }
 
-  const handleConfirmAccept = async (grantedPages: string[]) => {
+  const handleConfirmAccept = async (
+    grantedPages: string[],
+    allowMultidisciplinary: boolean = false,
+  ) => {
     if (!acceptingInvite) return
     setIsSubmittingConsent(true)
     try {
-      const ok = await respondPatientInvite(acceptingInvite.id, true, grantedPages)
+      const ok = await respondPatientInvite(
+        acceptingInvite.id,
+        true,
+        grantedPages,
+        allowMultidisciplinary,
+      )
       if (ok) {
         setAcceptingInvite(null)
       }
@@ -110,11 +118,14 @@ export default function Settings() {
     }
   }
 
-  const handleConfirmManage = async (grantedPages: string[]) => {
+  const handleConfirmManage = async (
+    grantedPages: string[],
+    allowMultidisciplinary: boolean = false,
+  ) => {
     if (!managingLink) return
     setIsSubmittingConsent(true)
     try {
-      const ok = await updateGrantedPages(managingLink.id, grantedPages)
+      const ok = await updateGrantedPages(managingLink.id, grantedPages, allowMultidisciplinary)
       if (ok) {
         setManagingLink(null)
       }
@@ -515,12 +526,17 @@ export default function Settings() {
                               )}
                             </div>
 
-                            {/* Badges com as permissões concedidas */}
+                            {/* Badges com as permissões concedidas + multidisciplinar */}
                             {link.status === 'active' && (
                               <div className="flex items-center gap-1.5 flex-wrap pt-0.5">
                                 <span className="text-[10px] font-bold text-muted-foreground mr-1">
                                   Áreas liberadas:
                                 </span>
+                                {link.allow_multidisciplinary && (
+                                  <span className="text-[10px] font-black px-2 py-0.5 rounded-full border bg-[#CE82FF]/10 text-[#CE82FF] border-[#CE82FF]/30">
+                                    ✦ Multidisciplinar
+                                  </span>
+                                )}
                                 {granted.length === 0 ? (
                                   <span className="text-[10px] font-bold text-amber-600 dark:text-amber-400 bg-amber-500/10 border border-amber-500/30 px-2 py-0.5 rounded-full">
                                     Nenhuma área
@@ -528,19 +544,15 @@ export default function Settings() {
                                 ) : (
                                   granted.map((scope) => {
                                     const label = SCOPE_LABELS[scope] || scope
-                                    const style = SCOPE_BADGE_STYLES[scope] || {
-                                      bg: 'bg-muted',
-                                      text: 'text-foreground',
-                                      border: 'border-border',
-                                    }
+                                    const badgeClass =
+                                      SCOPE_BADGE_STYLES[scope] ||
+                                      'bg-muted text-foreground border-border'
                                     return (
                                       <span
                                         key={scope}
                                         className={cn(
                                           'text-[10px] font-black px-2 py-0.5 rounded-full border',
-                                          style.bg,
-                                          style.text,
-                                          style.border,
+                                          badgeClass,
                                         )}
                                       >
                                         {label}

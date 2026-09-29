@@ -10,12 +10,25 @@ export function useProfessionalPatientWrite() {
   const [saving, setSaving] = useState(false)
 
   const ensureContext = useCallback(
-    (requiredScope: 'tarefas' | 'saude') => {
+    (
+      requiredScope:
+        | 'tarefas'
+        | 'saude'
+        | 'prontuario_geral'
+        | 'nutricao'
+        | 'exercicios'
+        | 'raio_x',
+    ) => {
       if (!activePatient) {
         toast.error('Nenhum paciente selecionado.')
         return false
       }
-      if (!activePatient.grantedPages.includes(requiredScope)) {
+      const granted = activePatient.grantedPages || []
+      const hasScope =
+        granted.includes(requiredScope) ||
+        (granted.includes('saude') &&
+          ['prontuario_geral', 'nutricao', 'exercicios', 'raio_x'].includes(requiredScope))
+      if (!hasScope) {
         toast.error(`Escopo de "${requiredScope}" não concedido pelo paciente.`)
         return false
       }
@@ -279,7 +292,7 @@ export function useProfessionalPatientWrite() {
         allergens?: string | null
       }[] = [],
     ) => {
-      if (!ensureContext('saude') || !activePatient) return null
+      if (!ensureContext('nutricao') || !activePatient) return null
       setSaving(true)
       try {
         const {
@@ -336,7 +349,7 @@ export function useProfessionalPatientWrite() {
 
   const updateDietPlanForPatient = useCallback(
     async (planId: string, updates: { name?: string; time?: string }) => {
-      if (!ensureContext('saude') || !activePatient) return false
+      if (!ensureContext('nutricao') || !activePatient) return false
       setSaving(true)
       try {
         const {
@@ -378,7 +391,7 @@ export function useProfessionalPatientWrite() {
         allergens?: string | null
       },
     ) => {
-      if (!ensureContext('saude') || !activePatient) return null
+      if (!ensureContext('nutricao') || !activePatient) return null
       setSaving(true)
       try {
         const {
@@ -431,7 +444,7 @@ export function useProfessionalPatientWrite() {
         allergens?: string | null
       },
     ) => {
-      if (!ensureContext('saude') || !activePatient) return false
+      if (!ensureContext('nutricao') || !activePatient) return false
       setSaving(true)
       try {
         const {
@@ -459,7 +472,7 @@ export function useProfessionalPatientWrite() {
 
   const deleteDietPlanItemForPatient = useCallback(
     async (itemId: string) => {
-      if (!ensureContext('saude') || !activePatient) return false
+      if (!ensureContext('nutricao') || !activePatient) return false
       setSaving(true)
       try {
         const {
@@ -488,7 +501,7 @@ export function useProfessionalPatientWrite() {
 
   const deleteDietPlanForPatient = useCallback(
     async (planId: string) => {
-      if (!ensureContext('saude') || !activePatient) return false
+      if (!ensureContext('nutricao') || !activePatient) return false
       setSaving(true)
       try {
         const {
@@ -524,7 +537,7 @@ export function useProfessionalPatientWrite() {
       tags: string[],
       ingredients: { foodId: string; amount: string }[],
     ) => {
-      if (!ensureContext('saude') || !activePatient) return null
+      if (!ensureContext('nutricao') || !activePatient) return null
       setSaving(true)
       try {
         const {
@@ -583,7 +596,7 @@ export function useProfessionalPatientWrite() {
         ingredients?: { foodId: string; amount: string }[]
       },
     ) => {
-      if (!ensureContext('saude') || !activePatient) return false
+      if (!ensureContext('nutricao') || !activePatient) return false
       setSaving(true)
       try {
         const {
@@ -632,7 +645,7 @@ export function useProfessionalPatientWrite() {
 
   const deleteRecipeForPatient = useCallback(
     async (recipeId: string) => {
-      if (!ensureContext('saude') || !activePatient) return false
+      if (!ensureContext('nutricao') || !activePatient) return false
       setSaving(true)
       try {
         const {
@@ -662,7 +675,8 @@ export function useProfessionalPatientWrite() {
   // 7. SAÚDE: Raio-X Corporal / Medidas (createBodyMetricForPatient, update, delete)
   const createBodyMetricForPatient = useCallback(
     async (metric: any) => {
-      if (!ensureContext('saude') || !activePatient) return null
+      if ((!ensureContext('prontuario_geral') && !ensureContext('raio_x')) || !activePatient)
+        return null
       setSaving(true)
       try {
         const {
@@ -698,7 +712,8 @@ export function useProfessionalPatientWrite() {
 
   const updateBodyMetricForPatient = useCallback(
     async (metricId: string, metric: any) => {
-      if (!ensureContext('saude') || !activePatient) return false
+      if ((!ensureContext('prontuario_geral') && !ensureContext('raio_x')) || !activePatient)
+        return false
       setSaving(true)
       try {
         const {
@@ -729,7 +744,8 @@ export function useProfessionalPatientWrite() {
 
   const deleteBodyMetricForPatient = useCallback(
     async (metricId: string) => {
-      if (!ensureContext('saude') || !activePatient) return false
+      if ((!ensureContext('prontuario_geral') && !ensureContext('raio_x')) || !activePatient)
+        return false
       setSaving(true)
       try {
         const {
@@ -774,7 +790,8 @@ export function useProfessionalPatientWrite() {
       goal_days?: number | null
       date?: string
     }) => {
-      if (!ensureContext('saude') || !activePatient) return null
+      if ((!ensureContext('nutricao') && !ensureContext('prontuario_geral')) || !activePatient)
+        return null
       setSaving(true)
       try {
         const {
@@ -842,7 +859,8 @@ export function useProfessionalPatientWrite() {
         date?: string
       },
     ) => {
-      if (!ensureContext('saude') || !activePatient) return false
+      if ((!ensureContext('nutricao') && !ensureContext('prontuario_geral')) || !activePatient)
+        return false
       setSaving(true)
       try {
         const {
@@ -891,7 +909,8 @@ export function useProfessionalPatientWrite() {
 
   const deleteMetabolicLogForPatient = useCallback(
     async (logId: string) => {
-      if (!ensureContext('saude') || !activePatient) return false
+      if ((!ensureContext('nutricao') && !ensureContext('prontuario_geral')) || !activePatient)
+        return false
       setSaving(true)
       try {
         const {
@@ -921,7 +940,7 @@ export function useProfessionalPatientWrite() {
   // 9. SAÚDE: Ficha de Treino (createWorkoutRoutineForPatient, delete)
   const createWorkoutRoutineForPatient = useCallback(
     async (title: string, exercises: any[], description?: string) => {
-      if (!ensureContext('saude') || !activePatient) return null
+      if (!ensureContext('exercicios') || !activePatient) return null
       setSaving(true)
       try {
         const {
@@ -962,7 +981,7 @@ export function useProfessionalPatientWrite() {
       routineId: string,
       updates: { title?: string; exercises?: any[]; description?: string },
     ) => {
-      if (!ensureContext('saude') || !activePatient) return false
+      if (!ensureContext('exercicios') || !activePatient) return false
       setSaving(true)
       try {
         const {
@@ -991,7 +1010,7 @@ export function useProfessionalPatientWrite() {
 
   const deleteWorkoutRoutineForPatient = useCallback(
     async (routineId: string) => {
-      if (!ensureContext('saude') || !activePatient) return false
+      if (!ensureContext('exercicios') || !activePatient) return false
       setSaving(true)
       try {
         const {

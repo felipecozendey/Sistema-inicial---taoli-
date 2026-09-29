@@ -26,6 +26,7 @@ export interface PatientLink {
   created_at: string
   responded_at: string | null
   granted_pages: string[]
+  allow_multidisciplinary?: boolean
   patient_name?: string
   patient_email?: string
   professional_name?: string
@@ -188,8 +189,13 @@ interface ProfessionalState {
     linkId: string,
     accept: boolean,
     grantedPages?: string[],
+    allowMultidisciplinary?: boolean,
   ) => Promise<boolean>
-  updateGrantedPages: (linkId: string, grantedPages: string[]) => Promise<boolean>
+  updateGrantedPages: (
+    linkId: string,
+    grantedPages: string[],
+    allowMultidisciplinary?: boolean,
+  ) => Promise<boolean>
   endPatientLink: (linkId: string) => Promise<boolean>
 
   // Appointments
@@ -362,6 +368,7 @@ export const useProfessionalStore = create<ProfessionalState>((set, get) => ({
       const enrichedLinks: PatientLink[] = rawLinks.map((l: any) => ({
         ...l,
         granted_pages: Array.isArray(l.granted_pages) ? l.granted_pages : [],
+        allow_multidisciplinary: Boolean(l.allow_multidisciplinary),
         patient_name: patientProfilesMap[l.patient_id]?.name || 'Paciente',
         patient_email: patientProfilesMap[l.patient_id]?.email || '',
       }))
@@ -445,6 +452,7 @@ export const useProfessionalStore = create<ProfessionalState>((set, get) => ({
         const item: PatientLink = {
           ...l,
           granted_pages: Array.isArray(l.granted_pages) ? l.granted_pages : [],
+          allow_multidisciplinary: Boolean(l.allow_multidisciplinary),
           professional_name: profInfo?.name || profInfo?.email || 'Profissional',
           professional_email: profInfo?.email || '',
           professional_profession: clinicInfo?.profession || 'Profissional da Saúde',
@@ -591,7 +599,8 @@ export const useProfessionalStore = create<ProfessionalState>((set, get) => ({
   respondPatientInvite: async (
     linkId: string,
     accept: boolean,
-    grantedPages: string[] = ['tarefas', 'saude'],
+    grantedPages: string[] = ['tarefas', 'prontuario_geral', 'nutricao', 'exercicios', 'raio_x'],
+    allowMultidisciplinary: boolean = false,
   ) => {
     const prevIncoming = get().incomingInvites
     const prevMyProfessionals = get().myProfessionals
@@ -610,6 +619,7 @@ export const useProfessionalStore = create<ProfessionalState>((set, get) => ({
               ...target,
               status: 'active',
               granted_pages: pagesToSave,
+              allow_multidisciplinary: allowMultidisciplinary,
               responded_at: new Date().toISOString(),
             },
             ...state.myProfessionals,
@@ -623,6 +633,7 @@ export const useProfessionalStore = create<ProfessionalState>((set, get) => ({
         .update({
           status: newStatus,
           granted_pages: pagesToSave,
+          allow_multidisciplinary: allowMultidisciplinary,
           responded_at: new Date().toISOString(),
         })
         .eq('id', linkId)
@@ -643,22 +654,38 @@ export const useProfessionalStore = create<ProfessionalState>((set, get) => ({
     }
   },
 
-  updateGrantedPages: async (linkId: string, grantedPages: string[]) => {
+  updateGrantedPages: async (
+    linkId: string,
+    grantedPages: string[],
+    allowMultidisciplinary?: boolean,
+  ) => {
     const prevMyProfessionals = get().myProfessionals
     const target = prevMyProfessionals.find((l) => l.id === linkId)
     if (!target) return false
 
+    const newMulti =
+      typeof allowMultidisciplinary === 'boolean'
+        ? allowMultidisciplinary
+        : (target.allow_multidisciplinary ?? false)
+
     // Optimistic
     set((state) => ({
       myProfessionals: state.myProfessionals.map((l) =>
-        l.id === linkId ? { ...l, granted_pages: grantedPages } : l,
+        l.id === linkId
+          ? { ...l, granted_pages: grantedPages, allow_multidisciplinary: newMulti }
+          : l,
       ),
     }))
 
     try {
+      const updatePayload: Record<string, any> = { granted_pages: grantedPages }
+      if (typeof allowMultidisciplinary === 'boolean') {
+        updatePayload.allow_multidisciplinary = allowMultidisciplinary
+      }
+
       const { error } = await supabase
         .from('professional_patients')
-        .update({ granted_pages: grantedPages })
+        .update(updatePayload)
         .eq('id', linkId)
 
       if (error) throw error
