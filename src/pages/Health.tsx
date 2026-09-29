@@ -11,6 +11,9 @@ import { MindTab } from '@/components/health/mind-tab'
 import { MealPlanTab } from '@/components/health/meal-plan-tab'
 import { NutritionSettingsTab } from '@/components/health/nutrition-settings-tab'
 import { ClinicalVitalsCard } from '@/components/health/clinical-vitals-card'
+import { MoodEvolution } from '@/components/analytics/mood-evolution'
+import { HydrationConsistency } from '@/components/analytics/hydration-consistency'
+import { MindEvolution } from '@/components/analytics/mind-evolution'
 
 export default function HealthPage() {
   return (
@@ -50,6 +53,9 @@ export default function HealthPage() {
               <TabsTrigger value="historico" className="rounded-xl font-bold">
                 Histórico de Registros
               </TabsTrigger>
+              <TabsTrigger value="minha-saude" className="rounded-xl font-bold">
+                Minha Saúde
+              </TabsTrigger>
             </TabsList>
             <TabsContent value="registrar" className="space-y-6 mt-6 print:hidden">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -60,6 +66,23 @@ export default function HealthPage() {
             </TabsContent>
             <TabsContent value="historico" className="mt-6">
               <HealthHistory />
+            </TabsContent>
+            <TabsContent value="minha-saude" className="space-y-6 mt-6 print:hidden">
+              <div>
+                <h3 className="text-xl font-extrabold tracking-tight">Minha Saúde</h3>
+                <p className="text-xs sm:text-sm text-muted-foreground mt-0.5">
+                  Como seu corpo e sua mente evoluem juntos.
+                </p>
+              </div>
+
+              {/* Grid 2 colunas: Humor -> Hidratação */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <MoodEvolution />
+                <HydrationConsistency />
+              </div>
+
+              {/* Mente: MindEvolution */}
+              <MindEvolution />
             </TabsContent>
           </Tabs>
         </TabsContent>

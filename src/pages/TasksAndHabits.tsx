@@ -16,18 +16,20 @@ import { TasksView } from '@/components/tasks/tasks-view'
 import { HabitsView } from '@/components/tasks/habits-view'
 import { GardenView } from '@/components/garden/GardenView'
 import { StudiesPanel } from '@/components/studies/studies-panel'
+import { PerformanceEvolution } from '@/components/analytics/performance-evolution'
 import { TagManager } from '@/components/tags/tag-manager'
 import { cn } from '@/lib/utils'
 import {
   CheckSquare,
   Repeat,
+  TrendingUp,
   Clock,
   Flower2,
   GraduationCap,
   Settings as SettingsIcon,
 } from 'lucide-react'
 
-type TabKey = 'estudos' | 'jardim' | 'tarefas' | 'habitos'
+type TabKey = 'estudos' | 'jardim' | 'tarefas' | 'habitos' | 'evolucao'
 
 export default function TasksAndHabits() {
   const [searchParams, setSearchParams] = useSearchParams()
@@ -49,6 +51,7 @@ export default function TasksAndHabits() {
     }
     if (tabParam === 'tarefas') return 'tarefas'
     if (tabParam === 'habitos') return 'habitos'
+    if (tabParam === 'evolucao') return 'evolucao'
     return 'tarefas'
   })
 
@@ -192,6 +195,16 @@ export default function TasksAndHabits() {
               <Repeat className="w-4 h-4 shrink-0" strokeWidth={2.5} />
               <span>Hábitos</span>
             </TabsTrigger>
+            <TabsTrigger
+              value="evolucao"
+              className={cn(
+                'rounded-2xl font-black text-xs sm:text-sm px-3 sm:px-4 flex-1 flex items-center justify-center gap-1.5 sm:gap-2 transition-all duration-200 select-none',
+                'data-[state=active]:bg-[#CE82FF] data-[state=active]:text-white data-[state=active]:border-b-4 data-[state=active]:border-[#A347DF] data-[state=active]:shadow-sm',
+              )}
+            >
+              <TrendingUp className="w-4 h-4 shrink-0" strokeWidth={2.5} />
+              <span>Evolução</span>
+            </TabsTrigger>
           </TabsList>
         </div>
 
@@ -289,6 +302,11 @@ export default function TasksAndHabits() {
         {/* Conteúdo da Aba Hábitos */}
         <TabsContent value="habitos" className="focus-visible:outline-none m-0">
           <HabitsView selectedTags={selectedTags} />
+        </TabsContent>
+
+        {/* Conteúdo da Aba Evolução (Visão Geral, Produtividade, Hábitos) */}
+        <TabsContent value="evolucao" className="focus-visible:outline-none m-0">
+          <PerformanceEvolution />
         </TabsContent>
       </Tabs>
     </div>

@@ -1,5 +1,7 @@
-import { useState, useMemo } from 'react'
+import { useState } from 'react'
+import { useNavigate, Link } from 'react-router-dom'
 import { useAppStore } from '@/stores/useAppStore'
+import { useAuth } from '@/hooks/use-auth'
 import { useFocusRadar } from '@/components/focus-radar/focus-radar-provider'
 import { CircularProgress } from '@/components/ui/circular-progress'
 import { TaskCard } from '@/components/tasks/task-card'
@@ -7,20 +9,47 @@ import { UnifiedCreateButton } from '@/components/unified-create-button'
 import { HabitCard } from '@/components/habits/habit-card'
 import { HealthSummary } from '@/components/health/health-summary'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { Link } from 'react-router-dom'
-import { ArrowRight, Flame, Clock, Radio, Sparkles } from 'lucide-react'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
+import { ArrowRight, Flame, LogOut, Loader2 } from 'lucide-react'
 import { getTodayHabits, calculateStreak } from '@/lib/habit-utils'
-import { EvolutionTab } from '@/components/analytics/evolution-tab'
 import { FocusTab } from '@/components/focus-radar/focus-tab'
 import { UnifiedReportModal } from '@/components/analytics/unified-report-modal'
+import { SmartReminders } from '@/components/analytics/smart-reminders'
+import { SmartCharts } from '@/components/analytics/smart-charts'
 import { cn } from '@/lib/utils'
 
 export default function Dashboard() {
   const { user, tasks, habits } = useAppStore()
-  const { todayStats, adaFocus, isRunning } = useFocusRadar()
+  const { signOut } = useAuth()
+  const navigate = useNavigate()
+  const { todayStats, focusHistory, adaFocus, isRunning } = useFocusRadar()
 
-  // Aba principal da Dashboard: 'hoje' | 'evolucao' | 'foco'
-  const [mainTab, setMainTab] = useState<'hoje' | 'evolucao' | 'foco'>('hoje')
+  // Aba principal da Dashboard: 'hoje' | 'foco' (Evolução migrou para Performance)
+  const [mainTab, setMainTab] = useState<'hoje' | 'foco'>('hoje')
+
+  // Estado do diálogo de logoff
+  const [logoutDialogOpen, setLogoutDialogOpen] = useState(false)
+  const [isLoggingOut, setIsLoggingOut] = useState(false)
+
+  const handleLogout = async () => {
+    setIsLoggingOut(true)
+    try {
+      await signOut()
+      navigate('/', { replace: true })
+    } finally {
+      setIsLoggingOut(false)
+      setLogoutDialogOpen(false)
+    }
+  }
 
   const today = new Date().toISOString().split('T')[0]
   const todayTasks = tasks.filter((t: any) => t.dueDate === today)
@@ -33,21 +62,13 @@ export default function Dashboard() {
     todayHabits.length === 0 ? 0 : Math.round((completedHabits.length / todayHabits.length) * 100)
   const maxStreak = Math.max(0, ...habits.map((h: any) => calculateStreak(h.completions)))
 
-  const quotes = [
-    'Pequenos passos todos os dias.',
-    'O progresso é mais importante que a perfeição.',
-    'Respire fundo e foque no agora.',
-    'Construa a vida que você deseja, um hábito de cada vez.',
-  ]
-  const quote = quotes[new Date().getDate() % quotes.length]
-
   // Condição para tira compacta "Resumo do dia": se houver dados de foco hoje
   const hasFocusDataToday =
     (todayStats && (todayStats.focusMinutes > 0 || todayStats.sessions > 0)) || isRunning
 
   return (
     <div className="space-y-6 pb-12 max-w-5xl mx-auto">
-      {/* Header Duolingo compacto */}
+      {/* Header Duolingo compacto com Logoff */}
       <header className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-foreground">
@@ -62,17 +83,32 @@ export default function Dashboard() {
           {/* Atalho de relatório no header */}
           <UnifiedReportModal />
           <UnifiedCreateButton />
+
+          {/* Botão de Logoff Duolingo 3D compacto */}
+          <button
+            type="button"
+            onClick={() => setLogoutDialogOpen(true)}
+            title="Sair da conta"
+            aria-label="Sair da conta"
+            className="h-10 px-3 rounded-2xl bg-card border-2 border-b-4 border-[#E5E5E5] dark:border-[#3B4A55] text-muted-foreground hover:text-[#FF4B4B] hover:border-[#FF4B4B] hover:bg-[#FF4B4B]/5 active:border-b-2 active:translate-y-0.5 transition-all flex items-center gap-1.5 font-bold text-xs shadow-xs cursor-pointer shrink-0"
+          >
+            <LogOut
+              className="w-4 h-4 text-muted-foreground group-hover:text-[#FF4B4B]"
+              strokeWidth={2.5}
+            />
+            <span className="hidden sm:inline">Sair</span>
+          </button>
         </div>
       </header>
 
-      {/* Segmented Control Duolingo Unificado (Hoje · Evolução · Foco) rolável em 360px */}
+      {/* Segmented Control Duolingo Unificado (Hoje · Foco) rebalanceado e rolável em 360px */}
       <div className="overflow-x-auto pb-1 -mx-2 px-2 scrollbar-none">
-        <div className="inline-flex items-center gap-2 p-1.5 rounded-3xl bg-muted/60 border-2 border-border min-w-full sm:min-w-0">
+        <div className="grid grid-cols-2 gap-2 p-1.5 rounded-3xl bg-muted/60 border-2 border-border max-w-md mx-auto sm:max-w-none sm:inline-flex sm:w-auto">
           <button
             type="button"
             onClick={() => setMainTab('hoje')}
             className={cn(
-              'flex-1 sm:flex-initial px-5 py-2.5 rounded-2xl text-xs sm:text-sm font-black transition-all duration-150 flex items-center justify-center gap-2 whitespace-nowrap cursor-pointer border-b-4',
+              'px-6 py-2.5 rounded-2xl text-xs sm:text-sm font-black transition-all duration-150 flex items-center justify-center gap-2 whitespace-nowrap cursor-pointer border-b-4',
               mainTab === 'hoje'
                 ? 'bg-[#58CC02] text-white border-[#46A302] shadow-sm translate-y-[-1px]'
                 : 'bg-card text-muted-foreground border-border hover:bg-muted/70 hover:text-foreground active:border-b-0 active:translate-y-1',
@@ -84,23 +120,9 @@ export default function Dashboard() {
 
           <button
             type="button"
-            onClick={() => setMainTab('evolucao')}
-            className={cn(
-              'flex-1 sm:flex-initial px-5 py-2.5 rounded-2xl text-xs sm:text-sm font-black transition-all duration-150 flex items-center justify-center gap-2 whitespace-nowrap cursor-pointer border-b-4',
-              mainTab === 'evolucao'
-                ? 'bg-[#1CB0F6] text-white border-[#1899D6] shadow-sm translate-y-[-1px]'
-                : 'bg-card text-muted-foreground border-border hover:bg-muted/70 hover:text-foreground active:border-b-0 active:translate-y-1',
-            )}
-          >
-            <span>📈</span>
-            <span>Evolução</span>
-          </button>
-
-          <button
-            type="button"
             onClick={() => setMainTab('foco')}
             className={cn(
-              'flex-1 sm:flex-initial px-5 py-2.5 rounded-2xl text-xs sm:text-sm font-black transition-all duration-150 flex items-center justify-center gap-2 whitespace-nowrap cursor-pointer border-b-4',
+              'px-6 py-2.5 rounded-2xl text-xs sm:text-sm font-black transition-all duration-150 flex items-center justify-center gap-2 whitespace-nowrap cursor-pointer border-b-4',
               mainTab === 'foco'
                 ? 'bg-[#FFC800] text-black border-[#E5B400] shadow-sm translate-y-[-1px]'
                 : 'bg-card text-muted-foreground border-border hover:bg-muted/70 hover:text-foreground active:border-b-0 active:translate-y-1',
@@ -116,7 +138,7 @@ export default function Dashboard() {
       </div>
 
       {/* ======================================================== */}
-      {/* ABA 1: HOJE (Dashboard original preservada) */}
+      {/* ABA 1: HOJE INTELIGENTE */}
       {/* ======================================================== */}
       {mainTab === 'hoje' && (
         <div className="space-y-6 animate-fade-in">
@@ -143,6 +165,15 @@ export default function Dashboard() {
               </button>
             </div>
           )}
+
+          {/* Lembretes Contextuais e Sugestões Inteligentes Baseados nos Dados */}
+          <SmartReminders
+            tasks={tasks}
+            habits={habits}
+            todayStats={todayStats}
+            todayStr={today}
+            onGoToFocus={() => setMainTab('foco')}
+          />
 
           {/* Anéis de progresso */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -178,12 +209,14 @@ export default function Dashboard() {
             </div>
           </div>
 
-          {/* Frase motivacional diária */}
-          <div className="bg-gradient-to-br from-[#58CC02]/15 to-[#1CB0F6]/15 border-2 border-transparent rounded-3xl p-5 flex flex-col justify-center text-center">
-            <p className="text-base sm:text-lg font-bold leading-relaxed text-foreground/80 italic">
-              "{quote}"
-            </p>
-          </div>
+          {/* Novos Gráficos Inteligentes Compactos (Ritmo 7d + Foco + Comparativo Hoje vs Média) */}
+          <SmartCharts
+            tasks={tasks}
+            habits={habits}
+            focusHistory={focusHistory}
+            todayStats={todayStats}
+            todayStr={today}
+          />
 
           {/* HealthSummary */}
           <HealthSummary />
@@ -228,7 +261,7 @@ export default function Dashboard() {
               <div className="flex items-center justify-between mb-2">
                 <h2 className="text-xl font-extrabold">Hábitos de Hoje</h2>
                 <Link
-                  to="/tasks"
+                  to="/tasks?tab=habitos"
                   className="text-sm font-bold text-[#FFC800] flex items-center gap-1 hover:underline"
                 >
                   Ver todos <ArrowRight className="w-4 h-4" />
@@ -247,14 +280,45 @@ export default function Dashboard() {
       )}
 
       {/* ======================================================== */}
-      {/* ABA 2: EVOLUÇÃO (Absorve os relatórios anteriores + Mente) */}
-      {/* ======================================================== */}
-      {mainTab === 'evolucao' && <EvolutionTab />}
-
-      {/* ======================================================== */}
-      {/* ABA 3: FOCO (Histórico de 7 dias, ranking e atalhos) */}
+      {/* ABA 2: FOCO (Histórico de 7 dias, ranking e atalhos) */}
       {/* ======================================================== */}
       {mainTab === 'foco' && <FocusTab />}
+
+      {/* AlertDialog de Confirmação de Logout */}
+      <AlertDialog open={logoutDialogOpen} onOpenChange={setLogoutDialogOpen}>
+        <AlertDialogContent className="rounded-3xl border-2 max-w-sm">
+          <AlertDialogHeader>
+            <div className="w-12 h-12 rounded-2xl bg-[#FF4B4B]/15 text-[#FF4B4B] flex items-center justify-center mx-auto mb-2">
+              <LogOut className="w-6 h-6" strokeWidth={2.5} />
+            </div>
+            <AlertDialogTitle className="text-center font-black text-xl">
+              Sair do sistema?
+            </AlertDialogTitle>
+            <AlertDialogDescription className="text-center text-xs font-semibold text-muted-foreground">
+              Você precisará entrar novamente com sua conta para acessar seus dados.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="flex-col sm:flex-row gap-2 mt-2">
+            <AlertDialogCancel className="rounded-2xl border-2 font-bold flex-1 cursor-pointer">
+              Cancelar
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleLogout}
+              disabled={isLoggingOut}
+              className="rounded-2xl font-black bg-[#FF4B4B] hover:bg-[#FF4B4B]/90 border-b-4 border-[#CC3C3C] text-white flex-1 cursor-pointer"
+            >
+              {isLoggingOut ? (
+                <span className="flex items-center gap-1.5 justify-center">
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  Saindo...
+                </span>
+              ) : (
+                'Sair'
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }

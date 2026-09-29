@@ -4,28 +4,23 @@ import { HabitHeatmap } from '@/components/analytics/habit-heatmap'
 import { TaskDistribution } from '@/components/analytics/task-distribution'
 import { TimeDistribution } from '@/components/analytics/time-distribution'
 import { HabitStreaks } from '@/components/analytics/habit-streaks'
-import { MoodEvolution } from '@/components/analytics/mood-evolution'
-import { HydrationConsistency } from '@/components/analytics/hydration-consistency'
 import { OverviewCards } from '@/components/analytics/overview-cards'
 import { WeeklyComparisonChart } from '@/components/analytics/weekly-comparison-chart'
-import { MindEvolution } from '@/components/analytics/mind-evolution'
 import { UnifiedReportModal } from '@/components/analytics/unified-report-modal'
-import { Lightbulb, Sparkles, BarChart3, Activity, Heart, Brain, Clock } from 'lucide-react'
+import { Lightbulb } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
-const EVOLUTION_SECTIONS = [
+const PERFORMANCE_EVOLUTION_SECTIONS = [
   { value: 'overview', label: 'Visão Geral', emoji: '📊' },
   { value: 'productivity', label: 'Produtividade', emoji: '⚡' },
   { value: 'habits', label: 'Hábitos', emoji: '🔄' },
-  { value: 'health', label: 'Saúde', emoji: '❤️' },
-  { value: 'mind', label: 'Mente', emoji: '🧠' },
 ] as const
 
-type EvolutionSectionKey = (typeof EVOLUTION_SECTIONS)[number]['value']
+type PerformanceEvolutionKey = (typeof PERFORMANCE_EVOLUTION_SECTIONS)[number]['value']
 
-export function EvolutionTab() {
+export function PerformanceEvolution() {
   const { tasks, habits, tags } = useAppStore()
-  const [activeSection, setActiveSection] = useState<EvolutionSectionKey>('overview')
+  const [activeSection, setActiveSection] = useState<PerformanceEvolutionKey>('overview')
 
   // Geração de frase de insight dinâmica baseada nos dados reais de produtividade
   const productivityInsight = useMemo(() => {
@@ -77,9 +72,11 @@ export function EvolutionTab() {
       {/* Header com título, subtítulo e botão "Gerar Relatório" */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
-          <h2 className="text-xl sm:text-2xl font-black text-foreground">Sua Evolução</h2>
+          <h2 className="text-xl sm:text-2xl font-black text-foreground">
+            Evolução da Performance
+          </h2>
           <p className="text-xs sm:text-sm text-muted-foreground mt-0.5">
-            Acompanhe seu progresso e mantenha o ritmo em todas as áreas.
+            Métricas de produtividade, consistência de hábitos e taxa de conclusão.
           </p>
         </div>
 
@@ -88,10 +85,10 @@ export function EvolutionTab() {
         </div>
       </div>
 
-      {/* Sub-chips horizontais roláveis (Visão Geral · Produtividade · Hábitos · Saúde · Mente) */}
+      {/* Sub-chips horizontais roláveis (Visão Geral · Produtividade · Hábitos) */}
       <div className="overflow-x-auto pb-1 -mx-2 px-2 scrollbar-none">
         <div className="inline-flex items-center gap-2 p-1.5 rounded-3xl bg-muted/50 border-2 border-border">
-          {EVOLUTION_SECTIONS.map((sec) => {
+          {PERFORMANCE_EVOLUTION_SECTIONS.map((sec) => {
             const isActive = activeSection === sec.value
             return (
               <button
@@ -146,23 +143,6 @@ export function EvolutionTab() {
           <div className="space-y-6 animate-fade-in">
             <HabitStreaks habits={habits} />
             <HabitHeatmap habits={habits} />
-          </div>
-        )}
-
-        {/* 4. SAÚDE */}
-        {activeSection === 'health' && (
-          <div className="space-y-6 animate-fade-in">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <MoodEvolution />
-              <HydrationConsistency />
-            </div>
-          </div>
-        )}
-
-        {/* 5. MENTE (NOVO) */}
-        {activeSection === 'mind' && (
-          <div className="space-y-6 animate-fade-in">
-            <MindEvolution />
           </div>
         )}
       </div>
