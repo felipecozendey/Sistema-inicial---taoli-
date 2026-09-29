@@ -687,7 +687,10 @@ export const useProfessionalStore = create<ProfessionalState>((set, get) => ({
     }))
 
     try {
-      const updatePayload: Record<string, any> = { granted_pages: grantedPages }
+      const updatePayload: {
+        granted_pages: string[]
+        allow_multidisciplinary?: boolean
+      } = { granted_pages: grantedPages }
       if (typeof allowMultidisciplinary === 'boolean') {
         updatePayload.allow_multidisciplinary = allowMultidisciplinary
       }
@@ -1266,7 +1269,9 @@ export const useProfessionalStore = create<ProfessionalState>((set, get) => ({
             'id, date, mood, stress_level, sadness_level, anxiety_level, sleep_quality, mental_triggers, created_at',
           )
           .eq('user_id', patientId)
-          .not('sadness_level', 'is', null)
+          .or(
+            'sadness_level.not.is.null,mood.not.is.null,stress_level.not.is.null,anxiety_level.not.is.null',
+          )
           .order('created_at', { ascending: false }),
         supabase
           .from('mind_journals')

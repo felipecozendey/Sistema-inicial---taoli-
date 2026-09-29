@@ -327,6 +327,10 @@ export function PatientDetailsDrawer({ patient, open, onOpenChange }: PatientDet
       setLoadingMap((m) => ({ ...m, mente: true }))
       fetchPatientMente(patient.patient_id)
         .then((res) => setMenteData(res))
+        .catch((err) => {
+          console.error('Erro ao buscar dados de mente do paciente:', err)
+          setMenteData(null)
+        })
         .finally(() => setLoadingMap((m) => ({ ...m, mente: false })))
     } else if (
       activeTab === 'historico_social' &&
@@ -361,24 +365,6 @@ export function PatientDetailsDrawer({ patient, open, onOpenChange }: PatientDet
     fetchPatientMente,
   ])
 
-  // Pre-load compact summaries for granted pages when drawer opens
-  useEffect(() => {
-    if (!open || !patient) return
-    const scopes = directGrantedPages
-    if (scopes.includes('tarefas') && !tarefasData) {
-      fetchPatientTarefas(patient.patient_id).then((r) => setTarefasData(r))
-    }
-    const hasClinical = scopes.some((s) =>
-      ['prontuario_geral', 'nutricao', 'exercicios', 'raio_x'].includes(s),
-    )
-    if (hasClinical && !saudeData) {
-      fetchPatientSaude(patient.patient_id).then((r) => setSaudeData(r))
-    }
-    if (scopes.includes('mente') && !menteData) {
-      fetchPatientMente(patient.patient_id).then((r) => setMenteData(r))
-    }
-  }, [open, patient?.id, directGrantedPages])
-
   if (!patient) return null
 
   const handleEndLink = async () => {
@@ -396,16 +382,16 @@ export function PatientDetailsDrawer({ patient, open, onOpenChange }: PatientDet
   return (
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto rounded-3xl border-2 p-0 gap-0 shadow-2xl">
-          {/* Cabeçalho Pro: Card do paciente + badges granulares + métricas-resumo */}
-          <DialogHeader className="p-4 sm:p-6 pb-3 border-b bg-gradient-to-b from-[#1CB0F6]/10 to-transparent space-y-3">
+        <DialogContent className="w-full max-w-4xl h-[100dvh] sm:h-auto sm:max-h-[90vh] rounded-none sm:rounded-3xl border-0 sm:border-2 p-0 gap-0 shadow-2xl flex flex-col overflow-hidden">
+          {/* Cabeçalho Pro Fixo (Sticky): Card do paciente + badges granulares + barra de abas rolável */}
+          <DialogHeader className="shrink-0 sticky top-0 z-20 p-4 sm:p-6 pb-2.5 border-b bg-background/95 backdrop-blur-md space-y-3">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
               <div className="flex items-center gap-3">
-                <div className="w-12 h-12 rounded-2xl bg-[#1CB0F6] text-white flex items-center justify-center font-black text-lg shadow-sm shrink-0 border-b-2 border-[#147eb0]">
+                <div className="w-11 h-11 sm:w-12 sm:h-12 rounded-2xl bg-[#1CB0F6] text-white flex items-center justify-center font-black text-base sm:text-lg shadow-sm shrink-0 border-b-2 border-[#147eb0]">
                   {initials}
                 </div>
                 <div className="min-w-0 flex-1">
-                  <DialogTitle className="text-lg sm:text-xl font-black text-foreground flex items-center gap-2 truncate">
+                  <DialogTitle className="text-base sm:text-xl font-black text-foreground flex items-center gap-2 truncate">
                     <span className="truncate">{patient.patient_name || 'Paciente'}</span>
                     <Badge className="bg-[#1CB0F6] text-white text-[10px] font-extrabold uppercase shrink-0">
                       {patient.status === 'active' ? 'Ativo' : patient.status}
@@ -421,7 +407,8 @@ export function PatientDetailsDrawer({ patient, open, onOpenChange }: PatientDet
               {visibleTabs.length > 0 && (
                 <div className="flex flex-wrap items-center gap-1.5">
                   {visibleTabs.map((scope) => {
-                    const style = SCOPE_BADGE_STYLES[scope]
+                    const badgeClass =
+                      SCOPE_BADGE_STYLES[scope] || 'bg-muted text-foreground border-border'
                     const label = SCOPE_LABELS[scope] || scope
                     const isDirect = directGrantedPages.includes(scope)
                     return (
@@ -429,9 +416,7 @@ export function PatientDetailsDrawer({ patient, open, onOpenChange }: PatientDet
                         key={scope}
                         className={cn(
                           'px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider border flex items-center gap-1',
-                          style?.bg || 'bg-muted',
-                          style?.text || 'text-foreground',
-                          style?.border || 'border-border',
+                          badgeClass,
                           !isDirect && 'opacity-85 border-dashed',
                         )}
                         title={
@@ -448,85 +433,6 @@ export function PatientDetailsDrawer({ patient, open, onOpenChange }: PatientDet
                 </div>
               )}
             </div>
-
-            {/* Métricas-resumo compactas */}
-            {visibleTabs.length > 0 && (
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1">
-                {visibleTabs.includes('tarefas') && (
-                  <button
-                    type="button"
-                    onClick={() => setActiveTab('tarefas')}
-                    className="p-2.5 rounded-2xl border-2 bg-card/80 hover:border-[#58CC02] text-left transition-all cursor-pointer group"
-                  >
-                    <div className="text-[10px] font-bold text-muted-foreground uppercase flex items-center justify-between">
-                      <span>Tarefas</span>
-                      <CheckCircle2 className="w-3 h-3 text-[#58CC02]" />
-                    </div>
-                    <div className="text-sm font-black text-foreground mt-0.5">
-                      {tarefasData ? `${tarefasData.pending_tasks} pend.` : '—'}
-                    </div>
-                  </button>
-                )}
-
-                {visibleTabs.includes('tarefas') && (
-                  <button
-                    type="button"
-                    onClick={() => setActiveTab('tarefas')}
-                    className="p-2.5 rounded-2xl border-2 bg-card/80 hover:border-[#58CC02] text-left transition-all cursor-pointer group"
-                  >
-                    <div className="text-[10px] font-bold text-muted-foreground uppercase flex items-center justify-between">
-                      <span>Hábitos (7d)</span>
-                      <Activity className="w-3 h-3 text-[#58CC02]" />
-                    </div>
-                    <div className="text-sm font-black text-foreground mt-0.5">
-                      {tarefasData ? `${tarefasData.completed_tasks} concl.` : '—'}
-                    </div>
-                  </button>
-                )}
-
-                {(visibleTabs.includes('prontuario_geral') || visibleTabs.includes('raio_x')) && (
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setActiveTab(
-                        visibleTabs.includes('prontuario_geral') ? 'prontuario_geral' : 'raio_x',
-                      )
-                    }
-                    className="p-2.5 rounded-2xl border-2 bg-card/80 hover:border-[#1CB0F6] text-left transition-all cursor-pointer group"
-                  >
-                    <div className="text-[10px] font-bold text-muted-foreground uppercase flex items-center justify-between">
-                      <span>Último Peso</span>
-                      <Scale className="w-3 h-3 text-[#1CB0F6]" />
-                    </div>
-                    <div className="text-sm font-black text-foreground mt-0.5">
-                      {saudeData?.latest_metrics?.weight
-                        ? `${saudeData.latest_metrics.weight} kg`
-                        : '—'}
-                    </div>
-                  </button>
-                )}
-
-                {visibleTabs.includes('mente') && (
-                  <button
-                    type="button"
-                    onClick={() => setActiveTab('mente')}
-                    className="p-2.5 rounded-2xl border-2 bg-card/80 hover:border-[#CE82FF] text-left transition-all cursor-pointer group"
-                  >
-                    <div className="text-[10px] font-bold text-muted-foreground uppercase flex items-center justify-between">
-                      <span>Humor 7d</span>
-                      <Brain className="w-3 h-3 text-[#CE82FF]" />
-                    </div>
-                    <div className="text-sm font-black text-[#CE82FF] mt-0.5">
-                      {menteData?.averages_7d?.mood
-                        ? `${menteData.averages_7d.mood}/5`
-                        : menteData?.latest_evaluation
-                          ? `${menteData.latest_evaluation.mood}/5`
-                          : '—'}
-                    </div>
-                  </button>
-                )}
-              </div>
-            )}
 
             {/* 9 ABAS — ROLÁVEL HORIZONTALMENTE COM SUPORTE TOTAL A 360PX */}
             {visibleTabs.length > 0 && (
@@ -584,8 +490,8 @@ export function PatientDetailsDrawer({ patient, open, onOpenChange }: PatientDet
             )}
           </DialogHeader>
 
-          {/* Conteúdo Principal por Aba */}
-          <div className="p-5 sm:p-6 space-y-6">
+          {/* Conteúdo Principal por Aba (Scrollable) */}
+          <div className="flex-1 overflow-y-auto overscroll-contain p-4 sm:p-6 space-y-6">
             {visibleTabs.length === 0 ? (
               <div className="py-12 px-4 text-center rounded-2xl border-2 border-dashed bg-muted/20 space-y-2">
                 <div className="w-12 h-12 rounded-2xl bg-amber-500/10 text-amber-600 flex items-center justify-center mx-auto">
