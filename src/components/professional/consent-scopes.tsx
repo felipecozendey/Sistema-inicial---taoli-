@@ -1,4 +1,15 @@
 import React from 'react'
+import {
+  FileText,
+  Activity,
+  Brain,
+  Salad,
+  Dumbbell,
+  Scale,
+  Wallet,
+  GraduationCap,
+  Users,
+} from 'lucide-react'
 
 export type ScopeId =
   | 'prontuario_geral'
@@ -14,11 +25,13 @@ export type ScopeId =
 
 export interface ScopeDefinition {
   id: ScopeId
+  key?: ScopeId // compatibilidade retroativa
   label: string
   description: string
   badgeClass: string
   category?: 'clinica' | 'rotina' | 'vida'
   iconSvg?: React.ReactNode
+  icon?: React.ComponentType<{ className?: string }>
 }
 
 /**
@@ -29,73 +42,91 @@ export interface ScopeDefinition {
 export const CONSENT_SCOPES: ScopeDefinition[] = [
   {
     id: 'prontuario_geral',
+    key: 'prontuario_geral',
     label: 'Prontuário Geral',
     description:
       'Métricas corporais, peso, dobras, metas clínicas, exames anexados e registros gerais de saúde.',
     badgeClass: 'bg-emerald-500/10 text-emerald-600 border-emerald-300 dark:border-emerald-800',
     category: 'clinica',
+    icon: FileText,
   },
   {
     id: 'tarefas',
+    key: 'tarefas',
     label: 'Performance',
     description: 'Tarefas diárias, hábitos, rotinas, checklists e progresso das metas.',
     badgeClass: 'bg-[#58CC02]/10 text-[#58CC02] border-[#58CC02]/30',
     category: 'rotina',
+    icon: Activity,
   },
   {
     id: 'mente',
+    key: 'mente',
     label: 'Mente',
     description:
       'Avaliações diárias de humor, ansiedade, estresse, diário emocional e linha do tempo.',
     badgeClass: 'bg-[#CE82FF]/10 text-[#CE82FF] border-[#CE82FF]/30',
     category: 'clinica',
+    icon: Brain,
   },
   {
     id: 'nutricao',
+    key: 'nutricao',
     label: 'Nutrição',
     description:
       'Plano alimentar prescrito, histórico de refeições, receitas personalizadas e balanço metabólico.',
     badgeClass: 'bg-orange-500/10 text-orange-600 border-orange-300 dark:border-orange-800',
     category: 'clinica',
+    icon: Salad,
   },
   {
     id: 'exercicios',
+    key: 'exercicios',
     label: 'Exercícios',
     description:
       'Fichas de treino, rotinas ativas prescritas, registros de treino e histórico de exercícios.',
     badgeClass: 'bg-blue-500/10 text-blue-600 border-blue-300 dark:border-blue-800',
     category: 'rotina',
+    icon: Dumbbell,
   },
   {
     id: 'raio_x',
+    key: 'raio_x',
     label: 'Raio-X Corporal',
     description:
       'Composição corporal em 4 compartimentos, evolução visual, gráficos e comparativos físicos.',
     badgeClass: 'bg-cyan-500/10 text-cyan-600 border-cyan-300 dark:border-cyan-800',
     category: 'clinica',
+    icon: Scale,
   },
   {
     id: 'financas',
+    key: 'financas',
     label: 'Finanças',
     description: 'Transações, categorias, DRE pessoal, contas bancárias e metas financeiras.',
     badgeClass: 'bg-[#FFC800]/10 text-amber-700 dark:text-amber-400 border-[#FFC800]/40',
     category: 'vida',
+    icon: Wallet,
   },
   {
     id: 'estudos',
+    key: 'estudos',
     label: 'Estudos',
     description:
       'Cadernos de anotações, decks de flashcards, sessões de revisão e notas de estudo.',
     badgeClass: 'bg-[#1CB0F6]/10 text-[#1CB0F6] border-[#1CB0F6]/30',
     category: 'vida',
+    icon: GraduationCap,
   },
   {
     id: 'historico_social',
+    key: 'historico_social',
     label: 'Histórico Social',
     description:
       'Anamnese de hábitos sociais, tabagismo, etilismo, sono, rotina familiar e fatores de risco.',
     badgeClass: 'bg-rose-500/10 text-rose-600 border-rose-300 dark:border-rose-800',
     category: 'clinica',
+    icon: Users,
   },
 ]
 

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useMemo, useCallback } from 'react'
 import {
   Dialog,
   DialogContent,
@@ -28,18 +28,23 @@ import {
   CheckCircle2,
   ListTodo,
   UserX,
-  Loader2,
   Lock,
   Wallet,
-  GraduationCap,
   TrendingUp,
   Receipt,
   BookOpen,
-  Calendar,
   Layers,
-  Utensils,
   Flame,
   Brain,
+  Pencil,
+  Trash2,
+  Plus,
+  Dumbbell,
+  Salad,
+  ChefHat,
+  ShieldCheck,
+  Eye,
+  Paperclip,
 } from 'lucide-react'
 import { safeFormatDate } from '@/lib/date-utils'
 import { formatCurrency } from '@/lib/finance-utils'
@@ -53,7 +58,13 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
-import { CONSENT_SCOPES, SCOPE_LABELS, SCOPE_BADGE_STYLES } from './consent-scopes.tsx'
+import {
+  CONSENT_SCOPES,
+  SCOPE_LABELS,
+  SCOPE_BADGE_STYLES,
+  normalizeGrantedPages,
+  ScopeId,
+} from './consent-scopes.tsx'
 import { cn } from '@/lib/utils'
 import { TaskForm } from '@/components/tasks/task-form'
 import { HabitForm } from '@/components/habits/habit-form'
@@ -67,22 +78,31 @@ import { ProfessionalMetabolicModal } from './patient-modals/ProfessionalMetabol
 import { ProfessionalWorkoutModal } from './patient-modals/ProfessionalWorkoutModal'
 import { ProfessionalTag } from './ProfessionalTag'
 import { supabase } from '@/lib/supabase/client'
-import {
-  Pencil,
-  Trash2,
-  Plus,
-  Dumbbell,
-  Salad,
-  ChefHat,
-  ChevronRight,
-  ShieldCheck,
-  Zap,
-} from 'lucide-react'
+
+// 9 tabs strictly in user Health page order
+const ORDERED_TABS: ScopeId[] = [
+  'prontuario_geral',
+  'tarefas',
+  'mente',
+  'nutricao',
+  'exercicios',
+  'raio_x',
+  'financas',
+  'estudos',
+  'historico_social',
+]
 
 interface PatientDetailsDrawerProps {
   patient: PatientLink | null
   open: boolean
   onOpenChange: (open: boolean) => void
+}
+
+interface ScopePermissionInfo {
+  scope: string
+  isDirectGrant: boolean
+  professionalId: string
+  professionalName: string
 }
 
 export function PatientDetailsDrawer({ patient, open, onOpenChange }: PatientDetailsDrawerProps) {
@@ -92,6 +112,7 @@ export function PatientDetailsDrawer({ patient, open, onOpenChange }: PatientDet
     fetchPatientFinancas,
     fetchPatientEstudos,
     fetchPatientMente,
+    fetchPatientMultidisciplinaryScopes,
     setActivePatient,
     endPatientLink,
   } = useProfessionalStore()
@@ -108,6 +129,15 @@ export function PatientDetailsDrawer({ patient, open, onOpenChange }: PatientDet
   const [confirmEndOpen, setConfirmEndOpen] = useState(false)
   const [ending, setEnding] = useState(false)
 
+  // Multidisciplinary scope mapping
+  const [multidisciplinaryInfo, setMultidisciplinaryInfo] = useState<{
+    allowMultidisciplinary: boolean
+    activeScopes: ScopePermissionInfo[]
+  }>({
+    allowMultidisciplinary: false,
+    activeScopes: [],
+  })
+
   // Module data states
   const [tarefasData, setTarefasData] = useState<PatientTarefasData | null>(null)
   const [saudeData, setSaudeData] = useState<PatientSaudeData | null>(null)
@@ -122,7 +152,6 @@ export function PatientDetailsDrawer({ patient, open, onOpenChange }: PatientDet
   // Write hooks
   const {
     deleteTaskForPatient,
-    deleteHabitForPatient,
     deleteDietPlanForPatient,
     deleteDietPlanItemForPatient,
     deleteRecipeForPatient,
@@ -131,10 +160,8 @@ export function PatientDetailsDrawer({ patient, open, onOpenChange }: PatientDet
     deleteWorkoutRoutineForPatient,
   } = useProfessionalPatientWrite()
 
-  // Sub-chips for Saúde tab
-  const [saudeSubTab, setSaudeSubTab] = useState<
-    'diet' | 'recipes' | 'xray' | 'metabolic' | 'workout'
-  >('diet')
+  // Sub-chips for Nutrição tab (diet, recipes, metabolic)
+  const [nutricaoSubTab, setNutricaoSubTab] = useState<'diet' | 'recipes' | 'metabolic'>('diet')
 
   // Modals state: Tasks / Habits
   const [taskModalOpen, setTaskModalOpen] = useState(false)
@@ -142,7 +169,7 @@ export function PatientDetailsDrawer({ patient, open, onOpenChange }: PatientDet
   const [habitModalOpen, setHabitModalOpen] = useState(false)
   const [editingHabit, setEditingHabit] = useState<any | null>(null)
 
-  // Modals state: Saúde
+  // Modals state: Saúde & Prontuário
   const [dietPlanModalOpen, setDietPlanModalOpen] = useState(false)
   const [editingDietPlan, setEditingDietPlan] = useState<any | null>(null)
   const [addDietItemModalOpen, setAddDietItemModalOpen] = useState(false)
@@ -179,36 +206,70 @@ export function PatientDetailsDrawer({ patient, open, onOpenChange }: PatientDet
   })
   const [isDeleting, setIsDeleting] = useState(false)
 
-  const reloadTarefas = React.useCallback(async () => {
+  // Reload helpers
+  const reloadTarefas = useCallback(async () => {
     if (!patient) return
     const res = await fetchPatientTarefas(patient.patient_id)
     setTarefasData(res)
   }, [patient, fetchPatientTarefas])
 
-  const reloadSaude = React.useCallback(async () => {
+  const reloadSaude = useCallback(async () => {
     if (!patient) return
     const res = await fetchPatientSaude(patient.patient_id)
     setSaudeData(res)
   }, [patient, fetchPatientSaude])
 
-  // Compute available granted pages
-  const grantedPages = React.useMemo(() => {
+  // Fetch multidisciplinary info when drawer opens
+  useEffect(() => {
+    if (open && patient) {
+      fetchPatientMultidisciplinaryScopes(patient.patient_id).then((info) => {
+        setMultidisciplinaryInfo(info)
+      })
+    }
+  }, [open, patient, fetchPatientMultidisciplinaryScopes])
+
+  // Compute direct granted pages (normalized)
+  const directGrantedPages = useMemo(() => {
     if (!patient || !Array.isArray(patient.granted_pages)) return []
-    return patient.granted_pages.filter((p) =>
-      ['tarefas', 'saude', 'mente', 'financas', 'estudos', 'historico_social'].includes(p),
-    )
+    return normalizeGrantedPages(patient.granted_pages)
   }, [patient])
 
-  // Select initial tab when opened or when granted pages change
+  // Compute all visible tabs (direct + multidisciplinary read-only scopes) ordered strictly by ORDERED_TABS
+  const visibleTabs = useMemo(() => {
+    const directSet = new Set(directGrantedPages)
+    const multiMap = new Map(multidisciplinaryInfo.activeScopes.map((s) => [s.scope, s] as const))
+
+    return ORDERED_TABS.filter((tabKey) => {
+      if (directSet.has(tabKey)) return true
+      if (multidisciplinaryInfo.allowMultidisciplinary && multiMap.has(tabKey)) return true
+      return false
+    })
+  }, [directGrantedPages, multidisciplinaryInfo])
+
+  // Active tab permissions
+  const activeTabPermission = useMemo(() => {
+    if (!activeTab) return { isReadOnly: true, authorName: '' }
+    const isDirect = directGrantedPages.includes(activeTab)
+    if (isDirect) {
+      return { isReadOnly: false, authorName: '' }
+    }
+    const multiScope = multidisciplinaryInfo.activeScopes.find((s) => s.scope === activeTab)
+    return {
+      isReadOnly: true,
+      authorName: multiScope?.professionalName || 'outro profissional',
+    }
+  }, [activeTab, directGrantedPages, multidisciplinaryInfo.activeScopes])
+
+  // Select initial tab when opened or when visible tabs change
   useEffect(() => {
-    if (open && grantedPages.length > 0) {
-      if (!grantedPages.includes(activeTab)) {
-        setActiveTab(grantedPages[0])
+    if (open && visibleTabs.length > 0) {
+      if (!visibleTabs.includes(activeTab as ScopeId)) {
+        setActiveTab(visibleTabs[0])
       }
-    } else if (open && grantedPages.length === 0) {
+    } else if (open && visibleTabs.length === 0) {
       setActiveTab('')
     }
-  }, [open, grantedPages, activeTab])
+  }, [open, visibleTabs, activeTab])
 
   // Set and clear active patient in store
   useEffect(() => {
@@ -236,16 +297,18 @@ export function PatientDetailsDrawer({ patient, open, onOpenChange }: PatientDet
     }
   }, [patient?.id])
 
-  // Fetch data on demand when active tab opens
+  // Fetch data on demand when active tab opens (clinical areas share saudeData)
   useEffect(() => {
     if (!open || !patient || !activeTab) return
+
+    const clinicalTabs = ['prontuario_geral', 'nutricao', 'exercicios', 'raio_x']
 
     if (activeTab === 'tarefas' && !tarefasData && !loadingMap['tarefas']) {
       setLoadingMap((m) => ({ ...m, tarefas: true }))
       fetchPatientTarefas(patient.patient_id)
         .then((res) => setTarefasData(res))
         .finally(() => setLoadingMap((m) => ({ ...m, tarefas: false })))
-    } else if (activeTab === 'saude' && !saudeData && !loadingMap['saude']) {
+    } else if (clinicalTabs.includes(activeTab) && !saudeData && !loadingMap['saude']) {
       setLoadingMap((m) => ({ ...m, saude: true }))
       fetchPatientSaude(patient.patient_id)
         .then((res) => setSaudeData(res))
@@ -301,17 +364,20 @@ export function PatientDetailsDrawer({ patient, open, onOpenChange }: PatientDet
   // Pre-load compact summaries for granted pages when drawer opens
   useEffect(() => {
     if (!open || !patient) return
-    const scopes = Array.isArray(patient.granted_pages) ? patient.granted_pages : []
+    const scopes = directGrantedPages
     if (scopes.includes('tarefas') && !tarefasData) {
       fetchPatientTarefas(patient.patient_id).then((r) => setTarefasData(r))
     }
-    if (scopes.includes('saude') && !saudeData) {
+    const hasClinical = scopes.some((s) =>
+      ['prontuario_geral', 'nutricao', 'exercicios', 'raio_x'].includes(s),
+    )
+    if (hasClinical && !saudeData) {
       fetchPatientSaude(patient.patient_id).then((r) => setSaudeData(r))
     }
     if (scopes.includes('mente') && !menteData) {
       fetchPatientMente(patient.patient_id).then((r) => setMenteData(r))
     }
-  }, [open, patient?.id])
+  }, [open, patient?.id, directGrantedPages])
 
   if (!patient) return null
 
@@ -331,7 +397,7 @@ export function PatientDetailsDrawer({ patient, open, onOpenChange }: PatientDet
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto rounded-3xl border-2 p-0 gap-0 shadow-2xl">
-          {/* Cabeçalho Pro Redesenhado: Card do paciente + badges de escopos + métricas-resumo */}
+          {/* Cabeçalho Pro: Card do paciente + badges granulares + métricas-resumo */}
           <DialogHeader className="p-4 sm:p-6 pb-3 border-b bg-gradient-to-b from-[#1CB0F6]/10 to-transparent space-y-3">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
               <div className="flex items-center gap-3">
@@ -351,22 +417,30 @@ export function PatientDetailsDrawer({ patient, open, onOpenChange }: PatientDet
                 </div>
               </div>
 
-              {/* Badges dos escopos concedidos com estilos do SCOPE_BADGE_STYLES */}
-              {grantedPages.length > 0 && (
+              {/* Badges granulares dos escopos disponíveis */}
+              {visibleTabs.length > 0 && (
                 <div className="flex flex-wrap items-center gap-1.5">
-                  {grantedPages.map((scope) => {
+                  {visibleTabs.map((scope) => {
                     const style = SCOPE_BADGE_STYLES[scope]
                     const label = SCOPE_LABELS[scope] || scope
+                    const isDirect = directGrantedPages.includes(scope)
                     return (
                       <span
                         key={scope}
                         className={cn(
-                          'px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider border',
+                          'px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider border flex items-center gap-1',
                           style?.bg || 'bg-muted',
                           style?.text || 'text-foreground',
                           style?.border || 'border-border',
+                          !isDirect && 'opacity-85 border-dashed',
                         )}
+                        title={
+                          isDirect
+                            ? 'Acesso direto concedido'
+                            : 'Acesso multidisciplinar em modo leitura'
+                        }
                       >
+                        {!isDirect && <Eye className="w-2.5 h-2.5" />}
                         {label}
                       </span>
                     )
@@ -375,10 +449,10 @@ export function PatientDetailsDrawer({ patient, open, onOpenChange }: PatientDet
               )}
             </div>
 
-            {/* 3-4 Métricas-resumo compactas (somente se o escopo estiver concedido; clicável) */}
-            {grantedPages.length > 0 && (
+            {/* Métricas-resumo compactas */}
+            {visibleTabs.length > 0 && (
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1">
-                {grantedPages.includes('tarefas') && (
+                {visibleTabs.includes('tarefas') && (
                   <button
                     type="button"
                     onClick={() => setActiveTab('tarefas')}
@@ -394,7 +468,7 @@ export function PatientDetailsDrawer({ patient, open, onOpenChange }: PatientDet
                   </button>
                 )}
 
-                {grantedPages.includes('tarefas') && (
+                {visibleTabs.includes('tarefas') && (
                   <button
                     type="button"
                     onClick={() => setActiveTab('tarefas')}
@@ -410,10 +484,14 @@ export function PatientDetailsDrawer({ patient, open, onOpenChange }: PatientDet
                   </button>
                 )}
 
-                {grantedPages.includes('saude') && (
+                {(visibleTabs.includes('prontuario_geral') || visibleTabs.includes('raio_x')) && (
                   <button
                     type="button"
-                    onClick={() => setActiveTab('saude')}
+                    onClick={() =>
+                      setActiveTab(
+                        visibleTabs.includes('prontuario_geral') ? 'prontuario_geral' : 'raio_x',
+                      )
+                    }
                     className="p-2.5 rounded-2xl border-2 bg-card/80 hover:border-[#1CB0F6] text-left transition-all cursor-pointer group"
                   >
                     <div className="text-[10px] font-bold text-muted-foreground uppercase flex items-center justify-between">
@@ -428,7 +506,7 @@ export function PatientDetailsDrawer({ patient, open, onOpenChange }: PatientDet
                   </button>
                 )}
 
-                {grantedPages.includes('mente') && (
+                {visibleTabs.includes('mente') && (
                   <button
                     type="button"
                     onClick={() => setActiveTab('mente')}
@@ -450,15 +528,26 @@ export function PatientDetailsDrawer({ patient, open, onOpenChange }: PatientDet
               </div>
             )}
 
-            {/* Segmented Control horizontal rolável para as abas concedidas */}
-            {grantedPages.length > 0 && (
-              <div className="overflow-x-auto pb-1 -mx-2 px-2 pt-1 scrollbar-none">
-                <div className="inline-flex w-auto min-w-full sm:min-w-0 p-1.5 rounded-2xl bg-card border-2 gap-1.5">
-                  {grantedPages.map((scope) => {
+            {/* 9 ABAS — ROLÁVEL HORIZONTALMENTE COM SUPORTE TOTAL A 360PX */}
+            {visibleTabs.length > 0 && (
+              <div className="overflow-x-auto pb-1.5 -mx-2 px-2 pt-1 scrollbar-none">
+                <div className="inline-flex w-max min-w-full sm:min-w-0 p-1.5 rounded-2xl bg-card border-2 gap-1.5">
+                  {visibleTabs.map((scope) => {
                     const isActive = activeTab === scope
                     const label = SCOPE_LABELS[scope] || scope
-                    const def = CONSENT_SCOPES.find((s) => s.key === scope)
+                    const def = CONSENT_SCOPES.find((s) => s.id === scope)
                     const IconComp = def?.icon
+                    const isDirect = directGrantedPages.includes(scope)
+
+                    // Duolingo 3D active colors based on scope category
+                    const activeColorClass =
+                      scope === 'mente'
+                        ? 'bg-[#CE82FF] text-white border-[#a552dc]'
+                        : scope === 'tarefas'
+                          ? 'bg-[#58CC02] text-white border-[#45a300]'
+                          : scope === 'financas'
+                            ? 'bg-[#FFC800] text-amber-950 border-[#cca000]'
+                            : 'bg-[#1CB0F6] text-white border-[#147eb0]'
 
                     return (
                       <button
@@ -466,16 +555,27 @@ export function PatientDetailsDrawer({ patient, open, onOpenChange }: PatientDet
                         type="button"
                         onClick={() => setActiveTab(scope)}
                         className={cn(
-                          'rounded-xl px-3.5 py-2 text-xs font-black transition-all flex items-center gap-2 cursor-pointer shrink-0 border-b-2',
+                          'rounded-xl px-3 py-1.5 text-xs font-black transition-all flex items-center gap-1.5 shrink-0 border-b-2 whitespace-nowrap cursor-pointer',
                           isActive
-                            ? scope === 'mente'
-                              ? 'bg-[#CE82FF] text-white border-[#a552dc] shadow-xs'
-                              : 'bg-[#1CB0F6] text-white border-[#147eb0] shadow-xs'
+                            ? `${activeColorClass} shadow-xs`
                             : 'bg-transparent text-muted-foreground hover:bg-muted border-transparent',
                         )}
                       >
-                        {IconComp && <IconComp className="w-3.5 h-3.5" />}
+                        {IconComp && <IconComp className="w-3.5 h-3.5 shrink-0" />}
                         <span>{label}</span>
+                        {!isDirect && (
+                          <span
+                            className={cn(
+                              'px-1 py-0.2 text-[9px] rounded font-bold uppercase',
+                              isActive
+                                ? 'bg-black/20 text-white'
+                                : 'bg-muted text-muted-foreground',
+                            )}
+                            title="Somente leitura multidisciplinar"
+                          >
+                            Leitura
+                          </span>
+                        )}
                       </button>
                     )
                   })}
@@ -486,7 +586,7 @@ export function PatientDetailsDrawer({ patient, open, onOpenChange }: PatientDet
 
           {/* Conteúdo Principal por Aba */}
           <div className="p-5 sm:p-6 space-y-6">
-            {grantedPages.length === 0 ? (
+            {visibleTabs.length === 0 ? (
               <div className="py-12 px-4 text-center rounded-2xl border-2 border-dashed bg-muted/20 space-y-2">
                 <div className="w-12 h-12 rounded-2xl bg-amber-500/10 text-amber-600 flex items-center justify-center mx-auto">
                   <Lock className="w-6 h-6" />
@@ -501,35 +601,276 @@ export function PatientDetailsDrawer({ patient, open, onOpenChange }: PatientDet
               </div>
             ) : (
               <>
-                {/* ABA 1: HÁBITOS E TAREFAS */}
+                {/* SELO DE MODO MULTIDISCIPLINAR SOMENTE LEITURA */}
+                {activeTabPermission.isReadOnly && (
+                  <div className="p-3.5 rounded-2xl bg-sky-500/10 border-2 border-sky-400/40 text-sky-800 dark:text-sky-300 flex items-center gap-3">
+                    <div className="w-9 h-9 rounded-xl bg-sky-500 text-white flex items-center justify-center shrink-0 shadow-xs">
+                      <ShieldCheck className="w-5 h-5" />
+                    </div>
+                    <div className="min-w-0 flex-1 text-xs">
+                      <div className="font-black uppercase tracking-wider text-[11px]">
+                        Atendimento Multidisciplinar • Somente Leitura
+                      </div>
+                      <div className="text-[11px] opacity-90 mt-0.5">
+                        Registrado pelo profissional{' '}
+                        <strong>@{activeTabPermission.authorName}</strong> — área de{' '}
+                        {SCOPE_LABELS[activeTab as ScopeId] || activeTab}. Edições bloqueadas para
+                        este módulo.
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* ABA 1: PRONTUÁRIO GERAL (Métricas, peso, dobras, metas clínicas, exames anexados e registros gerais) */}
+                {activeTab === 'prontuario_geral' && (
+                  <div className="space-y-5 animate-fade-in">
+                    {/* Botão de Registro (apenas se concessão direta) */}
+                    {!activeTabPermission.isReadOnly && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setEditingMetric(null)
+                          setAnthropometryModalOpen(true)
+                        }}
+                        className="w-full py-3 px-4 rounded-3xl bg-[#1CB0F6] hover:bg-[#1899d6] text-white font-extrabold text-xs sm:text-sm border-b-4 border-[#147eb0] active:translate-y-1 active:border-b-0 transition-all shadow-md flex items-center justify-center gap-2 cursor-pointer"
+                      >
+                        <Plus className="w-4 h-4 stroke-[3]" />
+                        <span>Novo Registro no Prontuário Geral</span>
+                      </button>
+                    )}
+
+                    {loadingMap['saude'] ? (
+                      <div className="space-y-3">
+                        <Skeleton className="h-20 w-full rounded-2xl" />
+                        <Skeleton className="h-32 w-full rounded-2xl" />
+                      </div>
+                    ) : !saudeData ? (
+                      <p className="text-xs text-muted-foreground italic text-center py-6">
+                        Nenhum registro clínico disponível no prontuário.
+                      </p>
+                    ) : (
+                      <>
+                        {/* Resumo Clínico de Metas e Medições */}
+                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+                          <div className="p-3 rounded-2xl border-2 bg-card">
+                            <div className="text-[10px] font-bold text-muted-foreground">
+                              Peso Atual
+                            </div>
+                            <div className="text-base font-black text-foreground mt-0.5">
+                              {saudeData.latest_metrics?.weight
+                                ? `${saudeData.latest_metrics.weight} kg`
+                                : '—'}
+                            </div>
+                          </div>
+                          <div className="p-3 rounded-2xl border-2 bg-card">
+                            <div className="text-[10px] font-bold text-muted-foreground">
+                              Meta de Peso
+                            </div>
+                            <div className="text-base font-black text-[#1CB0F6] mt-0.5">
+                              {saudeData.goals?.target_weight
+                                ? `${saudeData.goals.target_weight} kg`
+                                : '—'}
+                            </div>
+                          </div>
+                          <div className="p-3 rounded-2xl border-2 bg-card">
+                            <div className="text-[10px] font-bold text-muted-foreground">
+                              % Gordura
+                            </div>
+                            <div className="text-base font-black text-foreground mt-0.5">
+                              {saudeData.latest_metrics?.body_fat_percentage
+                                ? `${saudeData.latest_metrics.body_fat_percentage}%`
+                                : '—'}
+                            </div>
+                          </div>
+                          <div className="p-3 rounded-2xl border-2 bg-card">
+                            <div className="text-[10px] font-bold text-muted-foreground">
+                              Exames Anexados
+                            </div>
+                            <div className="text-base font-black text-foreground mt-0.5">
+                              {saudeData.medical_exams?.length || 0}
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Exames Clínicos Anexados */}
+                        {saudeData.medical_exams && saudeData.medical_exams.length > 0 && (
+                          <div className="space-y-2">
+                            <h4 className="text-xs font-black uppercase text-muted-foreground tracking-wider flex items-center gap-1.5">
+                              <Paperclip className="w-4 h-4 text-[#1CB0F6]" />
+                              Exames Médicos Anexados ({saudeData.medical_exams.length})
+                            </h4>
+                            <div className="space-y-1.5 max-h-[180px] overflow-y-auto pr-1">
+                              {saudeData.medical_exams.map((ex: any) => (
+                                <div
+                                  key={ex.id}
+                                  className="p-2.5 rounded-xl border bg-card flex items-center justify-between text-xs hover:border-[#1CB0F6]/40 transition-colors"
+                                >
+                                  <div className="min-w-0 flex-1">
+                                    <div className="font-extrabold text-foreground truncate">
+                                      {ex.title || 'Exame Clínico'}
+                                    </div>
+                                    <div className="text-[10px] text-muted-foreground">
+                                      {safeFormatDate(ex.date || ex.created_at)}
+                                    </div>
+                                  </div>
+                                  {ex.file_url && (
+                                    <a
+                                      href={ex.file_url}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="px-2.5 py-1 rounded-lg bg-[#1CB0F6]/10 text-[#1CB0F6] font-bold text-[10px] hover:bg-[#1CB0F6]/20 transition-colors"
+                                    >
+                                      Visualizar
+                                    </a>
+                                  )}
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Histórico Geral de Registros Clínicos */}
+                        <div className="space-y-2">
+                          <h4 className="text-xs font-black uppercase text-muted-foreground tracking-wider flex items-center gap-1.5">
+                            <FileText className="w-4 h-4 text-emerald-500" />
+                            Registros Clínicos Recentes ({saudeData.metrics_history?.length || 0})
+                          </h4>
+                          {!saudeData.metrics_history || saudeData.metrics_history.length === 0 ? (
+                            <div className="p-6 rounded-2xl border-2 border-dashed bg-muted/20 text-center text-xs text-muted-foreground">
+                              Nenhum registro clínico no prontuário ainda.
+                            </div>
+                          ) : (
+                            <div className="space-y-2 max-h-[260px] overflow-y-auto pr-1">
+                              {saudeData.metrics_history.map((m: any) => {
+                                const isAuthor =
+                                  currentUserId &&
+                                  m.created_by === currentUserId &&
+                                  !activeTabPermission.isReadOnly
+                                return (
+                                  <div
+                                    key={m.id}
+                                    className="p-3 rounded-2xl border bg-card flex items-center justify-between text-xs gap-3 hover:border-[#1CB0F6]/40 transition-colors"
+                                  >
+                                    <div className="min-w-0 flex-1">
+                                      <div className="flex items-center gap-2">
+                                        <span className="font-extrabold text-foreground">
+                                          {safeFormatDate(m.date || m.created_at)}
+                                        </span>
+                                        {m.created_by ? (
+                                          <ProfessionalTag createdBy={m.created_by} />
+                                        ) : (
+                                          <span className="text-[10px] text-muted-foreground italic">
+                                            registro do paciente
+                                          </span>
+                                        )}
+                                      </div>
+                                      <div className="text-[11px] text-muted-foreground flex flex-wrap gap-2 mt-0.5">
+                                        {m.weight && <span>Peso: {m.weight} kg</span>}
+                                        {m.body_fat_percentage && (
+                                          <span>• Gordura: {m.body_fat_percentage}%</span>
+                                        )}
+                                        {m.lean_mass && (
+                                          <span>• Massa Magra: {m.lean_mass} kg</span>
+                                        )}
+                                        {m.blood_pressure && (
+                                          <span>• P.A.: {m.blood_pressure}</span>
+                                        )}
+                                      </div>
+                                      {m.observations && (
+                                        <p className="text-[10px] text-muted-foreground italic line-clamp-1 mt-1">
+                                          &quot;{m.observations}&quot;
+                                        </p>
+                                      )}
+                                    </div>
+
+                                    <div className="flex items-center gap-1 shrink-0">
+                                      {isAuthor ? (
+                                        <>
+                                          <Button
+                                            type="button"
+                                            size="icon"
+                                            variant="ghost"
+                                            onClick={() => {
+                                              setEditingMetric(m)
+                                              setAnthropometryModalOpen(true)
+                                            }}
+                                            className="h-7 w-7 rounded-lg text-muted-foreground hover:text-[#1CB0F6]"
+                                            title="Editar avaliação"
+                                          >
+                                            <Pencil className="w-3.5 h-3.5" />
+                                          </Button>
+                                          <Button
+                                            type="button"
+                                            size="icon"
+                                            variant="ghost"
+                                            onClick={() => {
+                                              setDeleteConfirm({
+                                                open: true,
+                                                title: 'Excluir registro do prontuário?',
+                                                description: `Deseja remover o registro de ${safeFormatDate(m.date || m.created_at)}?`,
+                                                onConfirm: async () => {
+                                                  const ok = await deleteBodyMetricForPatient(m.id)
+                                                  if (ok) reloadSaude()
+                                                },
+                                              })
+                                            }}
+                                            className="h-7 w-7 rounded-lg text-muted-foreground hover:text-rose-600"
+                                            title="Excluir avaliação"
+                                          >
+                                            <Trash2 className="w-3.5 h-3.5" />
+                                          </Button>
+                                        </>
+                                      ) : (
+                                        <Badge
+                                          variant="secondary"
+                                          className="text-[9px] font-semibold"
+                                        >
+                                          Somente leitura
+                                        </Badge>
+                                      )}
+                                    </div>
+                                  </div>
+                                )
+                              })}
+                            </div>
+                          )}
+                        </div>
+                      </>
+                    )}
+                  </div>
+                )}
+
+                {/* ABA 2: PERFORMANCE (Tarefas, Hábitos, Checklists) */}
                 {activeTab === 'tarefas' && (
                   <div className="space-y-5 animate-fade-in">
-                    {/* Botões 3D Azuis de Ação no Topo */}
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setEditingTask(null)
-                          setTaskModalOpen(true)
-                        }}
-                        className="w-full py-3 px-4 rounded-3xl bg-[#1CB0F6] hover:bg-[#1899d6] text-white font-extrabold text-xs sm:text-sm border-b-4 border-[#147eb0] active:translate-y-1 active:border-b-0 transition-all shadow-md flex items-center justify-center gap-2 cursor-pointer"
-                      >
-                        <Plus className="w-4 h-4 stroke-[3]" />
-                        <span>Nova Tarefa para o Paciente</span>
-                      </button>
+                    {/* Botões 3D Azuis de Ação no Topo (desabilitados em modo leitura) */}
+                    {!activeTabPermission.isReadOnly && (
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setEditingTask(null)
+                            setTaskModalOpen(true)
+                          }}
+                          className="w-full py-3 px-4 rounded-3xl bg-[#1CB0F6] hover:bg-[#1899d6] text-white font-extrabold text-xs sm:text-sm border-b-4 border-[#147eb0] active:translate-y-1 active:border-b-0 transition-all shadow-md flex items-center justify-center gap-2 cursor-pointer"
+                        >
+                          <Plus className="w-4 h-4 stroke-[3]" />
+                          <span>Nova Tarefa para o Paciente</span>
+                        </button>
 
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setEditingHabit(null)
-                          setHabitModalOpen(true)
-                        }}
-                        className="w-full py-3 px-4 rounded-3xl bg-[#1CB0F6] hover:bg-[#1899d6] text-white font-extrabold text-xs sm:text-sm border-b-4 border-[#147eb0] active:translate-y-1 active:border-b-0 transition-all shadow-md flex items-center justify-center gap-2 cursor-pointer"
-                      >
-                        <Plus className="w-4 h-4 stroke-[3]" />
-                        <span>Novo Hábito</span>
-                      </button>
-                    </div>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setEditingHabit(null)
+                            setHabitModalOpen(true)
+                          }}
+                          className="w-full py-3 px-4 rounded-3xl bg-[#1CB0F6] hover:bg-[#1899d6] text-white font-extrabold text-xs sm:text-sm border-b-4 border-[#147eb0] active:translate-y-1 active:border-b-0 transition-all shadow-md flex items-center justify-center gap-2 cursor-pointer"
+                        >
+                          <Plus className="w-4 h-4 stroke-[3]" />
+                          <span>Novo Hábito</span>
+                        </button>
+                      </div>
+                    )}
 
                     {loadingMap['tarefas'] ? (
                       <div className="space-y-3">
@@ -578,61 +919,126 @@ export function PatientDetailsDrawer({ patient, open, onOpenChange }: PatientDet
                           <div className="flex items-center justify-between">
                             <h4 className="text-xs font-black uppercase text-muted-foreground flex items-center gap-2 tracking-wider">
                               <Activity className="w-4 h-4 text-[#58CC02]" />
-                              Hábitos do Paciente (
-                              {tarefasData.habits?.length || tarefasData.habits_summary.length})
+                              <span>Hábitos e Consistência ({tarefasData.habits.length})</span>
                             </h4>
                           </div>
 
-                          {(tarefasData.habits || []).length === 0 ? (
-                            <div className="p-4 rounded-2xl border bg-muted/20 text-center text-xs text-muted-foreground">
-                              Nenhum hábito cadastrado. Clique em &quot;Novo Hábito&quot; acima para
-                              prescrever.
-                            </div>
+                          {tarefasData.habits.length === 0 ? (
+                            <p className="text-xs text-muted-foreground italic pl-2">
+                              Nenhum hábito cadastrado para este paciente.
+                            </p>
                           ) : (
-                            <div className="space-y-2 max-h-[260px] overflow-y-auto pr-1">
-                              {tarefasData.habits.map((h: any) => {
-                                const isAuthor = currentUserId && h.created_by === currentUserId
-                                const summary = tarefasData.habits_summary.find(
-                                  (s) => s.id === h.id,
-                                )
+                            <div className="space-y-2">
+                              {tarefasData.habits_summary.map((hs) => {
+                                const fullHabit = tarefasData.habits.find((h) => h.id === hs.id)
+                                const isAuthor =
+                                  currentUserId &&
+                                  fullHabit?.created_by === currentUserId &&
+                                  !activeTabPermission.isReadOnly
                                 return (
                                   <div
-                                    key={h.id}
-                                    className="p-3 rounded-2xl border bg-card flex items-center justify-between text-xs gap-3 hover:border-[#1CB0F6]/50 transition-colors"
+                                    key={hs.id}
+                                    className="p-3 rounded-2xl border bg-card flex items-center justify-between text-xs gap-3"
                                   >
                                     <div className="min-w-0 flex-1">
                                       <div className="flex items-center gap-2">
                                         <span className="font-extrabold text-foreground truncate">
-                                          {h.title}
+                                          {hs.title}
                                         </span>
-                                        {isAuthor ? (
-                                          <ProfessionalTag createdBy={h.created_by} />
+                                        {fullHabit?.created_by && (
+                                          <ProfessionalTag createdBy={fullHabit.created_by} />
+                                        )}
+                                      </div>
+                                      <div className="text-[10px] text-muted-foreground mt-0.5">
+                                        Frequência: {hs.frequency} • Streak: {hs.streak} dias
+                                      </div>
+                                    </div>
+                                    <div className="flex items-center gap-2 shrink-0">
+                                      <Badge
+                                        variant="outline"
+                                        className="font-bold text-[10px] border-[#58CC02]/40 text-[#58CC02]"
+                                      >
+                                        {hs.completion_rate_pct}% 7d
+                                      </Badge>
+                                      {isAuthor && (
+                                        <Button
+                                          type="button"
+                                          size="icon"
+                                          variant="ghost"
+                                          onClick={() => {
+                                            setEditingHabit(fullHabit)
+                                            setHabitModalOpen(true)
+                                          }}
+                                          className="h-7 w-7 rounded-lg text-muted-foreground hover:text-[#1CB0F6]"
+                                          title="Editar hábito"
+                                        >
+                                          <Pencil className="w-3.5 h-3.5" />
+                                        </Button>
+                                      )}
+                                    </div>
+                                  </div>
+                                )
+                              })}
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Lista de Tarefas do Paciente */}
+                        <div className="space-y-2">
+                          <h4 className="text-xs font-black uppercase text-muted-foreground tracking-wider">
+                            Tarefas (
+                            {tarefasData.tasks?.length || tarefasData.recent_tasks?.length || 0})
+                          </h4>
+                          <div className="space-y-1.5 max-h-[220px] overflow-y-auto pr-1">
+                            {(tarefasData.tasks || tarefasData.recent_tasks || []).map(
+                              (task: any) => {
+                                const isAuthor =
+                                  currentUserId &&
+                                  task.created_by === currentUserId &&
+                                  !activeTabPermission.isReadOnly
+                                return (
+                                  <div
+                                    key={task.id}
+                                    className="p-2.5 rounded-xl border bg-card flex items-center justify-between text-xs hover:border-[#1CB0F6]/50 transition-colors gap-2"
+                                  >
+                                    <div className="min-w-0 flex-1">
+                                      <div className="flex items-center gap-1.5">
+                                        <span
+                                          className={cn(
+                                            'truncate',
+                                            task.completed
+                                              ? 'line-through text-muted-foreground'
+                                              : 'font-semibold text-foreground',
+                                          )}
+                                        >
+                                          {task.title}
+                                        </span>
+                                        {task.created_by ? (
+                                          <ProfessionalTag createdBy={task.created_by} />
                                         ) : (
                                           <span className="text-[10px] text-muted-foreground italic">
                                             criado pelo paciente
                                           </span>
                                         )}
-                                      </div>{' '}
-                                      <div className="text-[11px] text-muted-foreground flex items-center gap-2 mt-0.5">
-                                        {summary && (
-                                          <span>Aderência: {summary.weekly_progress_pct}%</span>
-                                        )}
-                                        {summary && summary.streak > 0 && (
-                                          <span className="text-amber-600 dark:text-amber-400 font-bold flex items-center gap-1">
-                                            <Flame className="w-3 h-3 fill-amber-500 text-amber-500" />
-                                            {summary.streak} dias seguidos
-                                          </span>
-                                        )}
+                                      </div>
+                                      <div className="text-[10px] text-muted-foreground">
+                                        {task.due_date
+                                          ? `Prazo: ${safeFormatDate(task.due_date)}`
+                                          : 'Sem prazo'}
                                       </div>
                                     </div>
 
                                     <div className="flex items-center gap-1.5 shrink-0">
-                                      <Badge
-                                        variant="outline"
-                                        className="text-[10px] font-bold text-[#58CC02] border-[#58CC02]/40 bg-[#58CC02]/5"
+                                      <span
+                                        className={cn(
+                                          'text-[10px] font-bold px-2 py-0.5 rounded-full',
+                                          task.completed
+                                            ? 'bg-emerald-500/10 text-emerald-600'
+                                            : 'bg-muted text-muted-foreground',
+                                        )}
                                       >
-                                        {h.frequency === 'daily' ? 'Diário' : 'Semanal'}
-                                      </Badge>
+                                        {task.completed ? 'Concluída' : 'Pendente'}
+                                      </span>
 
                                       {isAuthor ? (
                                         <div className="flex items-center gap-1">
@@ -641,11 +1047,20 @@ export function PatientDetailsDrawer({ patient, open, onOpenChange }: PatientDet
                                             size="icon"
                                             variant="ghost"
                                             onClick={() => {
-                                              setEditingHabit(h)
-                                              setHabitModalOpen(true)
+                                              setEditingTask({
+                                                ...task,
+                                                dueDate: task.due_date,
+                                                scheduledDate: task.scheduled_date,
+                                                energyLevel: task.energy_level,
+                                                estimatedTime: task.estimated_time,
+                                                tagId: task.tag_id,
+                                                tagIds: task.tag_ids,
+                                                subtasks: task.subtasks || [],
+                                              })
+                                              setTaskModalOpen(true)
                                             }}
                                             className="h-7 w-7 rounded-lg text-muted-foreground hover:text-[#1CB0F6]"
-                                            title="Editar hábito"
+                                            title="Editar tarefa"
                                           >
                                             <Pencil className="w-3.5 h-3.5" />
                                           </Button>
@@ -656,16 +1071,16 @@ export function PatientDetailsDrawer({ patient, open, onOpenChange }: PatientDet
                                             onClick={() => {
                                               setDeleteConfirm({
                                                 open: true,
-                                                title: 'Excluir hábito prescrito?',
-                                                description: `Deseja remover o hábito "${h.title}"? O paciente não terá mais esse hábito na sua rotina.`,
+                                                title: 'Excluir tarefa prescrita?',
+                                                description: `Deseja remover a tarefa "${task.title}"?`,
                                                 onConfirm: async () => {
-                                                  const ok = await deleteHabitForPatient(h.id)
+                                                  const ok = await deleteTaskForPatient(task.id)
                                                   if (ok) reloadTarefas()
                                                 },
                                               })
                                             }}
                                             className="h-7 w-7 rounded-lg text-muted-foreground hover:text-rose-600"
-                                            title="Excluir hábito"
+                                            title="Excluir tarefa"
                                           >
                                             <Trash2 className="w-3.5 h-3.5" />
                                           </Button>
@@ -681,120 +1096,8 @@ export function PatientDetailsDrawer({ patient, open, onOpenChange }: PatientDet
                                     </div>
                                   </div>
                                 )
-                              })}
-                            </div>
-                          )}
-                        </div>
-
-                        {/* Lista de Tarefas do Paciente */}
-                        <div className="space-y-2">
-                          <h4 className="text-xs font-black uppercase text-muted-foreground tracking-wider">
-                            Tarefas ({tarefasData.tasks?.length || tarefasData.recent_tasks.length})
-                          </h4>
-                          <div className="space-y-1.5 max-h-[220px] overflow-y-auto pr-1">
-                            {(tarefasData.tasks || tarefasData.recent_tasks).map((task: any) => {
-                              const isAuthor = currentUserId && task.created_by === currentUserId
-                              return (
-                                <div
-                                  key={task.id}
-                                  className="p-2.5 rounded-xl border bg-card flex items-center justify-between text-xs hover:border-[#1CB0F6]/50 transition-colors gap-2"
-                                >
-                                  <div className="min-w-0 flex-1">
-                                    <div className="flex items-center gap-1.5">
-                                      <span
-                                        className={cn(
-                                          'truncate',
-                                          task.completed
-                                            ? 'line-through text-muted-foreground'
-                                            : 'font-semibold text-foreground',
-                                        )}
-                                      >
-                                        {task.title}
-                                      </span>
-                                      {isAuthor ? (
-                                        <ProfessionalTag createdBy={task.created_by} />
-                                      ) : (
-                                        <span className="text-[10px] text-muted-foreground italic">
-                                          criado pelo paciente
-                                        </span>
-                                      )}
-                                    </div>
-                                    <div className="text-[10px] text-muted-foreground">
-                                      {task.due_date
-                                        ? `Prazo: ${safeFormatDate(task.due_date)}`
-                                        : 'Sem prazo'}
-                                    </div>
-                                  </div>
-
-                                  <div className="flex items-center gap-1.5 shrink-0">
-                                    <span
-                                      className={cn(
-                                        'text-[10px] font-bold px-2 py-0.5 rounded-full',
-                                        task.completed
-                                          ? 'bg-emerald-500/10 text-emerald-600'
-                                          : 'bg-muted text-muted-foreground',
-                                      )}
-                                    >
-                                      {task.completed ? 'Concluída' : 'Pendente'}
-                                    </span>
-
-                                    {isAuthor ? (
-                                      <div className="flex items-center gap-1">
-                                        <Button
-                                          type="button"
-                                          size="icon"
-                                          variant="ghost"
-                                          onClick={() => {
-                                            setEditingTask({
-                                              ...task,
-                                              dueDate: task.due_date,
-                                              scheduledDate: task.scheduled_date,
-                                              energyLevel: task.energy_level,
-                                              estimatedTime: task.estimated_time,
-                                              tagId: task.tag_id,
-                                              tagIds: task.tag_ids,
-                                              subtasks: task.subtasks || [],
-                                            })
-                                            setTaskModalOpen(true)
-                                          }}
-                                          className="h-7 w-7 rounded-lg text-muted-foreground hover:text-[#1CB0F6]"
-                                          title="Editar tarefa"
-                                        >
-                                          <Pencil className="w-3.5 h-3.5" />
-                                        </Button>
-                                        <Button
-                                          type="button"
-                                          size="icon"
-                                          variant="ghost"
-                                          onClick={() => {
-                                            setDeleteConfirm({
-                                              open: true,
-                                              title: 'Excluir tarefa prescrita?',
-                                              description: `Deseja remover a tarefa "${task.title}"?`,
-                                              onConfirm: async () => {
-                                                const ok = await deleteTaskForPatient(task.id)
-                                                if (ok) reloadTarefas()
-                                              },
-                                            })
-                                          }}
-                                          className="h-7 w-7 rounded-lg text-muted-foreground hover:text-rose-600"
-                                          title="Excluir tarefa"
-                                        >
-                                          <Trash2 className="w-3.5 h-3.5" />
-                                        </Button>
-                                      </div>
-                                    ) : (
-                                      <Badge
-                                        variant="secondary"
-                                        className="text-[9px] font-semibold"
-                                      >
-                                        Somente leitura
-                                      </Badge>
-                                    )}
-                                  </div>
-                                </div>
-                              )
-                            })}
+                              },
+                            )}
                           </div>
                         </div>
                       </>
@@ -802,26 +1105,29 @@ export function PatientDetailsDrawer({ patient, open, onOpenChange }: PatientDet
                   </div>
                 )}
 
-                {/* ABA 2: SAÚDE COM 5 SUB-CHIPS ROLÁVEIS */}
-                {activeTab === 'saude' && (
+                {/* ABA 3: MENTE (Humor, Ansiedade, Estresse, Linha do Tempo) */}
+                {activeTab === 'mente' && (
+                  <PatientMenteView data={menteData} loading={!!loadingMap['mente']} />
+                )}
+
+                {/* ABA 4: NUTRIÇÃO (Plano Alimentar, Receitas, Ato Energético) */}
+                {activeTab === 'nutricao' && (
                   <div className="space-y-4 animate-fade-in">
-                    {/* Sub-chips de Saúde roláveis (não corta em 360px) */}
+                    {/* Sub-chips de Nutrição */}
                     <div className="overflow-x-auto pb-1 -mx-2 px-2 scrollbar-none">
                       <div className="inline-flex items-center gap-1.5 p-1 rounded-2xl bg-muted/40 border">
                         {[
                           { key: 'diet', label: 'Plano Alimentar', icon: Salad },
-                          { key: 'recipes', label: 'Receitas', icon: ChefHat },
-                          { key: 'xray', label: 'Raio-X Corporal', icon: Scale },
-                          { key: 'metabolic', label: 'Ato Energético', icon: Flame },
-                          { key: 'workout', label: 'Fichas de Treino', icon: Dumbbell },
+                          { key: 'recipes', label: 'Receitas Recomendadas', icon: ChefHat },
+                          { key: 'metabolic', label: 'Ato Energético & Calorias', icon: Flame },
                         ].map((sub) => {
                           const IconComp = sub.icon
-                          const isActive = saudeSubTab === sub.key
+                          const isActive = nutricaoSubTab === sub.key
                           return (
                             <button
                               key={sub.key}
                               type="button"
-                              onClick={() => setSaudeSubTab(sub.key as any)}
+                              onClick={() => setNutricaoSubTab(sub.key as any)}
                               className={cn(
                                 'px-3 py-1.5 rounded-xl text-xs font-black transition-all flex items-center gap-1.5 shrink-0 whitespace-nowrap cursor-pointer border-b-2',
                                 isActive
@@ -844,12 +1150,12 @@ export function PatientDetailsDrawer({ patient, open, onOpenChange }: PatientDet
                       </div>
                     ) : !saudeData ? (
                       <p className="text-xs text-muted-foreground italic text-center py-6">
-                        Nenhum dado de saúde disponível.
+                        Nenhum dado nutricional disponível.
                       </p>
                     ) : (
                       <>
                         {/* 1. PLANO ALIMENTAR */}
-                        {saudeSubTab === 'diet' && (
+                        {nutricaoSubTab === 'diet' && (
                           <div className="space-y-4 animate-fade-in">
                             <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5">
                               <div>
@@ -862,35 +1168,35 @@ export function PatientDetailsDrawer({ patient, open, onOpenChange }: PatientDet
                                 </p>
                               </div>
 
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setEditingDietPlan(null)
-                                  setDietPlanModalOpen(true)
-                                }}
-                                className="py-2.5 px-4 rounded-2xl bg-[#1CB0F6] hover:bg-[#1899d6] text-white font-extrabold text-xs border-b-4 border-[#147eb0] active:translate-y-0.5 active:border-b-0 transition-all flex items-center justify-center gap-1.5 shrink-0"
-                              >
-                                <Plus className="w-4 h-4 stroke-[3]" />
-                                <span>Nova Refeição</span>
-                              </button>
+                              {!activeTabPermission.isReadOnly && (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setEditingDietPlan(null)
+                                    setDietPlanModalOpen(true)
+                                  }}
+                                  className="py-2.5 px-4 rounded-2xl bg-[#1CB0F6] hover:bg-[#1899d6] text-white font-extrabold text-xs border-b-4 border-[#147eb0] active:translate-y-0.5 active:border-b-0 transition-all flex items-center justify-center gap-1.5 shrink-0"
+                                >
+                                  <Plus className="w-4 h-4 stroke-[3]" />
+                                  <span>Nova Refeição</span>
+                                </button>
+                              )}
                             </div>
 
                             {!saudeData.diet_plans || saudeData.diet_plans.length === 0 ? (
                               <div className="p-8 rounded-2xl border-2 border-dashed bg-muted/20 text-center space-y-2">
                                 <Salad className="w-8 h-8 text-muted-foreground mx-auto" />
                                 <p className="text-xs font-bold text-foreground">
-                                  Nenhuma refeição no plano — crie a primeira
-                                </p>
-                                <p className="text-[11px] text-muted-foreground max-w-xs mx-auto">
-                                  Prescreva o café da manhã, almoço, lanches ou jantar para o
-                                  paciente acompanhar.
+                                  Nenhuma refeição no plano
                                 </p>
                               </div>
                             ) : (
                               <div className="space-y-3">
                                 {saudeData.diet_plans.map((plan: any) => {
                                   const isAuthor =
-                                    currentUserId && plan.created_by === currentUserId
+                                    currentUserId &&
+                                    plan.created_by === currentUserId &&
+                                    !activeTabPermission.isReadOnly
                                   const items = plan.diet_plan_items || []
                                   return (
                                     <div
@@ -911,7 +1217,7 @@ export function PatientDetailsDrawer({ patient, open, onOpenChange }: PatientDet
                                                 {plan.time}
                                               </Badge>
                                             )}
-                                            {isAuthor ? (
+                                            {plan.created_by ? (
                                               <ProfessionalTag createdBy={plan.created_by} />
                                             ) : (
                                               <span className="text-[10px] text-muted-foreground italic">
@@ -990,7 +1296,7 @@ export function PatientDetailsDrawer({ patient, open, onOpenChange }: PatientDet
                                         </div>
                                       </div>
 
-                                      {/* Itens do plano alimentar */}
+                                      {/* Itens do plano */}
                                       {items.length === 0 ? (
                                         <p className="text-[11px] text-muted-foreground italic pl-1">
                                           Nenhum alimento cadastrado nesta refeição.
@@ -999,7 +1305,9 @@ export function PatientDetailsDrawer({ patient, open, onOpenChange }: PatientDet
                                         <div className="space-y-1.5 pl-1">
                                           {items.map((it: any) => {
                                             const isItemAuthor =
-                                              currentUserId && it.created_by === currentUserId
+                                              currentUserId &&
+                                              it.created_by === currentUserId &&
+                                              !activeTabPermission.isReadOnly
                                             return (
                                               <div
                                                 key={it.id}
@@ -1021,11 +1329,6 @@ export function PatientDetailsDrawer({ patient, open, onOpenChange }: PatientDet
                                                       <span>• C: {it.carbs_g}g</span>
                                                     )}
                                                     {it.fat_g > 0 && <span>• G: {it.fat_g}g</span>}
-                                                    {it.allergens && (
-                                                      <span className="text-amber-600 font-semibold">
-                                                        ({it.allergens})
-                                                      </span>
-                                                    )}
                                                   </div>
                                                 </div>
 
@@ -1082,8 +1385,8 @@ export function PatientDetailsDrawer({ patient, open, onOpenChange }: PatientDet
                           </div>
                         )}
 
-                        {/* 2. RECEITAS */}
-                        {saudeSubTab === 'recipes' && (
+                        {/* 2. RECEITAS RECOMENDADAS */}
+                        {nutricaoSubTab === 'recipes' && (
                           <div className="space-y-4 animate-fade-in">
                             <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5">
                               <div>
@@ -1092,39 +1395,39 @@ export function PatientDetailsDrawer({ patient, open, onOpenChange }: PatientDet
                                   Receitas Recomendadas ({saudeData.recipes?.length || 0})
                                 </h4>
                                 <p className="text-[11px] text-muted-foreground">
-                                  Receitas e preparos culinários prescritos para o paciente.
+                                  Preparações culinárias orientadas para a dieta do paciente.
                                 </p>
                               </div>
 
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setEditingRecipe(null)
-                                  setRecipeModalOpen(true)
-                                }}
-                                className="py-2.5 px-4 rounded-2xl bg-[#1CB0F6] hover:bg-[#1899d6] text-white font-extrabold text-xs border-b-4 border-[#147eb0] active:translate-y-0.5 active:border-b-0 transition-all flex items-center justify-center gap-1.5 shrink-0"
-                              >
-                                <Plus className="w-4 h-4 stroke-[3]" />
-                                <span>Nova Receita</span>
-                              </button>
+                              {!activeTabPermission.isReadOnly && (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setEditingRecipe(null)
+                                    setRecipeModalOpen(true)
+                                  }}
+                                  className="py-2.5 px-4 rounded-2xl bg-[#1CB0F6] hover:bg-[#1899d6] text-white font-extrabold text-xs border-b-4 border-[#147eb0] active:translate-y-0.5 active:border-b-0 transition-all flex items-center justify-center gap-1.5 shrink-0"
+                                >
+                                  <Plus className="w-4 h-4 stroke-[3]" />
+                                  <span>Nova Receita</span>
+                                </button>
+                              )}
                             </div>
 
                             {!saudeData.recipes || saudeData.recipes.length === 0 ? (
                               <div className="p-8 rounded-2xl border-2 border-dashed bg-muted/20 text-center space-y-2">
                                 <ChefHat className="w-8 h-8 text-muted-foreground mx-auto" />
                                 <p className="text-xs font-bold text-foreground">
-                                  Nenhuma receita prescrita — crie a primeira
-                                </p>
-                                <p className="text-[11px] text-muted-foreground max-w-xs mx-auto">
-                                  Indique preparações nutricionais ricas e práticas com controle de
-                                  ingredientes.
+                                  Nenhuma receita prescrita
                                 </p>
                               </div>
                             ) : (
                               <div className="space-y-2.5">
                                 {saudeData.recipes.map((recipe: any) => {
                                   const isAuthor =
-                                    currentUserId && recipe.created_by === currentUserId
+                                    currentUserId &&
+                                    recipe.created_by === currentUserId &&
+                                    !activeTabPermission.isReadOnly
                                   const ings = recipe.recipe_ingredients || []
                                   return (
                                     <div
@@ -1137,7 +1440,7 @@ export function PatientDetailsDrawer({ patient, open, onOpenChange }: PatientDet
                                             <span className="font-extrabold text-foreground text-sm truncate">
                                               {recipe.name}
                                             </span>
-                                            {isAuthor ? (
+                                            {recipe.created_by ? (
                                               <ProfessionalTag createdBy={recipe.created_by} />
                                             ) : (
                                               <span className="text-[10px] text-muted-foreground italic">
@@ -1223,182 +1526,8 @@ export function PatientDetailsDrawer({ patient, open, onOpenChange }: PatientDet
                           </div>
                         )}
 
-                        {/* 3. RAIO-X CORPORAL / MEDIDAS */}
-                        {saudeSubTab === 'xray' && (
-                          <div className="space-y-4 animate-fade-in">
-                            <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5">
-                              <div>
-                                <h4 className="text-xs font-black uppercase text-muted-foreground flex items-center gap-1.5 tracking-wider">
-                                  <Scale className="w-4 h-4 text-[#1CB0F6]" />
-                                  Raio-X Corporal e Medidas (
-                                  {saudeData.metrics_history?.length || 0})
-                                </h4>
-                                <p className="text-[11px] text-muted-foreground">
-                                  Histórico de peso, circunferências, dobras e composição corporal.
-                                </p>
-                              </div>
-
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setEditingMetric(null)
-                                  setAnthropometryModalOpen(true)
-                                }}
-                                className="py-2.5 px-4 rounded-2xl bg-[#1CB0F6] hover:bg-[#1899d6] text-white font-extrabold text-xs border-b-4 border-[#147eb0] active:translate-y-0.5 active:border-b-0 transition-all flex items-center justify-center gap-1.5 shrink-0"
-                              >
-                                <Plus className="w-4 h-4 stroke-[3]" />
-                                <span>Registrar Avaliação</span>
-                              </button>
-                            </div>
-
-                            {/* Resumo atual */}
-                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
-                              <div className="p-3 rounded-2xl border-2 bg-card">
-                                <div className="text-[10px] font-bold text-muted-foreground">
-                                  Peso Atual
-                                </div>
-                                <div className="text-base font-black text-foreground mt-0.5">
-                                  {saudeData.latest_metrics?.weight
-                                    ? `${saudeData.latest_metrics.weight} kg`
-                                    : '—'}
-                                </div>
-                              </div>
-                              <div className="p-3 rounded-2xl border-2 bg-card">
-                                <div className="text-[10px] font-bold text-muted-foreground">
-                                  Meta de Peso
-                                </div>
-                                <div className="text-base font-black text-[#1CB0F6] mt-0.5">
-                                  {saudeData.goals?.target_weight
-                                    ? `${saudeData.goals.target_weight} kg`
-                                    : '—'}
-                                </div>
-                              </div>
-                              <div className="p-3 rounded-2xl border-2 bg-card">
-                                <div className="text-[10px] font-bold text-muted-foreground">
-                                  % Gordura Atual
-                                </div>
-                                <div className="text-base font-black text-foreground mt-0.5">
-                                  {saudeData.latest_metrics?.body_fat_percentage
-                                    ? `${saudeData.latest_metrics.body_fat_percentage}%`
-                                    : '—'}
-                                </div>
-                              </div>
-                              <div className="p-3 rounded-2xl border-2 bg-card">
-                                <div className="text-[10px] font-bold text-muted-foreground">
-                                  Meta % Gordura
-                                </div>
-                                <div className="text-base font-black text-[#1CB0F6] mt-0.5">
-                                  {saudeData.goals?.target_body_fat
-                                    ? `${saudeData.goals.target_body_fat}%`
-                                    : '—'}
-                                </div>
-                              </div>
-                            </div>
-
-                            {/* Lista de Avaliações */}
-                            {!saudeData.metrics_history ||
-                            saudeData.metrics_history.length === 0 ? (
-                              <div className="p-8 rounded-2xl border-2 border-dashed bg-muted/20 text-center space-y-2">
-                                <Scale className="w-8 h-8 text-muted-foreground mx-auto" />
-                                <p className="text-xs font-bold text-foreground">
-                                  Nenhuma avaliação física registrada
-                                </p>
-                                <p className="text-[11px] text-muted-foreground max-w-xs mx-auto">
-                                  Clique em &quot;Registrar Avaliação&quot; para inserir medidas
-                                  antropométricas completas.
-                                </p>
-                              </div>
-                            ) : (
-                              <div className="space-y-2 max-h-[260px] overflow-y-auto pr-1">
-                                {saudeData.metrics_history.map((m: any) => {
-                                  const isAuthor = currentUserId && m.created_by === currentUserId
-                                  return (
-                                    <div
-                                      key={m.id}
-                                      className="p-3 rounded-2xl border bg-card flex items-center justify-between text-xs gap-3 hover:border-[#1CB0F6]/40 transition-colors"
-                                    >
-                                      <div className="min-w-0 flex-1">
-                                        <div className="flex items-center gap-2">
-                                          <span className="font-extrabold text-foreground">
-                                            {safeFormatDate(m.date || m.created_at)}
-                                          </span>
-                                          {isAuthor ? (
-                                            <ProfessionalTag createdBy={m.created_by} />
-                                          ) : (
-                                            <span className="text-[10px] text-muted-foreground italic">
-                                              criado pelo paciente
-                                            </span>
-                                          )}
-                                        </div>
-                                        <div className="text-[11px] text-muted-foreground flex flex-wrap gap-2 mt-0.5">
-                                          {m.weight && <span>Peso: {m.weight} kg</span>}
-                                          {m.body_fat_percentage && (
-                                            <span>• Gordura: {m.body_fat_percentage}%</span>
-                                          )}
-                                          {m.lean_mass && (
-                                            <span>• Massa Magra: {m.lean_mass} kg</span>
-                                          )}
-                                        </div>
-                                      </div>
-
-                                      <div className="flex items-center gap-1 shrink-0">
-                                        {isAuthor ? (
-                                          <>
-                                            <Button
-                                              type="button"
-                                              size="icon"
-                                              variant="ghost"
-                                              onClick={() => {
-                                                setEditingMetric(m)
-                                                setAnthropometryModalOpen(true)
-                                              }}
-                                              className="h-7 w-7 rounded-lg text-muted-foreground hover:text-[#1CB0F6]"
-                                              title="Editar avaliação"
-                                            >
-                                              <Pencil className="w-3.5 h-3.5" />
-                                            </Button>
-                                            <Button
-                                              type="button"
-                                              size="icon"
-                                              variant="ghost"
-                                              onClick={() => {
-                                                setDeleteConfirm({
-                                                  open: true,
-                                                  title: 'Excluir avaliação física?',
-                                                  description: `Deseja remover a avaliação do dia ${safeFormatDate(m.date || m.created_at)}?`,
-                                                  onConfirm: async () => {
-                                                    const ok = await deleteBodyMetricForPatient(
-                                                      m.id,
-                                                    )
-                                                    if (ok) reloadSaude()
-                                                  },
-                                                })
-                                              }}
-                                              className="h-7 w-7 rounded-lg text-muted-foreground hover:text-rose-600"
-                                              title="Excluir avaliação"
-                                            >
-                                              <Trash2 className="w-3.5 h-3.5" />
-                                            </Button>
-                                          </>
-                                        ) : (
-                                          <Badge
-                                            variant="secondary"
-                                            className="text-[9px] font-semibold"
-                                          >
-                                            Somente leitura
-                                          </Badge>
-                                        )}
-                                      </div>
-                                    </div>
-                                  )
-                                })}
-                              </div>
-                            )}
-                          </div>
-                        )}
-
-                        {/* 4. ATO ENERGÉTICO */}
-                        {saudeSubTab === 'metabolic' && (
+                        {/* 3. ATO ENERGÉTICO & CALORIAS */}
+                        {nutricaoSubTab === 'metabolic' && (
                           <div className="space-y-4 animate-fade-in">
                             <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5">
                               <div>
@@ -1413,17 +1542,19 @@ export function PatientDetailsDrawer({ patient, open, onOpenChange }: PatientDet
                                 </p>
                               </div>
 
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setEditingMetabolicLog(null)
-                                  setMetabolicModalOpen(true)
-                                }}
-                                className="py-2.5 px-4 rounded-2xl bg-[#1CB0F6] hover:bg-[#1899d6] text-white font-extrabold text-xs border-b-4 border-[#147eb0] active:translate-y-0.5 active:border-b-0 transition-all flex items-center justify-center gap-1.5 shrink-0"
-                              >
-                                <Plus className="w-4 h-4 stroke-[3]" />
-                                <span>Registrar Cálculo Energético</span>
-                              </button>
+                              {!activeTabPermission.isReadOnly && (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setEditingMetabolicLog(null)
+                                    setMetabolicModalOpen(true)
+                                  }}
+                                  className="py-2.5 px-4 rounded-2xl bg-[#1CB0F6] hover:bg-[#1899d6] text-white font-extrabold text-xs border-b-4 border-[#147eb0] active:translate-y-0.5 active:border-b-0 transition-all flex items-center justify-center gap-1.5 shrink-0"
+                                >
+                                  <Plus className="w-4 h-4 stroke-[3]" />
+                                  <span>Registrar Cálculo Energético</span>
+                                </button>
+                              )}
                             </div>
 
                             {!saudeData.metabolic_logs || saudeData.metabolic_logs.length === 0 ? (
@@ -1432,15 +1563,14 @@ export function PatientDetailsDrawer({ patient, open, onOpenChange }: PatientDet
                                 <p className="text-xs font-bold text-foreground">
                                   Nenhum cálculo energético registrado
                                 </p>
-                                <p className="text-[11px] text-muted-foreground max-w-xs mx-auto">
-                                  Prescreva o planejamento metabólico calculando a TMB e o GET do
-                                  paciente.
-                                </p>
                               </div>
                             ) : (
                               <div className="space-y-2.5">
                                 {saudeData.metabolic_logs.map((log: any) => {
-                                  const isAuthor = currentUserId && log.created_by === currentUserId
+                                  const isAuthor =
+                                    currentUserId &&
+                                    log.created_by === currentUserId &&
+                                    !activeTabPermission.isReadOnly
                                   return (
                                     <div
                                       key={log.id}
@@ -1458,7 +1588,7 @@ export function PatientDetailsDrawer({ patient, open, onOpenChange }: PatientDet
                                             >
                                               {log.formula || 'Mifflin'}
                                             </Badge>
-                                            {isAuthor ? (
+                                            {log.created_by ? (
                                               <ProfessionalTag createdBy={log.created_by} />
                                             ) : (
                                               <span className="text-[10px] text-muted-foreground italic">
@@ -1506,7 +1636,7 @@ export function PatientDetailsDrawer({ patient, open, onOpenChange }: PatientDet
                                                   setDeleteConfirm({
                                                     open: true,
                                                     title: 'Excluir cálculo energético?',
-                                                    description: `Deseja remover o cálculo energético de ${safeFormatDate(log.date || log.created_at)}?`,
+                                                    description: `Deseja remover o cálculo de ${safeFormatDate(log.date || log.created_at)}?`,
                                                     onConfirm: async () => {
                                                       const ok = await deleteMetabolicLogForPatient(
                                                         log.id,
@@ -1538,154 +1668,345 @@ export function PatientDetailsDrawer({ patient, open, onOpenChange }: PatientDet
                             )}
                           </div>
                         )}
+                      </>
+                    )}
+                  </div>
+                )}
 
-                        {/* 5. FICHAS DE TREINO */}
-                        {saudeSubTab === 'workout' && (
-                          <div className="space-y-4 animate-fade-in">
-                            <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5">
-                              <div>
-                                <h4 className="text-xs font-black uppercase text-muted-foreground flex items-center gap-1.5 tracking-wider">
-                                  <Dumbbell className="w-4 h-4 text-indigo-500" />
-                                  Fichas de Treino ({saudeData.workout_routines?.length || 0})
-                                </h4>
-                                <p className="text-[11px] text-muted-foreground">
-                                  Rotinas de treinamento e exercícios prescritos.
-                                </p>
+                {/* ABA 5: EXERCÍCIOS (Fichas de Treino, Séries, Exercícios) */}
+                {activeTab === 'exercicios' && (
+                  <div className="space-y-4 animate-fade-in">
+                    <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5">
+                      <div>
+                        <h4 className="text-xs font-black uppercase text-muted-foreground flex items-center gap-1.5 tracking-wider">
+                          <Dumbbell className="w-4 h-4 text-blue-500" />
+                          Fichas de Treino Prescritas ({saudeData?.workout_routines?.length || 0})
+                        </h4>
+                        <p className="text-[11px] text-muted-foreground">
+                          Rotinas de treinamento e exercícios individualizados.
+                        </p>
+                      </div>
+
+                      {!activeTabPermission.isReadOnly && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setEditingWorkoutRoutine(null)
+                            setWorkoutModalOpen(true)
+                          }}
+                          className="py-2.5 px-4 rounded-2xl bg-[#1CB0F6] hover:bg-[#1899d6] text-white font-extrabold text-xs border-b-4 border-[#147eb0] active:translate-y-0.5 active:border-b-0 transition-all flex items-center justify-center gap-1.5 shrink-0"
+                        >
+                          <Plus className="w-4 h-4 stroke-[3]" />
+                          <span>Prescrever Ficha</span>
+                        </button>
+                      )}
+                    </div>
+
+                    {loadingMap['saude'] ? (
+                      <div className="space-y-3">
+                        <Skeleton className="h-16 w-full rounded-2xl" />
+                        <Skeleton className="h-32 w-full rounded-2xl" />
+                      </div>
+                    ) : !saudeData?.workout_routines || saudeData.workout_routines.length === 0 ? (
+                      <div className="p-8 rounded-2xl border-2 border-dashed bg-muted/20 text-center space-y-2">
+                        <Dumbbell className="w-8 h-8 text-muted-foreground mx-auto" />
+                        <p className="text-xs font-bold text-foreground">
+                          Nenhuma ficha de treino prescrita
+                        </p>
+                        <p className="text-[11px] text-muted-foreground max-w-xs mx-auto">
+                          Prescreva séries, repetições e cargas para o paciente acompanhar em seus
+                          treinos.
+                        </p>
+                      </div>
+                    ) : (
+                      <div className="space-y-3">
+                        {saudeData.workout_routines.map((routine: any) => {
+                          const isAuthor =
+                            currentUserId &&
+                            routine.created_by === currentUserId &&
+                            !activeTabPermission.isReadOnly
+                          const exercises = Array.isArray(routine.exercises)
+                            ? routine.exercises
+                            : []
+                          return (
+                            <div
+                              key={routine.id}
+                              className="p-4 rounded-2xl border-2 bg-card space-y-2.5 hover:border-[#1CB0F6]/40 transition-colors"
+                            >
+                              <div className="flex items-center justify-between gap-2">
+                                <div className="min-w-0">
+                                  <div className="flex items-center gap-2">
+                                    <span className="font-extrabold text-foreground text-sm">
+                                      {routine.title}
+                                    </span>
+                                    {routine.created_by ? (
+                                      <ProfessionalTag createdBy={routine.created_by} />
+                                    ) : (
+                                      <span className="text-[10px] text-muted-foreground italic">
+                                        criado pelo paciente
+                                      </span>
+                                    )}
+                                  </div>
+                                  {routine.description && (
+                                    <p className="text-[11px] text-muted-foreground mt-0.5">
+                                      {routine.description}
+                                    </p>
+                                  )}
+                                </div>
+
+                                <div className="flex items-center gap-1 shrink-0">
+                                  {isAuthor ? (
+                                    <>
+                                      <Button
+                                        type="button"
+                                        size="icon"
+                                        variant="ghost"
+                                        onClick={() => {
+                                          setEditingWorkoutRoutine(routine)
+                                          setWorkoutModalOpen(true)
+                                        }}
+                                        className="h-7 w-7 rounded-lg text-muted-foreground hover:text-[#1CB0F6]"
+                                        title="Editar ficha"
+                                      >
+                                        <Pencil className="w-3.5 h-3.5" />
+                                      </Button>
+                                      <Button
+                                        type="button"
+                                        size="icon"
+                                        variant="ghost"
+                                        onClick={() => {
+                                          setDeleteConfirm({
+                                            open: true,
+                                            title: 'Excluir ficha de treino?',
+                                            description: `Deseja remover a ficha "${routine.title}"?`,
+                                            onConfirm: async () => {
+                                              const ok = await deleteWorkoutRoutineForPatient(
+                                                routine.id,
+                                              )
+                                              if (ok) reloadSaude()
+                                            },
+                                          })
+                                        }}
+                                        className="h-7 w-7 rounded-lg text-muted-foreground hover:text-rose-600"
+                                        title="Excluir ficha"
+                                      >
+                                        <Trash2 className="w-3.5 h-3.5" />
+                                      </Button>
+                                    </>
+                                  ) : (
+                                    <Badge variant="secondary" className="text-[9px] font-semibold">
+                                      Somente leitura
+                                    </Badge>
+                                  )}
+                                </div>
                               </div>
 
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setEditingWorkoutRoutine(null)
-                                  setWorkoutModalOpen(true)
-                                }}
-                                className="py-2.5 px-4 rounded-2xl bg-[#1CB0F6] hover:bg-[#1899d6] text-white font-extrabold text-xs border-b-4 border-[#147eb0] active:translate-y-0.5 active:border-b-0 transition-all flex items-center justify-center gap-1.5 shrink-0"
-                              >
-                                <Plus className="w-4 h-4 stroke-[3]" />
-                                <span>Prescrever Ficha</span>
-                              </button>
-                            </div>
-
-                            {!saudeData.workout_routines ||
-                            saudeData.workout_routines.length === 0 ? (
-                              <div className="p-8 rounded-2xl border-2 border-dashed bg-muted/20 text-center space-y-2">
-                                <Dumbbell className="w-8 h-8 text-muted-foreground mx-auto" />
-                                <p className="text-xs font-bold text-foreground">
-                                  Nenhuma ficha de treino prescrita
-                                </p>
-                                <p className="text-[11px] text-muted-foreground max-w-xs mx-auto">
-                                  Clique em &quot;Prescrever Ficha&quot; para montar séries e
-                                  exercícios individualizados.
-                                </p>
-                              </div>
-                            ) : (
-                              <div className="space-y-3">
-                                {saudeData.workout_routines.map((routine: any) => {
-                                  const isAuthor =
-                                    currentUserId && routine.created_by === currentUserId
-                                  const exercises = Array.isArray(routine.exercises)
-                                    ? routine.exercises
-                                    : []
-                                  return (
+                              {exercises.length > 0 && (
+                                <div className="space-y-1">
+                                  {exercises.map((ex: any, idx: number) => (
                                     <div
-                                      key={routine.id}
-                                      className="p-4 rounded-2xl border-2 bg-card space-y-2.5 hover:border-[#1CB0F6]/40 transition-colors"
+                                      key={idx}
+                                      className="p-2 rounded-xl bg-muted/30 flex items-center justify-between text-xs"
                                     >
-                                      <div className="flex items-center justify-between gap-2">
-                                        <div className="min-w-0">
-                                          <div className="flex items-center gap-2">
-                                            <span className="font-extrabold text-foreground text-sm">
-                                              {routine.title}
-                                            </span>
-                                            {isAuthor ? (
-                                              <ProfessionalTag createdBy={routine.created_by} />
-                                            ) : (
-                                              <span className="text-[10px] text-muted-foreground italic">
-                                                criado pelo paciente
-                                              </span>
-                                            )}
-                                          </div>
-                                          {routine.description && (
-                                            <p className="text-[11px] text-muted-foreground mt-0.5">
-                                              {routine.description}
-                                            </p>
-                                          )}
-                                        </div>
+                                      <span className="font-semibold text-foreground">
+                                        {ex.name}
+                                      </span>
+                                      <span className="text-[11px] text-muted-foreground font-bold">
+                                        {ex.sets}x {ex.reps}{' '}
+                                        {ex.weightKg ? `(${ex.weightKg}kg)` : ''}
+                                      </span>
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                          )
+                        })}
+                      </div>
+                    )}
+                  </div>
+                )}
 
-                                        <div className="flex items-center gap-1 shrink-0">
-                                          {isAuthor ? (
-                                            <>
-                                              <Button
-                                                type="button"
-                                                size="icon"
-                                                variant="ghost"
-                                                onClick={() => {
-                                                  setEditingWorkoutRoutine(routine)
-                                                  setWorkoutModalOpen(true)
-                                                }}
-                                                className="h-7 w-7 rounded-lg text-muted-foreground hover:text-[#1CB0F6]"
-                                                title="Editar ficha"
-                                              >
-                                                <Pencil className="w-3.5 h-3.5" />
-                                              </Button>
-                                              <Button
-                                                type="button"
-                                                size="icon"
-                                                variant="ghost"
-                                                onClick={() => {
-                                                  setDeleteConfirm({
-                                                    open: true,
-                                                    title: 'Excluir ficha de treino?',
-                                                    description: `Deseja remover a ficha "${routine.title}"?`,
-                                                    onConfirm: async () => {
-                                                      const ok =
-                                                        await deleteWorkoutRoutineForPatient(
-                                                          routine.id,
-                                                        )
-                                                      if (ok) reloadSaude()
-                                                    },
-                                                  })
-                                                }}
-                                                className="h-7 w-7 rounded-lg text-muted-foreground hover:text-rose-600"
-                                                title="Excluir ficha"
-                                              >
-                                                <Trash2 className="w-3.5 h-3.5" />
-                                              </Button>
-                                            </>
-                                          ) : (
-                                            <Badge
-                                              variant="secondary"
-                                              className="text-[9px] font-semibold"
-                                            >
-                                              Somente leitura
-                                            </Badge>
-                                          )}
-                                        </div>
-                                      </div>
+                {/* ABA 6: RAIO-X CORPORAL (Composição em 4 compartimentos, dobras, circunferências) */}
+                {activeTab === 'raio_x' && (
+                  <div className="space-y-4 animate-fade-in">
+                    <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5">
+                      <div>
+                        <h4 className="text-xs font-black uppercase text-muted-foreground flex items-center gap-1.5 tracking-wider">
+                          <Scale className="w-4 h-4 text-cyan-500" />
+                          Raio-X Corporal e Antropometria ({saudeData?.metrics_history?.length || 0}
+                          )
+                        </h4>
+                        <p className="text-[11px] text-muted-foreground">
+                          Avaliação física completa, dobras cutâneas, perímetros e composição
+                          corporal.
+                        </p>
+                      </div>
 
-                                      {exercises.length > 0 && (
-                                        <div className="space-y-1">
-                                          {exercises.map((ex: any, idx: number) => (
-                                            <div
-                                              key={idx}
-                                              className="p-2 rounded-xl bg-muted/30 flex items-center justify-between text-xs"
-                                            >
-                                              <span className="font-semibold text-foreground">
-                                                {ex.name}
-                                              </span>
-                                              <span className="text-[11px] text-muted-foreground font-bold">
-                                                {ex.sets}x {ex.reps}{' '}
-                                                {ex.weightKg ? `(${ex.weightKg}kg)` : ''}
-                                              </span>
-                                            </div>
-                                          ))}
-                                        </div>
+                      {!activeTabPermission.isReadOnly && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setEditingMetric(null)
+                            setAnthropometryModalOpen(true)
+                          }}
+                          className="py-2.5 px-4 rounded-2xl bg-[#1CB0F6] hover:bg-[#1899d6] text-white font-extrabold text-xs border-b-4 border-[#147eb0] active:translate-y-0.5 active:border-b-0 transition-all flex items-center justify-center gap-1.5 shrink-0"
+                        >
+                          <Plus className="w-4 h-4 stroke-[3]" />
+                          <span>Registrar Avaliação</span>
+                        </button>
+                      )}
+                    </div>
+
+                    {loadingMap['saude'] ? (
+                      <div className="space-y-3">
+                        <Skeleton className="h-16 w-full rounded-2xl" />
+                        <Skeleton className="h-32 w-full rounded-2xl" />
+                      </div>
+                    ) : !saudeData ? (
+                      <p className="text-xs text-muted-foreground italic text-center py-6">
+                        Nenhum dado antropométrico disponível.
+                      </p>
+                    ) : (
+                      <>
+                        {/* Resumo atual */}
+                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+                          <div className="p-3 rounded-2xl border-2 bg-card">
+                            <div className="text-[10px] font-bold text-muted-foreground">
+                              Peso Atual
+                            </div>
+                            <div className="text-base font-black text-foreground mt-0.5">
+                              {saudeData.latest_metrics?.weight
+                                ? `${saudeData.latest_metrics.weight} kg`
+                                : '—'}
+                            </div>
+                          </div>
+                          <div className="p-3 rounded-2xl border-2 bg-card">
+                            <div className="text-[10px] font-bold text-muted-foreground">
+                              Meta de Peso
+                            </div>
+                            <div className="text-base font-black text-[#1CB0F6] mt-0.5">
+                              {saudeData.goals?.target_weight
+                                ? `${saudeData.goals.target_weight} kg`
+                                : '—'}
+                            </div>
+                          </div>
+                          <div className="p-3 rounded-2xl border-2 bg-card">
+                            <div className="text-[10px] font-bold text-muted-foreground">
+                              % Gordura Atual
+                            </div>
+                            <div className="text-base font-black text-foreground mt-0.5">
+                              {saudeData.latest_metrics?.body_fat_percentage
+                                ? `${saudeData.latest_metrics.body_fat_percentage}%`
+                                : '—'}
+                            </div>
+                          </div>
+                          <div className="p-3 rounded-2xl border-2 bg-card">
+                            <div className="text-[10px] font-bold text-muted-foreground">
+                              Meta % Gordura
+                            </div>
+                            <div className="text-base font-black text-[#1CB0F6] mt-0.5">
+                              {saudeData.goals?.target_body_fat
+                                ? `${saudeData.goals.target_body_fat}%`
+                                : '—'}
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Lista de Avaliações */}
+                        {!saudeData.metrics_history || saudeData.metrics_history.length === 0 ? (
+                          <div className="p-8 rounded-2xl border-2 border-dashed bg-muted/20 text-center space-y-2">
+                            <Scale className="w-8 h-8 text-muted-foreground mx-auto" />
+                            <p className="text-xs font-bold text-foreground">
+                              Nenhuma avaliação física registrada
+                            </p>
+                          </div>
+                        ) : (
+                          <div className="space-y-2 max-h-[280px] overflow-y-auto pr-1">
+                            {saudeData.metrics_history.map((m: any) => {
+                              const isAuthor =
+                                currentUserId &&
+                                m.created_by === currentUserId &&
+                                !activeTabPermission.isReadOnly
+                              return (
+                                <div
+                                  key={m.id}
+                                  className="p-3 rounded-2xl border bg-card flex items-center justify-between text-xs gap-3 hover:border-[#1CB0F6]/40 transition-colors"
+                                >
+                                  <div className="min-w-0 flex-1">
+                                    <div className="flex items-center gap-2">
+                                      <span className="font-extrabold text-foreground">
+                                        {safeFormatDate(m.date || m.created_at)}
+                                      </span>
+                                      {m.created_by ? (
+                                        <ProfessionalTag createdBy={m.created_by} />
+                                      ) : (
+                                        <span className="text-[10px] text-muted-foreground italic">
+                                          criado pelo paciente
+                                        </span>
                                       )}
                                     </div>
-                                  )
-                                })}
-                              </div>
-                            )}
+                                    <div className="text-[11px] text-muted-foreground flex flex-wrap gap-2 mt-0.5">
+                                      {m.weight && <span>Peso: {m.weight} kg</span>}
+                                      {m.body_fat_percentage && (
+                                        <span>• Gordura: {m.body_fat_percentage}%</span>
+                                      )}
+                                      {m.lean_mass && <span>• Massa Magra: {m.lean_mass} kg</span>}
+                                      {m.muscle_mass && (
+                                        <span>• Massa Muscular: {m.muscle_mass} kg</span>
+                                      )}
+                                    </div>
+                                  </div>
+
+                                  <div className="flex items-center gap-1 shrink-0">
+                                    {isAuthor ? (
+                                      <>
+                                        <Button
+                                          type="button"
+                                          size="icon"
+                                          variant="ghost"
+                                          onClick={() => {
+                                            setEditingMetric(m)
+                                            setAnthropometryModalOpen(true)
+                                          }}
+                                          className="h-7 w-7 rounded-lg text-muted-foreground hover:text-[#1CB0F6]"
+                                          title="Editar avaliação"
+                                        >
+                                          <Pencil className="w-3.5 h-3.5" />
+                                        </Button>
+                                        <Button
+                                          type="button"
+                                          size="icon"
+                                          variant="ghost"
+                                          onClick={() => {
+                                            setDeleteConfirm({
+                                              open: true,
+                                              title: 'Excluir avaliação física?',
+                                              description: `Deseja remover a avaliação do dia ${safeFormatDate(m.date || m.created_at)}?`,
+                                              onConfirm: async () => {
+                                                const ok = await deleteBodyMetricForPatient(m.id)
+                                                if (ok) reloadSaude()
+                                              },
+                                            })
+                                          }}
+                                          className="h-7 w-7 rounded-lg text-muted-foreground hover:text-rose-600"
+                                          title="Excluir avaliação"
+                                        >
+                                          <Trash2 className="w-3.5 h-3.5" />
+                                        </Button>
+                                      </>
+                                    ) : (
+                                      <Badge
+                                        variant="secondary"
+                                        className="text-[9px] font-semibold"
+                                      >
+                                        Somente leitura
+                                      </Badge>
+                                    )}
+                                  </div>
+                                </div>
+                              )
+                            })}
                           </div>
                         )}
                       </>
@@ -1693,12 +2014,7 @@ export function PatientDetailsDrawer({ patient, open, onOpenChange }: PatientDet
                   </div>
                 )}
 
-                {/* ABA NOVA: MENTE (SOMENTE LEITURA) */}
-                {activeTab === 'mente' && (
-                  <PatientMenteView data={menteData} loading={!!loadingMap['mente']} />
-                )}
-
-                {/* ABA 3: FINANÇAS */}
+                {/* ABA 7: FINANÇAS */}
                 {activeTab === 'financas' && (
                   <div className="space-y-5 animate-fade-in">
                     {loadingMap['financas'] ? (
@@ -1845,7 +2161,7 @@ export function PatientDetailsDrawer({ patient, open, onOpenChange }: PatientDet
                   </div>
                 )}
 
-                {/* ABA 4: ESTUDOS */}
+                {/* ABA 8: ESTUDOS */}
                 {activeTab === 'estudos' && (
                   <div className="space-y-5 animate-fade-in">
                     {loadingMap['estudos'] ? (
@@ -1946,7 +2262,7 @@ export function PatientDetailsDrawer({ patient, open, onOpenChange }: PatientDet
                   </div>
                 )}
 
-                {/* ABA 6: HISTÓRICO SOCIAL (Exclusivo Pro, grupos criados pelo profissional logado) */}
+                {/* ABA 9: HISTÓRICO SOCIAL (Exclusivo Pro, grupos criados pelo profissional logado) */}
                 {activeTab === 'historico_social' && (
                   <PatientSocialHistoryTab
                     data={socialHistoryData}

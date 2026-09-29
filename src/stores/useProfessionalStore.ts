@@ -228,6 +228,15 @@ interface ProfessionalState {
   fetchPatientMente: (patientId: string) => Promise<PatientMenteData | null>
   fetchPatientFinancas: (patientId: string) => Promise<PatientFinancasData | null>
   fetchPatientEstudos: (patientId: string) => Promise<PatientEstudosData | null>
+  fetchPatientMultidisciplinaryScopes: (patientId: string) => Promise<{
+    allowMultidisciplinary: boolean
+    activeScopes: {
+      scope: string
+      professionalId: string
+      professionalName: string
+      isDirectGrant: boolean
+    }[]
+  }>
 }
 
 export const useProfessionalStore = create<ProfessionalState>((set, get) => ({
@@ -1351,6 +1360,99 @@ export const useProfessionalStore = create<ProfessionalState>((set, get) => ({
     } catch (err) {
       console.error('Error fetching patient mente:', err)
       return null
+    }
+  },
+
+  fetchPatientMultidisciplinaryScopes: async (patientId: string) => {
+    try {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser()
+      if (!user) return { allowMultidisciplinary: false, activeScopes: [] }
+
+      // Fetch all active links for this patient
+      const { data: links } = await supabase
+        .from('professional_patients')
+        .select('id, professional_id, patient_id, status, granted_pages, allow_multidisciplinary')
+        .eq('patient_id', patientId)
+        .eq('status', 'active')
+
+      if (!links || links.length === 0) {
+        return { allowMultidisciplinary: false, activeScopes: [] }
+      }
+
+      // Check if current professional is linked
+      const myLink = links.find((l: any) => l.professional_id === user.id)
+      if (!myLink) {
+        return { allowMultidisciplinary: false, activeScopes: [] }
+      }
+
+      // The patient opted into multidisciplinary if any active link has allow_multidisciplinary true
+      const allowMultidisciplinary = links.some((l: any) => Boolean(l.allow_multidisciplinary))
+
+      // Collect all professional IDs
+      const profIds = Array.from(new Set(links.map((l: any) => l.professional_id)))
+      const namesCache = await get().getProfessionalNames(profIds)
+
+      // Normalize helper
+      const normalize = (pages: string[]): string[] => {
+        const out: string[] = []
+        for (const p of pages || []) {
+          if (p === 'saude') {
+            out.push('prontuario_geral', 'nutricao', 'exercicios', 'raio_x')
+          } else {
+            out.push(p)
+          }
+        }
+        return Array.from(new Set(out))
+      }
+
+      const activeScopes: {
+        scope: string
+        professionalId: string
+        professionalName: string
+        isDirectGrant: boolean
+      }[] = []
+
+      // Direct scopes for current professional
+      const myScopes = normalize(myLink.granted_pages || [])
+      const myName = namesCache.get(user.id) || 'Você'
+      for (const sc of myScopes) {
+        activeScopes.push({
+          scope: sc,
+          professionalId: user.id,
+          professionalName: myName,
+          isDirectGrant: true,
+        })
+      }
+
+      // If multidisciplinary is allowed, add scopes from other professionals as read-only
+      if (allowMultidisciplinary) {
+        const otherLinks = links.filter((l: any) => l.professional_id !== user.id)
+        for (const oLink of otherLinks) {
+          const otherScopes = normalize(oLink.granted_pages || [])
+          const otherName = namesCache.get(oLink.professional_id) || 'Profissional'
+          for (const sc of otherScopes) {
+            // Only add if not already directly granted to current user
+            if (!activeScopes.some((s) => s.scope === sc)) {
+              activeScopes.push({
+                scope: sc,
+                professionalId: oLink.professional_id,
+                professionalName: otherName,
+                isDirectGrant: false,
+              })
+            }
+          }
+        }
+      }
+
+      return {
+        allowMultidisciplinary,
+        activeScopes,
+      }
+    } catch (e) {
+      console.error('Error fetching multidisciplinary scopes:', e)
+      return { allowMultidisciplinary: false, activeScopes: [] }
     }
   },
 }))
