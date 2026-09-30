@@ -57,9 +57,8 @@ export const useFeatureFlagsStore = create<FeatureFlagsState>((set, get) => ({
       }
 
       if (uid) {
-        const { data: overrideData, error: overrideError } = await (supabase.from as any)(
-          'user_feature_overrides',
-        )
+        const { data: overrideData, error: overrideError } = await (supabase as any)
+          .from('user_feature_overrides')
           .select('feature_key, enabled')
           .eq('user_id', uid)
 

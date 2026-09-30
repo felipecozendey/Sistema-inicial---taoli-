@@ -117,13 +117,15 @@ export function ProfilePanel({
     setListUsers([])
     setListModalOpen(true)
 
-    const { data } = await (supabase.from as any)('follows')
+    const { data } = await (supabase as any)
+      .from('follows')
       .select('follower_id')
       .eq('following_id', profile.id)
 
     if (data && data.length > 0) {
       const ids = data.map((d: any) => d.follower_id)
-      const { data: usersData } = await (supabase.from as any)('public_profiles')
+      const { data: usersData } = await (supabase as any)
+        .from('public_profiles')
         .select('*')
         .in('id', ids)
       if (usersData) setListUsers(usersData as PublicProfile[])
@@ -137,13 +139,15 @@ export function ProfilePanel({
     setListUsers([])
     setListModalOpen(true)
 
-    const { data } = await (supabase.from as any)('follows')
+    const { data } = await (supabase as any)
+      .from('follows')
       .select('following_id')
       .eq('follower_id', profile.id)
 
     if (data && data.length > 0) {
       const ids = data.map((d: any) => d.following_id)
-      const { data: usersData } = await (supabase.from as any)('public_profiles')
+      const { data: usersData } = await (supabase as any)
+        .from('public_profiles')
         .select('*')
         .in('id', ids)
       if (usersData) setListUsers(usersData as PublicProfile[])

@@ -223,14 +223,14 @@ export async function checkUsernameAvailability(
   if (!clean || clean.length < 3 || clean.length > 24) return false
   if (!/^[a-z0-9._]+$/.test(clean)) return false
 
-  const { data, error } = await (supabase.rpc as any)('check_username_available', {
+  const { data, error } = await (supabase as any).rpc('check_username_available', {
     target_username: clean,
     current_user_id: currentUserId || null,
   })
 
   if (error) {
     // fallback direct query
-    let query = (supabase.from as any)('profiles').select('id').eq('username', clean)
+    let query = (supabase as any).from('profiles').select('id').eq('username', clean)
 
     if (currentUserId) {
       query = query.neq('id', currentUserId)
@@ -248,7 +248,7 @@ export async function getPublicProfile(
   identifier: { username?: string; id?: string },
   currentUserId?: string,
 ): Promise<PublicProfile | null> {
-  let query = (supabase.from as any)('public_profiles').select('*')
+  let query = (supabase as any).from('public_profiles').select('*')
 
   if (identifier.username) {
     query = query.eq('username', identifier.username.toLowerCase())
@@ -265,25 +265,30 @@ export async function getPublicProfile(
 
   // Get counters in parallel
   const [followersRes, followingRes, postsRes, followCheck, blockCheck] = await Promise.all([
-    (supabase.from as any)('follows')
+    (supabase as any)
+      .from('follows')
       .select('*', { count: 'exact', head: true })
       .eq('following_id', profile.id),
-    (supabase.from as any)('follows')
+    (supabase as any)
+      .from('follows')
       .select('*', { count: 'exact', head: true })
       .eq('follower_id', profile.id),
-    (supabase.from as any)('posts')
+    (supabase as any)
+      .from('posts')
       .select('*', { count: 'exact', head: true })
       .eq('author_id', profile.id)
       .eq('is_deleted', false),
     currentUserId && currentUserId !== profile.id
-      ? (supabase.from as any)('follows')
+      ? (supabase as any)
+          .from('follows')
           .select('follower_id')
           .eq('follower_id', currentUserId)
           .eq('following_id', profile.id)
           .maybeSingle()
       : Promise.resolve({ data: null }),
     currentUserId && currentUserId !== profile.id
-      ? (supabase.from as any)('user_blocks')
+      ? (supabase as any)
+          .from('user_blocks')
           .select('blocker_id')
           .eq('blocker_id', currentUserId)
           .eq('blocked_id', profile.id)
@@ -313,7 +318,8 @@ export async function updateSocialProfile(
     is_private?: boolean
   },
 ) {
-  const { error } = await (supabase.from as any)('profiles')
+  const { error } = await (supabase as any)
+    .from('profiles')
     .update({
       ...payload,
       updated_at: new Date().toISOString(),
@@ -325,7 +331,7 @@ export async function updateSocialProfile(
 
 // 5. Follow / Unfollow
 export async function followUser(followerId: string, followingId: string) {
-  const { error } = await (supabase.from as any)('follows').insert({
+  const { error } = await (supabase as any).from('follows').insert({
     follower_id: followerId,
     following_id: followingId,
   })
@@ -333,7 +339,8 @@ export async function followUser(followerId: string, followingId: string) {
 }
 
 export async function unfollowUser(followerId: string, followingId: string) {
-  const { error } = await (supabase.from as any)('follows')
+  const { error } = await (supabase as any)
+    .from('follows')
     .delete()
     .eq('follower_id', followerId)
     .eq('following_id', followingId)
@@ -343,13 +350,14 @@ export async function unfollowUser(followerId: string, followingId: string) {
 // 6. Block / Unblock User
 export async function blockUser(blockerId: string, blockedId: string) {
   // Also remove follows mutually
-  await (supabase.from as any)('follows')
+  await (supabase as any)
+    .from('follows')
     .delete()
     .or(
       `and(follower_id.eq.${blockerId},following_id.eq.${blockedId}),and(follower_id.eq.${blockedId},following_id.eq.${blockerId})`,
     )
 
-  const { error } = await (supabase.from as any)('user_blocks').insert({
+  const { error } = await (supabase as any).from('user_blocks').insert({
     blocker_id: blockerId,
     blocked_id: blockedId,
   })
@@ -357,7 +365,8 @@ export async function blockUser(blockerId: string, blockedId: string) {
 }
 
 export async function unblockUser(blockerId: string, blockedId: string) {
-  const { error } = await (supabase.from as any)('user_blocks')
+  const { error } = await (supabase as any)
+    .from('user_blocks')
     .delete()
     .eq('blocker_id', blockerId)
     .eq('blocked_id', blockedId)
@@ -374,7 +383,8 @@ export async function searchUsers(
   // First get users blocked by or blocking current user
   let blockedUserIds: string[] = []
   if (currentUserId) {
-    const { data: blocks } = await (supabase.from as any)('user_blocks')
+    const { data: blocks } = await (supabase as any)
+      .from('user_blocks')
       .select('blocker_id, blocked_id')
       .or(`blocker_id.eq.${currentUserId},blocked_id.eq.${currentUserId}`)
 
@@ -385,7 +395,7 @@ export async function searchUsers(
     }
   }
 
-  let query = (supabase.from as any)('public_profiles').select('*').eq('is_banned', false)
+  let query = (supabase as any).from('public_profiles').select('*').eq('is_banned', false)
 
   if (clean) {
     query = query.or(`username.ilike.%${clean}%,display_name.ilike.%${clean}%`)
@@ -401,7 +411,8 @@ export async function searchUsers(
 
   // Attach is_following if current user
   if (currentUserId && filtered.length > 0) {
-    const { data: myFollows } = await (supabase.from as any)('follows')
+    const { data: myFollows } = await (supabase as any)
+      .from('follows')
       .select('following_id')
       .eq('follower_id', currentUserId)
       .in(
@@ -425,7 +436,8 @@ export async function getFeedPosts(
   pageSize = 10,
 ): Promise<SocialPost[]> {
   // 1. Get who current user is following
-  const { data: follows } = await (supabase.from as any)('follows')
+  const { data: follows } = await (supabase as any)
+    .from('follows')
     .select('following_id')
     .eq('follower_id', currentUserId)
 
@@ -434,7 +446,8 @@ export async function getFeedPosts(
   const from = page * pageSize
   const to = from + pageSize - 1
 
-  const { data: postsData, error } = await (supabase.from as any)('posts')
+  const { data: postsData, error } = await (supabase as any)
+    .from('posts')
     .select('*')
     .in('author_id', allowedAuthorIds)
     .eq('is_deleted', false)
@@ -445,7 +458,8 @@ export async function getFeedPosts(
 
   // Fetch author public profiles
   const authorIds = Array.from(new Set((postsData as any[]).map((p) => p.author_id)))
-  const { data: authors } = await (supabase.from as any)('public_profiles')
+  const { data: authors } = await (supabase as any)
+    .from('public_profiles')
     .select('*')
     .in('id', authorIds)
 
@@ -459,7 +473,8 @@ export async function getFeedPosts(
 
 // 9. User profile posts
 export async function getUserPosts(authorId: string): Promise<SocialPost[]> {
-  const { data, error } = await (supabase.from as any)('posts')
+  const { data, error } = await (supabase as any)
+    .from('posts')
     .select('*')
     .eq('author_id', authorId)
     .eq('is_deleted', false)
@@ -476,7 +491,8 @@ export async function createPost(
   content?: string,
   imageUrl?: string,
 ): Promise<SocialPost> {
-  const { data, error } = await (supabase.from as any)('posts')
+  const { data, error } = await (supabase as any)
+    .from('posts')
     .insert({
       author_id: authorId,
       kind,
@@ -492,7 +508,8 @@ export async function createPost(
 
 // 11. Delete own post (soft delete)
 export async function deleteOwnPost(postId: string, userId: string) {
-  const { error } = await (supabase.from as any)('posts')
+  const { error } = await (supabase as any)
+    .from('posts')
     .update({ is_deleted: true })
     .eq('id', postId)
     .eq('author_id', userId)
@@ -502,7 +519,7 @@ export async function deleteOwnPost(postId: string, userId: string) {
 
 // 12. Master moderation
 export async function masterModeratePost(postId: string, deleteIt: boolean, reason?: string) {
-  const { error } = await (supabase.rpc as any)('master_moderate_post', {
+  const { error } = await (supabase as any).rpc('master_moderate_post', {
     target_post_id: postId,
     delete_it: deleteIt,
     reason: reason || 'Moderação Master',
@@ -511,7 +528,7 @@ export async function masterModeratePost(postId: string, deleteIt: boolean, reas
 }
 
 export async function masterSetUserBan(targetUserId: string, banned: boolean, reason?: string) {
-  const { error } = await (supabase.rpc as any)('master_set_user_ban', {
+  const { error } = await (supabase as any).rpc('master_set_user_ban', {
     target_id: targetUserId,
     banned,
     reason: reason || 'Moderação Master',
@@ -524,7 +541,7 @@ export async function getMasterModerationFeed(
   typeFilter: 'all' | 'photo' | 'reminder' = 'all',
   authorSearch = '',
 ): Promise<{ posts: SocialPost[]; actions: ModerationAction[] }> {
-  let query = (supabase.from as any)('posts').select('*').order('created_at', { ascending: false })
+  let query = (supabase as any).from('posts').select('*').order('created_at', { ascending: false })
 
   if (!includeDeleted) {
     query = query.eq('is_deleted', false)
@@ -539,7 +556,8 @@ export async function getMasterModerationFeed(
 
   // Authors
   const authorIds = Array.from(new Set((postsData as any[]).map((p) => p.author_id)))
-  const { data: authors } = await (supabase.from as any)('profiles')
+  const { data: authors } = await (supabase as any)
+    .from('profiles')
     .select('id, username, display_name, email, avatar_url, is_banned')
     .in('id', authorIds)
 
@@ -576,7 +594,8 @@ export async function getMasterModerationFeed(
   }
 
   // Get moderation actions
-  const { data: actionsData } = await (supabase.from as any)('moderation_actions')
+  const { data: actionsData } = await (supabase as any)
+    .from('moderation_actions')
     .select('*')
     .order('created_at', { ascending: false })
     .limit(50)
@@ -593,7 +612,8 @@ export async function getGroupsList(
   filter: 'all' | 'my' = 'all',
   searchQuery = '',
 ): Promise<SocialGroup[]> {
-  let query = (supabase.from as any)('groups')
+  let query = (supabase as any)
+    .from('groups')
     .select('*')
     .eq('is_deleted', false)
     .order('created_at', { ascending: false })
@@ -609,7 +629,8 @@ export async function getGroupsList(
   if (groupIds.length === 0) return []
 
   // Fetch current user memberships
-  const { data: userMemberships } = await (supabase.from as any)('group_members')
+  const { data: userMemberships } = await (supabase as any)
+    .from('group_members')
     .select('group_id, status, role')
     .eq('user_id', currentUserId)
     .in('group_id', groupIds)
@@ -623,7 +644,8 @@ export async function getGroupsList(
   }
 
   // Fetch member counts for these groups (only status='member')
-  const { data: memberCounts } = await (supabase.from as any)('group_members')
+  const { data: memberCounts } = await (supabase as any)
+    .from('group_members')
     .select('group_id')
     .eq('status', 'member')
     .in('group_id', groupIds)
@@ -635,7 +657,8 @@ export async function getGroupsList(
 
   // Fetch owners public profiles
   const ownerIds = Array.from(new Set((groupsData as any[]).map((g) => g.created_by)))
-  const { data: owners } = await (supabase.from as any)('public_profiles')
+  const { data: owners } = await (supabase as any)
+    .from('public_profiles')
     .select('*')
     .in('id', ownerIds)
   const ownerMap = new Map<string, PublicProfile>()
@@ -667,7 +690,8 @@ export async function getGroupDetails(
   groupId: string,
   currentUserId?: string,
 ): Promise<SocialGroup | null> {
-  const { data: group, error } = await (supabase.from as any)('groups')
+  const { data: group, error } = await (supabase as any)
+    .from('groups')
     .select('*')
     .eq('id', groupId)
     .single()
@@ -675,20 +699,23 @@ export async function getGroupDetails(
   if (error || !group) return null
 
   // Count active members
-  const { count: memberCount } = await (supabase.from as any)('group_members')
+  const { count: memberCount } = await (supabase as any)
+    .from('group_members')
     .select('*', { count: 'exact', head: true })
     .eq('group_id', groupId)
     .eq('status', 'member')
 
   // Owner profile
-  const { data: owner } = await (supabase.from as any)('public_profiles')
+  const { data: owner } = await (supabase as any)
+    .from('public_profiles')
     .select('*')
     .eq('id', group.created_by)
     .maybeSingle()
 
   let currentMem: { status: 'member' | 'pending'; role: 'owner' | 'member' } | null = null
   if (currentUserId) {
-    const { data: mem } = await (supabase.from as any)('group_members')
+    const { data: mem } = await (supabase as any)
+      .from('group_members')
       .select('status, role')
       .eq('group_id', groupId)
       .eq('user_id', currentUserId)
@@ -722,7 +749,8 @@ export async function createSocialGroup(
     throw new Error('O nome do grupo deve ter no máximo 60 caracteres.')
   }
 
-  const { data: newGroup, error: groupError } = await (supabase.from as any)('groups')
+  const { data: newGroup, error: groupError } = await (supabase as any)
+    .from('groups')
     .insert({
       name: cleanName,
       description: data.description?.trim() || null,
@@ -736,7 +764,7 @@ export async function createSocialGroup(
   if (groupError) throw groupError
 
   // Insert creator as owner + member in group_members
-  const { error: memberError } = await (supabase.from as any)('group_members').insert({
+  const { error: memberError } = await (supabase as any).from('group_members').insert({
     group_id: newGroup.id,
     user_id: creatorId,
     status: 'member',
@@ -762,7 +790,7 @@ export async function joinOrRequestGroup(
 ): Promise<'member' | 'pending'> {
   const targetStatus = isClosed ? 'pending' : 'member'
 
-  const { error } = await (supabase.from as any)('group_members').insert({
+  const { error } = await (supabase as any).from('group_members').insert({
     group_id: groupId,
     user_id: userId,
     status: targetStatus,
@@ -774,7 +802,8 @@ export async function joinOrRequestGroup(
 }
 
 export async function leaveGroup(groupId: string, userId: string) {
-  const { error } = await (supabase.from as any)('group_members')
+  const { error } = await (supabase as any)
+    .from('group_members')
     .delete()
     .eq('group_id', groupId)
     .eq('user_id', userId)
@@ -783,7 +812,8 @@ export async function leaveGroup(groupId: string, userId: string) {
 }
 
 export async function getGroupMembersList(groupId: string): Promise<GroupMember[]> {
-  const { data: members, error } = await (supabase.from as any)('group_members')
+  const { data: members, error } = await (supabase as any)
+    .from('group_members')
     .select('*')
     .eq('group_id', groupId)
     .order('joined_at', { ascending: true })
@@ -791,7 +821,8 @@ export async function getGroupMembersList(groupId: string): Promise<GroupMember[
   if (error || !members) return []
 
   const userIds = (members as any[]).map((m) => m.user_id)
-  const { data: profiles } = await (supabase.from as any)('public_profiles')
+  const { data: profiles } = await (supabase as any)
+    .from('public_profiles')
     .select('*')
     .in('id', userIds)
 
@@ -812,13 +843,15 @@ export async function updateGroupMemberStatus(
   newStatus: 'member' | 'reject',
 ) {
   if (newStatus === 'reject') {
-    const { error } = await (supabase.from as any)('group_members')
+    const { error } = await (supabase as any)
+      .from('group_members')
       .delete()
       .eq('group_id', groupId)
       .eq('user_id', targetUserId)
     if (error) throw error
   } else {
-    const { error } = await (supabase.from as any)('group_members')
+    const { error } = await (supabase as any)
+      .from('group_members')
       .update({ status: 'member' })
       .eq('group_id', groupId)
       .eq('user_id', targetUserId)
@@ -827,7 +860,8 @@ export async function updateGroupMemberStatus(
 }
 
 export async function removeGroupMember(groupId: string, targetUserId: string) {
-  const { error } = await (supabase.from as any)('group_members')
+  const { error } = await (supabase as any)
+    .from('group_members')
     .delete()
     .eq('group_id', groupId)
     .eq('user_id', targetUserId)
@@ -837,7 +871,8 @@ export async function removeGroupMember(groupId: string, targetUserId: string) {
 
 // 14. Group Posts
 export async function getGroupPosts(groupId: string): Promise<GroupPost[]> {
-  const { data: posts, error } = await (supabase.from as any)('group_posts')
+  const { data: posts, error } = await (supabase as any)
+    .from('group_posts')
     .select('*')
     .eq('group_id', groupId)
     .eq('is_deleted', false)
@@ -853,8 +888,9 @@ export async function getGroupPosts(groupId: string): Promise<GroupPost[]> {
   const allUserIds = Array.from(new Set([...authorIds, ...pinnerIds]))
 
   const [{ data: profiles }, { data: tags }] = await Promise.all([
-    (supabase.from as any)('public_profiles').select('*').in('id', allUserIds),
-    (supabase.from as any)('group_member_tags')
+    (supabase as any).from('public_profiles').select('*').in('id', allUserIds),
+    (supabase as any)
+      .from('group_member_tags')
       .select('*')
       .eq('group_id', groupId)
       .in('user_id', authorIds),
@@ -884,7 +920,7 @@ export async function getGroupPosts(groupId: string): Promise<GroupPost[]> {
 
 // 14.1 Pin / Unpin Group Post
 export async function pinGroupPostAction(groupId: string, postId: string) {
-  const { error } = await (supabase.rpc as any)('pin_group_post', {
+  const { error } = await (supabase as any).rpc('pin_group_post', {
     p_group_id: groupId,
     p_post_id: postId,
   })
@@ -892,7 +928,7 @@ export async function pinGroupPostAction(groupId: string, postId: string) {
 }
 
 export async function unpinGroupPostAction(groupId: string, postId: string) {
-  const { error } = await (supabase.rpc as any)('unpin_group_post', {
+  const { error } = await (supabase as any).rpc('unpin_group_post', {
     p_group_id: groupId,
     p_post_id: postId,
   })
@@ -905,7 +941,8 @@ export async function getGroupPolls(
   currentUserId?: string,
   isOwner = false,
 ): Promise<GroupPoll[]> {
-  const { data: rawPolls, error } = await (supabase.from as any)('group_polls')
+  const { data: rawPolls, error } = await (supabase as any)
+    .from('group_polls')
     .select('*')
     .eq('group_id', groupId)
     .eq('is_deleted', false)
@@ -916,7 +953,8 @@ export async function getGroupPolls(
   const pollIds = (rawPolls as any[]).map((p) => p.id)
 
   // Fetch options
-  const { data: optionsData } = await (supabase.from as any)('group_poll_options')
+  const { data: optionsData } = await (supabase as any)
+    .from('group_poll_options')
     .select('*')
     .in('poll_id', pollIds)
     .order('position', { ascending: true })
@@ -926,12 +964,14 @@ export async function getGroupPolls(
   // Fetch votes: if owner, fetch all votes with voter details. If regular member, fetch aggregated counts + user's own vote
   let votesList: any[] = []
   if (isOwner) {
-    const { data: rawVotes } = await (supabase.from as any)('group_poll_votes')
+    const { data: rawVotes } = await (supabase as any)
+      .from('group_poll_votes')
       .select('poll_id, option_id, user_id, created_at')
       .in('poll_id', pollIds)
     votesList = rawVotes || []
   } else if (currentUserId) {
-    const { data: myVotes } = await (supabase.from as any)('group_poll_votes')
+    const { data: myVotes } = await (supabase as any)
+      .from('group_poll_votes')
       .select('poll_id, option_id, user_id, created_at')
       .in('poll_id', pollIds)
       .eq('user_id', currentUserId)
@@ -942,7 +982,8 @@ export async function getGroupPolls(
   const voterProfileMap = new Map<string, PublicProfile>()
   if (isOwner && votesList.length > 0) {
     const voterIds = Array.from(new Set(votesList.map((v) => v.user_id)))
-    const { data: voterProfiles } = await (supabase.from as any)('public_profiles')
+    const { data: voterProfiles } = await (supabase as any)
+      .from('public_profiles')
       .select('*')
       .in('id', voterIds)
     for (const vp of (voterProfiles as any[]) || []) {
@@ -955,7 +996,7 @@ export async function getGroupPolls(
   await Promise.all(
     pollIds.map(async (pid) => {
       try {
-        const { data: results } = await (supabase.rpc as any)('get_group_poll_results', {
+        const { data: results } = await (supabase as any).rpc('get_group_poll_results', {
           p_poll_id: pid,
         })
         if (results && Array.isArray(results)) {
@@ -971,7 +1012,8 @@ export async function getGroupPolls(
   )
 
   // Fetch active member count for participation rate
-  const { count: activeMembersCount } = await (supabase.from as any)('group_members')
+  const { count: activeMembersCount } = await (supabase as any)
+    .from('group_members')
     .select('*', { count: 'exact', head: true })
     .eq('group_id', groupId)
     .eq('status', 'member')
@@ -1047,7 +1089,8 @@ export async function createGroupPoll(
   }
 
   // 1. Insert poll
-  const { data: newPoll, error: pollErr } = await (supabase.from as any)('group_polls')
+  const { data: newPoll, error: pollErr } = await (supabase as any)
+    .from('group_polls')
     .insert({
       group_id: groupId,
       question: cleanQ,
@@ -1066,14 +1109,15 @@ export async function createGroupPoll(
     position: idx,
   }))
 
-  const { data: createdOptions, error: optErr } = await (supabase.from as any)('group_poll_options')
+  const { data: createdOptions, error: optErr } = await (supabase as any)
+    .from('group_poll_options')
     .insert(optionPayloads)
     .select()
 
   if (optErr) throw optErr
 
   // 3. Audit in moderation_actions
-  await (supabase.from as any)('moderation_actions').insert({
+  await (supabase as any).from('moderation_actions').insert({
     actor_id: creatorId,
     action: 'create_group_poll',
     details: {
@@ -1099,7 +1143,7 @@ export async function createGroupPoll(
 
 export async function voteGroupPoll(pollId: string, optionId: string, userId: string) {
   // Upsert vote (PK: poll_id, user_id)
-  const { error } = await (supabase.from as any)('group_poll_votes').upsert(
+  const { error } = await (supabase as any).from('group_poll_votes').upsert(
     {
       poll_id: pollId,
       option_id: optionId,
@@ -1113,7 +1157,8 @@ export async function voteGroupPoll(pollId: string, optionId: string, userId: st
 }
 
 export async function closeGroupPoll(pollId: string) {
-  const { error } = await (supabase.from as any)('group_polls')
+  const { error } = await (supabase as any)
+    .from('group_polls')
     .update({ closes_at: new Date().toISOString() })
     .eq('id', pollId)
 
@@ -1121,13 +1166,14 @@ export async function closeGroupPoll(pollId: string) {
 }
 
 export async function deleteGroupPoll(pollId: string, userId: string, groupId: string) {
-  const { error } = await (supabase.from as any)('group_polls')
+  const { error } = await (supabase as any)
+    .from('group_polls')
     .update({ is_deleted: true })
     .eq('id', pollId)
 
   if (error) throw error
 
-  await (supabase.from as any)('moderation_actions').insert({
+  await (supabase as any).from('moderation_actions').insert({
     actor_id: userId,
     action: 'delete_group_poll',
     details: {
@@ -1143,7 +1189,8 @@ export async function getGroupMemberTags(
   groupId: string,
   includeExpired = false,
 ): Promise<GroupMemberTag[]> {
-  let query = (supabase.from as any)('group_member_tags')
+  let query = (supabase as any)
+    .from('group_member_tags')
     .select('*')
     .eq('group_id', groupId)
     .order('created_at', { ascending: false })
@@ -1153,7 +1200,8 @@ export async function getGroupMemberTags(
 
   const nowIso = new Date().toISOString()
   const userIds = Array.from(new Set((rawTags as any[]).map((t) => t.user_id)))
-  const { data: profiles } = await (supabase.from as any)('public_profiles')
+  const { data: profiles } = await (supabase as any)
+    .from('public_profiles')
     .select('*')
     .in('id', userIds)
 
@@ -1185,7 +1233,8 @@ export async function addMemberTag(
   const clean = label.trim()
   if (!clean) throw new Error('A tag deve ter um rótulo.')
 
-  const { data: newTag, error } = await (supabase.from as any)('group_member_tags')
+  const { data: newTag, error } = await (supabase as any)
+    .from('group_member_tags')
     .insert({
       group_id: groupId,
       user_id: userId,
@@ -1200,7 +1249,7 @@ export async function addMemberTag(
   if (error) throw error
 
   // Log in moderation_actions
-  await (supabase.from as any)('moderation_actions').insert({
+  await (supabase as any).from('moderation_actions').insert({
     actor_id: creatorId,
     action: 'tag_member',
     target_user_id: userId,
@@ -1218,16 +1267,17 @@ export async function addMemberTag(
 }
 
 export async function removeMemberTag(tagId: string, actorId: string, groupId: string) {
-  const { data: existingTag } = await (supabase.from as any)('group_member_tags')
+  const { data: existingTag } = await (supabase as any)
+    .from('group_member_tags')
     .select('*')
     .eq('id', tagId)
     .maybeSingle()
 
-  const { error } = await (supabase.from as any)('group_member_tags').delete().eq('id', tagId)
+  const { error } = await (supabase as any).from('group_member_tags').delete().eq('id', tagId)
   if (error) throw error
 
   if (existingTag) {
-    await (supabase.from as any)('moderation_actions').insert({
+    await (supabase as any).from('moderation_actions').insert({
       actor_id: actorId,
       action: 'remove_member_tag',
       target_user_id: existingTag.user_id,
@@ -1243,7 +1293,8 @@ export async function removeMemberTag(tagId: string, actorId: string, groupId: s
 
 // 14.4 Group Member Events API (History of entries, exits, removals)
 export async function getGroupMemberEvents(groupId: string): Promise<GroupMemberEvent[]> {
-  const { data: rawEvents, error } = await (supabase.from as any)('group_member_events')
+  const { data: rawEvents, error } = await (supabase as any)
+    .from('group_member_events')
     .select('*')
     .eq('group_id', groupId)
     .order('created_at', { ascending: false })
@@ -1254,7 +1305,8 @@ export async function getGroupMemberEvents(groupId: string): Promise<GroupMember
     new Set((rawEvents as any[]).flatMap((e) => [e.user_id, e.actor_id]).filter(Boolean)),
   )
 
-  const { data: profiles } = await (supabase.from as any)('public_profiles')
+  const { data: profiles } = await (supabase as any)
+    .from('public_profiles')
     .select('*')
     .in('id', userIds)
 
@@ -1291,17 +1343,20 @@ export async function getGroupAdminMetrics(
 
   // Fetch parallel datasets
   const [eventsRes, postsRes, membersRes, tagsRes, pollsRes] = await Promise.all([
-    (supabase.from as any)('group_member_events')
+    (supabase as any)
+      .from('group_member_events')
       .select('*')
       .eq('group_id', groupId)
       .order('created_at', { ascending: true }),
-    (supabase.from as any)('group_posts')
+    (supabase as any)
+      .from('group_posts')
       .select('id, author_id, created_at, is_deleted')
       .eq('group_id', groupId)
       .eq('is_deleted', false),
-    (supabase.from as any)('group_members').select('user_id, status').eq('group_id', groupId),
-    (supabase.from as any)('group_member_tags').select('*').eq('group_id', groupId),
-    (supabase.from as any)('group_polls')
+    (supabase as any).from('group_members').select('user_id, status').eq('group_id', groupId),
+    (supabase as any).from('group_member_tags').select('*').eq('group_id', groupId),
+    (supabase as any)
+      .from('group_polls')
       .select('id')
       .eq('group_id', groupId)
       .eq('is_deleted', false),
@@ -1321,7 +1376,8 @@ export async function getGroupAdminMetrics(
   let periodVotes: any[] = []
   if (allPolls.length > 0) {
     const pollIds = allPolls.map((p) => p.id)
-    let voteQuery = (supabase.from as any)('group_poll_votes')
+    let voteQuery = (supabase as any)
+      .from('group_poll_votes')
       .select('poll_id, user_id, created_at')
       .in('poll_id', pollIds)
     if (cutoffIso) {
@@ -1417,7 +1473,8 @@ export async function getGroupAdminMetrics(
   let topActiveMembers: GroupAdminMetrics['top_active_members'] = []
   if (topUserEntries.length > 0) {
     const uids = topUserEntries.map((e) => e.userId)
-    const { data: userProfiles } = await (supabase.from as any)('public_profiles')
+    const { data: userProfiles } = await (supabase as any)
+      .from('public_profiles')
       .select('*')
       .in('id', uids)
 
@@ -1495,7 +1552,8 @@ export async function getPatientSocialHistory(
   professionalId: string,
 ): Promise<PatientSocialHistoryData> {
   // 1. Fetch only groups created by this professional
-  const { data: proGroups } = await (supabase.from as any)('groups')
+  const { data: proGroups } = await (supabase as any)
+    .from('groups')
     .select('*')
     .eq('created_by', professionalId)
     .order('created_at', { ascending: false })
@@ -1516,26 +1574,31 @@ export async function getPatientSocialHistory(
 
   // 2. Fetch patient's membership & events in these groups
   const [membershipsRes, eventsRes, tagsRes, postsRes, moderationRes] = await Promise.all([
-    (supabase.from as any)('group_members')
+    (supabase as any)
+      .from('group_members')
       .select('*')
       .in('group_id', groupIds)
       .eq('user_id', patientId),
-    (supabase.from as any)('group_member_events')
+    (supabase as any)
+      .from('group_member_events')
       .select('*')
       .in('group_id', groupIds)
       .eq('user_id', patientId)
       .order('created_at', { ascending: false }),
-    (supabase.from as any)('group_member_tags')
+    (supabase as any)
+      .from('group_member_tags')
       .select('*')
       .in('group_id', groupIds)
       .eq('user_id', patientId)
       .order('created_at', { ascending: false }),
-    (supabase.from as any)('group_posts')
+    (supabase as any)
+      .from('group_posts')
       .select('*')
       .in('group_id', groupIds)
       .eq('author_id', patientId)
       .order('created_at', { ascending: false }),
-    (supabase.from as any)('moderation_actions')
+    (supabase as any)
+      .from('moderation_actions')
       .select('*')
       .eq('target_user_id', patientId)
       .order('created_at', { ascending: false })
@@ -1653,7 +1716,8 @@ export async function createGroupPost(
   content?: string,
   imageUrl?: string,
 ): Promise<GroupPost> {
-  const { data, error } = await (supabase.from as any)('group_posts')
+  const { data, error } = await (supabase as any)
+    .from('group_posts')
     .insert({
       group_id: groupId,
       author_id: authorId,
@@ -1670,7 +1734,8 @@ export async function createGroupPost(
 
 export async function deleteGroupPost(postId: string, userId: string) {
   // Author or group owner can soft delete
-  const { error } = await (supabase.from as any)('group_posts')
+  const { error } = await (supabase as any)
+    .from('group_posts')
     .update({ is_deleted: true })
     .eq('id', postId)
 
@@ -1679,7 +1744,7 @@ export async function deleteGroupPost(postId: string, userId: string) {
 
 // 15. Master Group Moderation RPCs
 export async function masterDeleteGroupPost(postId: string, reason?: string) {
-  const { error } = await (supabase.rpc as any)('master_delete_group_post', {
+  const { error } = await (supabase as any).rpc('master_delete_group_post', {
     group_post_id: postId,
     reason: reason || 'Moderação Master',
   })
@@ -1687,7 +1752,7 @@ export async function masterDeleteGroupPost(postId: string, reason?: string) {
 }
 
 export async function masterRestoreGroupPost(postId: string, reason?: string) {
-  const { error } = await (supabase.rpc as any)('master_restore_group_post', {
+  const { error } = await (supabase as any).rpc('master_restore_group_post', {
     group_post_id: postId,
     reason: reason || 'Moderação Master',
   })
@@ -1695,7 +1760,7 @@ export async function masterRestoreGroupPost(postId: string, reason?: string) {
 }
 
 export async function masterDeleteGroup(groupId: string, reason?: string) {
-  const { error } = await (supabase.rpc as any)('master_delete_group', {
+  const { error } = await (supabase as any).rpc('master_delete_group', {
     group_id: groupId,
     reason: reason || 'Moderação Master',
   })
@@ -1712,7 +1777,8 @@ export async function getMasterGroupsModeration(
   totalPendingMembers: number
 }> {
   // 1. Fetch groups
-  let gQuery = (supabase.from as any)('groups')
+  let gQuery = (supabase as any)
+    .from('groups')
     .select('*')
     .order('created_at', { ascending: false })
 
@@ -1726,7 +1792,8 @@ export async function getMasterGroupsModeration(
 
   // Owners
   const ownerIds = Array.from(new Set(groupsList.map((g) => g.created_by)))
-  const { data: owners } = await (supabase.from as any)('profiles')
+  const { data: owners } = await (supabase as any)
+    .from('profiles')
     .select('id, username, display_name, email, avatar_url, is_banned')
     .in('id', ownerIds)
   const ownerMap = new Map<string, any>()
@@ -1735,7 +1802,8 @@ export async function getMasterGroupsModeration(
   }
 
   // Member counts
-  const { data: memberRows } = await (supabase.from as any)('group_members')
+  const { data: memberRows } = await (supabase as any)
+    .from('group_members')
     .select('group_id, status')
     .in('group_id', groupIds)
 
@@ -1782,7 +1850,8 @@ export async function getMasterGroupsModeration(
   }
 
   // 2. Fetch group posts
-  let pQuery = (supabase.from as any)('group_posts')
+  let pQuery = (supabase as any)
+    .from('group_posts')
     .select('*')
     .order('created_at', { ascending: false })
 
@@ -1805,7 +1874,8 @@ export async function getMasterGroupsModeration(
 
   // Post authors
   const postAuthorIds = Array.from(new Set(postList.map((p) => p.author_id)))
-  const { data: postAuthors } = await (supabase.from as any)('profiles')
+  const { data: postAuthors } = await (supabase as any)
+    .from('profiles')
     .select('id, username, display_name, email, avatar_url, is_banned')
     .in('id', postAuthorIds)
 

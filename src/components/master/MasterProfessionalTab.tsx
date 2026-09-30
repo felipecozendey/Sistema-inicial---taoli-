@@ -110,8 +110,8 @@ export function MasterProfessionalTab() {
     setLoading(true)
     try {
       const [profilesRes, linksRes] = await Promise.all([
-        (supabase.rpc as any)('master_list_professional_profiles'),
-        (supabase.rpc as any)('master_list_professional_links'),
+        (supabase as any).rpc('master_list_professional_profiles'),
+        (supabase as any).rpc('master_list_professional_links'),
       ])
 
       if (profilesRes.error) throw profilesRes.error
@@ -210,7 +210,7 @@ export function MasterProfessionalTab() {
     const { link, action } = targetActionLink
     setIsManagingLink(true)
     try {
-      const { error } = await (supabase.rpc as any)('master_manage_professional_link', {
+      const { error } = await (supabase as any).rpc('master_manage_professional_link', {
         link_id: link.id,
         action,
       })

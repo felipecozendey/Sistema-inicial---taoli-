@@ -187,10 +187,9 @@ export const useSiteSettingsStore = create<SiteSettingsState>((set, get) => ({
   loadSiteData: async () => {
     set({ loading: true })
     try {
-      const dbFrom = supabase.from as any
       const [settingsRes, flagsRes] = await Promise.all([
-        dbFrom('site_settings').select('key, value'),
-        dbFrom('content_flags').select('key, enabled'),
+        (supabase as any).from('site_settings').select('key, value'),
+        (supabase as any).from('content_flags').select('key, enabled'),
       ])
 
       const newSettings: SiteSettingsData = { ...DEFAULT_SITE_SETTINGS }
@@ -249,8 +248,7 @@ export const useSiteSettingsStore = create<SiteSettingsState>((set, get) => ({
     set({ settings: updated })
 
     try {
-      const dbFrom = supabase.from as any
-      const { error } = await dbFrom('site_settings').upsert({
+      const { error } = await (supabase as any).from('site_settings').upsert({
         key,
         value: value as any,
         updated_at: new Date().toISOString(),
@@ -277,16 +275,14 @@ export const useSiteSettingsStore = create<SiteSettingsState>((set, get) => ({
     set({ flags: updated })
 
     try {
-      const dbRpc = supabase.rpc as any
-      const { error } = await dbRpc('set_content_flag', {
+      const { error } = await (supabase as any).rpc('set_content_flag', {
         p_key: key,
         p_enabled: enabled,
       })
 
       if (error) {
         // Fallback direto via upsert se rpc falhar
-        const dbFrom = supabase.from as any
-        const { error: upsertErr } = await dbFrom('content_flags').upsert({
+        const { error: upsertErr } = await (supabase as any).from('content_flags').upsert({
           key,
           enabled,
           updated_at: new Date().toISOString(),
@@ -316,7 +312,6 @@ export const useSiteSettingsStore = create<SiteSettingsState>((set, get) => ({
     })
 
     try {
-      const dbFrom = supabase.from as any
       const settingEntries = Object.entries(DEFAULT_SITE_SETTINGS).map(([k, v]) => ({
         key: k,
         value: v as any,
@@ -330,8 +325,8 @@ export const useSiteSettingsStore = create<SiteSettingsState>((set, get) => ({
       }))
 
       const [resSettings, resFlags] = await Promise.all([
-        dbFrom('site_settings').upsert(settingEntries),
-        dbFrom('content_flags').upsert(flagEntries),
+        (supabase as any).from('site_settings').upsert(settingEntries),
+        (supabase as any).from('content_flags').upsert(flagEntries),
       ])
 
       if (resSettings.error) throw resSettings.error
@@ -391,7 +386,6 @@ export const useSiteSettingsStore = create<SiteSettingsState>((set, get) => ({
     set({ settings: nextSettings, flags: nextFlags })
 
     try {
-      const dbFrom = supabase.from as any
       const settingEntries = keysToReset.map((k) => ({
         key: k,
         value: DEFAULT_SITE_SETTINGS[k] as any,
@@ -404,9 +398,11 @@ export const useSiteSettingsStore = create<SiteSettingsState>((set, get) => ({
         updated_at: new Date().toISOString(),
       }))
 
-      const promises: Promise<any>[] = [dbFrom('site_settings').upsert(settingEntries)]
+      const promises: Promise<any>[] = [
+        (supabase as any).from('site_settings').upsert(settingEntries),
+      ]
       if (flagEntries.length > 0) {
-        promises.push(dbFrom('content_flags').upsert(flagEntries))
+        promises.push((supabase as any).from('content_flags').upsert(flagEntries))
       }
 
       const results = await Promise.all(promises)
