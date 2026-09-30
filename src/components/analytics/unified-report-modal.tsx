@@ -1,6 +1,7 @@
 import { useState, useMemo } from 'react'
 import { useAppStore } from '@/stores/useAppStore'
 import { useFocusRadar } from '@/components/focus-radar/focus-radar-provider'
+import { useBrandName } from '@/stores/useSiteSettingsStore'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Label } from '@/components/ui/label'
@@ -63,6 +64,7 @@ export function UnifiedReportModal({
 
   const { user, tasks, habits, getHealthRecord, mentalHealthLogs } = useAppStore()
   const { focusHistory, todayStats } = useFocusRadar()
+  const { brandName } = useBrandName()
 
   // Calcular datas do período
   const periodInfo = useMemo(() => {
@@ -459,7 +461,7 @@ export function UnifiedReportModal({
                   </h1>
                 </div>
                 <p className="text-xs sm:text-sm font-bold text-muted-foreground mt-1">
-                  Usuário: <span className="text-foreground">{user?.name || 'Zenith User'}</span>
+                  Usuário: <span className="text-foreground">{user?.name || 'Usuário'}</span>
                 </p>
               </div>
 
@@ -724,7 +726,7 @@ export function UnifiedReportModal({
 
             {/* Rodapé confidencial do relatório */}
             <div className="pt-4 border-t text-center text-[10px] text-muted-foreground">
-              VibeCoding Tarefas · Zenith Dashboard · Relatório gerado localmente pelo usuário.
+              {brandName} · Dashboard · Relatório gerado localmente pelo usuário.
             </div>
           </div>
         </DialogContent>

@@ -8,51 +8,130 @@ import {
   Wallet,
   ShieldCheck,
   Share2,
+  GraduationCap,
+  BarChart2,
+  Flame,
+  Zap,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useIsMaster } from '@/stores/useMasterStore'
 import { useFeatureFlagsStore } from '@/stores/useFeatureFlagsStore'
 import { StethoscopeIcon } from '@/components/professional/StethoscopeIcon'
+import {
+  useSiteSettingsStore,
+  useBrandName,
+  DEFAULT_USER_NAV_ITEMS,
+  mergeNavCustomization,
+} from '@/stores/useSiteSettingsStore'
 
-interface NavItem {
-  icon: any
-  label: string
-  path: string
-  featureKey?: string
+const ICON_MAP: Record<string, any> = {
+  LayoutDashboard,
+  CheckSquare,
+  Share2,
+  HeartPulse,
+  Wallet,
+  StethoscopeIcon,
+  GraduationCap,
+  BarChart2,
+  Sparkles,
+  Flame,
+  Zap,
 }
 
-const navItems: NavItem[] = [
-  { icon: LayoutDashboard, label: 'Dashboard', path: '/dashboard' },
-  { icon: CheckSquare, label: 'Performance', path: '/tasks', featureKey: 'tasks' },
-  { icon: Share2, label: 'Social', path: '/social' },
-  { icon: HeartPulse, label: 'Saúde', path: '/health', featureKey: 'health' },
-  { icon: Wallet, label: 'Finanças', path: '/finance', featureKey: 'finance' },
-]
+// Mapeamento de rotas e featureKeys de cada item do usuário
+const USER_NAV_META: Record<
+  string,
+  {
+    path: string
+    featureKey?: string
+    isProOnly?: boolean
+  }
+> = {
+  dashboard: { path: '/dashboard' },
+  tasks: { path: '/tasks', featureKey: 'tasks' },
+  social: { path: '/social' },
+  health: { path: '/health', featureKey: 'health' },
+  finance: { path: '/finance', featureKey: 'finance' },
+  professional: { path: '/professional', isProOnly: true },
+}
 
 export function Sidebar() {
   const location = useLocation()
   const { isMaster, isProfessional } = useIsMaster()
   const isEnabled = useFeatureFlagsStore((s) => s.isEnabled)
+  const settings = useSiteSettingsStore((s) => s.settings)
+  const { brandName, proBrandName } = useBrandName()
 
-  const visibleNavItems = navItems.filter((item) => {
-    if (!item.featureKey) return true
-    return isEnabled(item.featureKey)
+  // Mescla customizações salvas com os defaults garantindo ordem e visibilidade
+  const userCustomNav = mergeNavCustomization(DEFAULT_USER_NAV_ITEMS, settings.nav_customization)
+
+  // Filtra itens visíveis respeitando:
+  // 1. visible !== false (personalização de Sistema Ada)
+  // 2. Feature Flags do item (se houver featureKey)
+  // 3. Regra de papel para 'professional' (isProfessional)
+  const visibleNavItems = userCustomNav.filter((item) => {
+    if (!item.visible) return false
+    const meta = USER_NAV_META[item.key]
+    if (!meta) return true
+    if (meta.isProOnly && !isProfessional) return false
+    if (meta.featureKey && !isEnabled(meta.featureKey)) return false
+    return true
   })
 
   return (
     <aside className="hidden md:flex flex-col w-64 h-screen fixed left-0 top-0 border-r bg-card px-4 py-6 z-40 print:hidden overflow-hidden">
       <div className="flex items-center gap-3 px-2 mb-8 text-primary shrink-0">
-        <Sparkles className="w-8 h-8" strokeWidth={1.5} />
-        <span className="font-bold text-xl tracking-tight text-foreground">Zenith</span>
+        <Sparkles className="w-8 h-8 text-[#58CC02]" strokeWidth={1.5} />
+        <span
+          className="font-black text-xl tracking-tight text-foreground truncate"
+          title={brandName}
+        >
+          {brandName}
+        </span>
       </div>
 
       <nav className="flex-1 space-y-2 overflow-y-auto pr-1 scrollbar-hide">
         {visibleNavItems.map((item) => {
-          const isActive = location.pathname === item.path
+          const meta = USER_NAV_META[item.key]
+          const path = meta?.path || `/${item.key}`
+          const isActive =
+            location.pathname.startsWith(path) &&
+            (path !== '/dashboard' || location.pathname === '/dashboard')
+          const isProItem = item.key === 'professional'
+
+          // Se for professional e o usuário customizou pro_brand_name, reflete aqui se o label for o padrão
+          const displayLabel = isProItem
+            ? item.label === 'Painel Pro'
+              ? proBrandName
+              : item.label
+            : item.label
+
+          const IconComponent =
+            ICON_MAP[item.icon] || (isProItem ? StethoscopeIcon : LayoutDashboard)
+
+          if (isProItem) {
+            return (
+              <div key={item.key} className="pt-1">
+                <Link
+                  to={path}
+                  className={cn(
+                    'flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all duration-200 group font-bold border-b-2',
+                    isActive
+                      ? 'bg-[#1CB0F6]/20 text-[#1CB0F6] border-[#1CB0F6]'
+                      : 'text-[#1CB0F6] hover:bg-[#1CB0F6]/10 border-transparent',
+                  )}
+                >
+                  <IconComponent className="w-5 h-5 shrink-0 text-[#1CB0F6]" />
+                  <span className="truncate">{displayLabel}</span>
+                </Link>
+              </div>
+            )
+          }
+
           return (
-            <div key={item.path}>
+            <div key={item.key}>
               <Link
-                to={item.path}
+                to={path}
                 className={cn(
                   'flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all duration-200 group font-medium',
                   isActive
@@ -60,35 +139,17 @@ export function Sidebar() {
                     : 'text-muted-foreground hover:bg-muted hover:text-foreground',
                 )}
               >
-                <item.icon
+                <IconComponent
                   className={cn(
                     'w-5 h-5 shrink-0',
                     isActive ? 'text-primary' : 'text-muted-foreground group-hover:text-foreground',
                   )}
                 />
-                <span className="truncate">{item.label}</span>
+                <span className="truncate">{displayLabel}</span>
               </Link>
             </div>
           )
         })}
-
-        {/* Item Painel Pro independente ao final da lista principal, visível somente quando is_professional = true */}
-        {isProfessional && (
-          <div className="pt-1">
-            <Link
-              to="/professional"
-              className={cn(
-                'flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all duration-200 group font-bold border-b-2',
-                location.pathname.startsWith('/professional')
-                  ? 'bg-[#1CB0F6]/20 text-[#1CB0F6] border-[#1CB0F6]'
-                  : 'text-[#1CB0F6] hover:bg-[#1CB0F6]/10 border-transparent',
-              )}
-            >
-              <StethoscopeIcon className="w-5 h-5 shrink-0 text-[#1CB0F6]" />
-              <span className="truncate">Painel Pro</span>
-            </Link>
-          </div>
-        )}
       </nav>
 
       <div className="mt-auto pt-4 border-t space-y-2 shrink-0">

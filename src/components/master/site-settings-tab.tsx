@@ -35,7 +35,21 @@ import {
   LogIn,
   AlertCircle,
   Eye,
+  EyeOff,
+  LayoutDashboard,
+  Share2,
+  Users,
+  Calendar,
+  FileText,
+  MessageCircle,
 } from 'lucide-react'
+import { StethoscopeIcon } from '@/components/professional/StethoscopeIcon'
+import {
+  DEFAULT_USER_NAV_ITEMS,
+  DEFAULT_PRO_NAV_ITEMS,
+  NavItemCustomization,
+  mergeNavCustomization,
+} from '@/stores/useSiteSettingsStore'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -48,12 +62,19 @@ import {
 } from '@/components/ui/alert-dialog'
 
 const AVAILABLE_ICONS = [
+  { id: 'LayoutDashboard', label: 'Dashboard / Painel' },
   { id: 'CheckSquare', label: 'Hábitos e Tarefas' },
+  { id: 'Share2', label: 'Social' },
   { id: 'HeartPulse', label: 'Saúde' },
-  { id: 'GraduationCap', label: 'Estudos' },
   { id: 'Wallet', label: 'Finanças' },
+  { id: 'StethoscopeIcon', label: 'Estetoscópio (Pro)' },
+  { id: 'Users', label: 'Pacientes / Usuários' },
+  { id: 'Calendar', label: 'Consultas / Calendário' },
+  { id: 'FileText', label: 'Anotações / Documento' },
+  { id: 'MessageCircle', label: 'Grupos / Mensagens' },
+  { id: 'GraduationCap', label: 'Estudos' },
   { id: 'BarChart2', label: 'Relatórios' },
-  { id: 'Sparkles', label: 'Geral' },
+  { id: 'Sparkles', label: 'Geral / Brilho' },
   { id: 'Flame', label: 'Streaks' },
   { id: 'Zap', label: 'Raio' },
 ]
@@ -68,10 +89,17 @@ const COLOR_PRESETS = [
 ]
 
 const ICON_MAP: Record<string, any> = {
+  LayoutDashboard,
   CheckSquare,
+  Share2,
   HeartPulse,
-  GraduationCap,
   Wallet,
+  StethoscopeIcon,
+  Users,
+  Calendar,
+  FileText,
+  MessageCircle,
+  GraduationCap,
   BarChart2,
   Sparkles,
   Flame,
@@ -89,8 +117,10 @@ export function SiteSettingsTab() {
     loadSiteData,
   } = useSiteSettingsStore()
 
-  // Tab selector: 'landing' or 'login'
-  const [selectedPage, setSelectedPage] = useState<'landing' | 'login'>('landing')
+  // Tab selector: 'landing' | 'login' | 'system' | 'system_pro'
+  const [selectedPage, setSelectedPage] = useState<'landing' | 'login' | 'system' | 'system_pro'>(
+    'landing',
+  )
 
   // Local form state for zero-lag editing and live preview
   const [formData, setFormData] = useState<SiteSettingsData>(settings)
@@ -180,7 +210,76 @@ export function SiteSettingsTab() {
     handleInputChange('steps', reindexed)
   }
 
+  // User nav helpers
+  const handleUserNavChange = (index: number, field: keyof NavItemCustomization, value: any) => {
+    const list = [...(formData.nav_customization || DEFAULT_USER_NAV_ITEMS)]
+    list[index] = { ...list[index], [field]: value }
+    handleInputChange('nav_customization', list)
+  }
+
+  const handleMoveUserNav = (index: number, direction: 'up' | 'down') => {
+    const list = [...(formData.nav_customization || DEFAULT_USER_NAV_ITEMS)]
+    const target = direction === 'up' ? index - 1 : index + 1
+    if (target < 0 || target >= list.length) return
+    const temp = list[index]
+    list[index] = list[target]
+    list[target] = temp
+    const reordered = list.map((item, idx) => ({ ...item, order: idx }))
+    handleInputChange('nav_customization', reordered)
+  }
+
+  const handleToggleUserNavVisible = (index: number, currentVisible: boolean) => {
+    const list = [...(formData.nav_customization || DEFAULT_USER_NAV_ITEMS)]
+    // Não permitir ocultar se for o único visível
+    const visibleCount = list.filter((i) => i.visible).length
+    if (currentVisible && visibleCount <= 1) {
+      alert('Pelo menos um item do menu deve permanecer visível.')
+      return
+    }
+    list[index] = { ...list[index], visible: !currentVisible }
+    handleInputChange('nav_customization', list)
+  }
+
+  // Pro nav helpers
+  const handleProNavChange = (index: number, field: keyof NavItemCustomization, value: any) => {
+    const list = [...(formData.pro_nav_customization || DEFAULT_PRO_NAV_ITEMS)]
+    list[index] = { ...list[index], [field]: value }
+    handleInputChange('pro_nav_customization', list)
+  }
+
+  const handleMoveProNav = (index: number, direction: 'up' | 'down') => {
+    const list = [...(formData.pro_nav_customization || DEFAULT_PRO_NAV_ITEMS)]
+    const target = direction === 'up' ? index - 1 : index + 1
+    if (target < 0 || target >= list.length) return
+    const temp = list[index]
+    list[index] = list[target]
+    list[target] = temp
+    const reordered = list.map((item, idx) => ({ ...item, order: idx }))
+    handleInputChange('pro_nav_customization', reordered)
+  }
+
+  const handleToggleProNavVisible = (index: number, currentVisible: boolean) => {
+    const list = [...(formData.pro_nav_customization || DEFAULT_PRO_NAV_ITEMS)]
+    const visibleCount = list.filter((i) => i.visible).length
+    if (currentVisible && visibleCount <= 1) {
+      alert('Pelo menos um item do menu Pro deve permanecer visível.')
+      return
+    }
+    list[index] = { ...list[index], visible: !currentVisible }
+    handleInputChange('pro_nav_customization', list)
+  }
+
   const handleSaveAll = async () => {
+    // Validação: brand_name e pro_brand_name não podem ser vazios
+    if (selectedPage === 'system' && !formData.brand_name?.trim()) {
+      alert('O Nome do Sistema não pode ficar vazio.')
+      return
+    }
+    if (selectedPage === 'system_pro' && !formData.pro_brand_name?.trim()) {
+      alert('O Nome do Painel Pro não pode ficar vazio.')
+      return
+    }
+
     setSaving(true)
     try {
       const keys = Object.keys(formData) as (keyof SiteSettingsData)[]
@@ -216,13 +315,25 @@ export function SiteSettingsTab() {
           features: DEFAULT_SITE_SETTINGS.features,
           steps: DEFAULT_SITE_SETTINGS.steps,
         }))
-      } else {
+      } else if (selectedPage === 'login') {
         setFormData((prev) => ({
           ...prev,
           login_title: DEFAULT_SITE_SETTINGS.login_title,
           login_subtitle: DEFAULT_SITE_SETTINGS.login_subtitle,
           login_button_label: DEFAULT_SITE_SETTINGS.login_button_label,
           login_footer_text: DEFAULT_SITE_SETTINGS.login_footer_text,
+        }))
+      } else if (selectedPage === 'system') {
+        setFormData((prev) => ({
+          ...prev,
+          brand_name: DEFAULT_SITE_SETTINGS.brand_name,
+          nav_customization: DEFAULT_USER_NAV_ITEMS,
+        }))
+      } else if (selectedPage === 'system_pro') {
+        setFormData((prev) => ({
+          ...prev,
+          pro_brand_name: DEFAULT_SITE_SETTINGS.pro_brand_name,
+          pro_nav_customization: DEFAULT_PRO_NAV_ITEMS,
         }))
       }
       setHasChanges(false)
@@ -260,7 +371,16 @@ export function SiteSettingsTab() {
             className="rounded-2xl border-2 font-bold text-xs h-10 px-3.5 flex items-center gap-1.5 flex-1 md:flex-none"
           >
             <RotateCcw className="w-3.5 h-3.5 text-muted-foreground" />
-            <span>Restaurar {selectedPage === 'landing' ? 'Landing' : 'Login'}</span>
+            <span>
+              Restaurar{' '}
+              {selectedPage === 'landing'
+                ? 'Landing'
+                : selectedPage === 'login'
+                  ? 'Login'
+                  : selectedPage === 'system'
+                    ? 'Ada'
+                    : 'Ada Pro'}
+            </span>
           </Button>
 
           <Button
@@ -275,33 +395,61 @@ export function SiteSettingsTab() {
         </div>
       </div>
 
-      {/* Page Selector Tabs (Duolingo Style) */}
-      <div className="flex items-center gap-3 bg-muted/50 p-1.5 rounded-2xl border-2 w-fit">
-        <button
-          type="button"
-          onClick={() => setSelectedPage('landing')}
-          className={`flex items-center gap-2 px-5 py-2.5 rounded-xl font-black text-xs transition-all ${
-            selectedPage === 'landing'
-              ? 'bg-[#58CC02] text-white shadow-md border-b-2 border-[#46A302]'
-              : 'text-muted-foreground hover:text-foreground'
-          }`}
-        >
-          <Globe className="w-4 h-4" />
-          <span>Landing Page (/)</span>
-        </button>
+      {/* Page Selector Tabs (Duolingo Style: Landing, Login, Sistema Ada, Sistema Ada Pro) */}
+      <div className="overflow-x-auto pb-1 max-w-full">
+        <div className="flex items-center gap-2 bg-muted/50 p-1.5 rounded-2xl border-2 w-max min-w-full sm:min-w-0">
+          <button
+            type="button"
+            onClick={() => setSelectedPage('landing')}
+            className={`flex items-center gap-2 px-4 py-2 rounded-xl font-black text-xs transition-all shrink-0 ${
+              selectedPage === 'landing'
+                ? 'bg-[#58CC02] text-white shadow-md border-b-2 border-[#46A302]'
+                : 'text-muted-foreground hover:text-foreground'
+            }`}
+          >
+            <Globe className="w-4 h-4" />
+            <span>Landing Page (/)</span>
+          </button>
 
-        <button
-          type="button"
-          onClick={() => setSelectedPage('login')}
-          className={`flex items-center gap-2 px-5 py-2.5 rounded-xl font-black text-xs transition-all ${
-            selectedPage === 'login'
-              ? 'bg-[#1CB0F6] text-white shadow-md border-b-2 border-[#1899D6]'
-              : 'text-muted-foreground hover:text-foreground'
-          }`}
-        >
-          <LogIn className="w-4 h-4" />
-          <span>Página de Login (/login)</span>
-        </button>
+          <button
+            type="button"
+            onClick={() => setSelectedPage('login')}
+            className={`flex items-center gap-2 px-4 py-2 rounded-xl font-black text-xs transition-all shrink-0 ${
+              selectedPage === 'login'
+                ? 'bg-[#1CB0F6] text-white shadow-md border-b-2 border-[#1899D6]'
+                : 'text-muted-foreground hover:text-foreground'
+            }`}
+          >
+            <LogIn className="w-4 h-4" />
+            <span>Login (/login)</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setSelectedPage('system')}
+            className={`flex items-center gap-2 px-4 py-2 rounded-xl font-black text-xs transition-all shrink-0 ${
+              selectedPage === 'system'
+                ? 'bg-[#CE82FF] text-white shadow-md border-b-2 border-[#A653EB]'
+                : 'text-muted-foreground hover:text-foreground'
+            }`}
+          >
+            <Sliders className="w-4 h-4 text-purple-200" />
+            <span>Sistema Ada</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setSelectedPage('system_pro')}
+            className={`flex items-center gap-2 px-4 py-2 rounded-xl font-black text-xs transition-all shrink-0 ${
+              selectedPage === 'system_pro'
+                ? 'bg-[#FFC800] text-neutral-900 shadow-md border-b-2 border-[#CCA000]'
+                : 'text-muted-foreground hover:text-foreground'
+            }`}
+          >
+            <StethoscopeIcon size={16} className="text-neutral-800" />
+            <span>Sistema Ada Pro</span>
+          </button>
+        </div>
       </div>
 
       {/* 2-Column Layout: Left Form, Right Preview Sticky */}
@@ -743,7 +891,7 @@ export function SiteSettingsTab() {
                 </div>
               </Card>
             </>
-          ) : (
+          ) : selectedPage === 'login' ? (
             <>
               {/* Editor da Página de Login */}
               <Card className="rounded-3xl border-2 p-5 sm:p-6 bg-card space-y-4">
@@ -828,6 +976,361 @@ export function SiteSettingsTab() {
                 </div>
               </Card>
             </>
+          ) : selectedPage === 'system' ? (
+            <>
+              {/* Editor Sistema Ada (Usuário) */}
+              <Card className="rounded-3xl border-2 p-5 sm:p-6 bg-card space-y-4">
+                <div className="flex items-center justify-between border-b pb-3">
+                  <div className="flex items-center gap-2">
+                    <Sliders className="w-4 h-4 text-[#CE82FF]" />
+                    <h3 className="font-black text-base text-foreground">
+                      Nome do Sistema Ada (brand_name)
+                    </h3>
+                  </div>
+                  <Badge className="bg-[#CE82FF] text-white font-bold text-[10px]">
+                    Whitelabel
+                  </Badge>
+                </div>
+
+                <div className="space-y-2">
+                  <Label className="text-xs font-bold text-muted-foreground">
+                    Nome exibido em todo o app (Sidebar, Mobile, Título do navegador, etc.)
+                  </Label>
+                  <Input
+                    maxLength={30}
+                    value={formData.brand_name || ''}
+                    placeholder="VibeCoding Tarefas"
+                    onChange={(e) => handleInputChange('brand_name', e.target.value)}
+                    className="rounded-2xl font-black text-sm border-2 h-11"
+                  />
+                  <p className="text-[11px] text-muted-foreground font-semibold">
+                    Máximo de 30 caracteres. Não pode ficar vazio.
+                  </p>
+                </div>
+              </Card>
+
+              {/* Itens do Menu do Usuário */}
+              <Card className="rounded-3xl border-2 p-5 sm:p-6 bg-card space-y-4">
+                <div className="border-b pb-3">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <LayoutDashboard className="w-4 h-4 text-[#58CC02]" />
+                      <h3 className="font-black text-base text-foreground">
+                        Itens do Menu do Usuário
+                      </h3>
+                    </div>
+                    <Badge variant="outline" className="text-[10px] font-bold">
+                      {
+                        (formData.nav_customization || DEFAULT_USER_NAV_ITEMS).filter(
+                          (i) => i.visible,
+                        ).length
+                      }{' '}
+                      visíveis
+                    </Badge>
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Edite rótulos, escolha ícones, ordene e oculte itens. Rotas permanecem ativas
+                    pela URL.
+                  </p>
+                </div>
+
+                <div className="space-y-3">
+                  {(formData.nav_customization || DEFAULT_USER_NAV_ITEMS).map((item, idx) => {
+                    const isFirst = idx === 0
+                    const isLast =
+                      idx === (formData.nav_customization || DEFAULT_USER_NAV_ITEMS).length - 1
+                    const IconComp = ICON_MAP[item.icon] || LayoutDashboard
+
+                    return (
+                      <div
+                        key={item.key}
+                        className={`p-3.5 rounded-2xl border-2 transition-all space-y-3 ${
+                          item.visible
+                            ? 'bg-muted/20 border-border'
+                            : 'bg-muted/5 border-dashed opacity-60'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="flex items-center gap-2.5 min-w-0">
+                            <div className="w-8 h-8 rounded-xl bg-card border flex items-center justify-center shrink-0 text-primary">
+                              <IconComp className="w-4 h-4" />
+                            </div>
+                            <div className="min-w-0">
+                              <span className="text-[10px] uppercase font-black tracking-wider text-muted-foreground block">
+                                Chave: {item.key}
+                              </span>
+                              <span className="font-black text-xs text-foreground truncate block">
+                                {item.label || item.key}
+                              </span>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-1 shrink-0">
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              disabled={isFirst}
+                              onClick={() => handleMoveUserNav(idx, 'up')}
+                              className="h-7 w-7 rounded-lg text-muted-foreground hover:text-foreground"
+                            >
+                              <ArrowUp className="w-3.5 h-3.5" />
+                            </Button>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              disabled={isLast}
+                              onClick={() => handleMoveUserNav(idx, 'down')}
+                              className="h-7 w-7 rounded-lg text-muted-foreground hover:text-foreground"
+                            >
+                              <ArrowDown className="w-3.5 h-3.5" />
+                            </Button>
+
+                            <button
+                              type="button"
+                              onClick={() => handleToggleUserNavVisible(idx, item.visible)}
+                              className={`h-7 px-2 rounded-xl text-[10px] font-black flex items-center gap-1 border transition-all ${
+                                item.visible
+                                  ? 'bg-emerald-500/10 text-emerald-600 border-emerald-500/30'
+                                  : 'bg-muted text-muted-foreground border-border'
+                              }`}
+                              title={item.visible ? 'Item visível no menu' : 'Item oculto no menu'}
+                            >
+                              {item.visible ? (
+                                <>
+                                  <Eye className="w-3 h-3" />
+                                  <span>Visível</span>
+                                </>
+                              ) : (
+                                <>
+                                  <EyeOff className="w-3 h-3" />
+                                  <span>Oculto</span>
+                                </>
+                              )}
+                            </button>
+                          </div>
+                        </div>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1 border-t">
+                          <div>
+                            <Label className="text-[10px] font-bold text-muted-foreground">
+                              Rótulo do Menu (máx. 20)
+                            </Label>
+                            <Input
+                              maxLength={20}
+                              value={item.label}
+                              placeholder="Nome do item"
+                              onChange={(e) => handleUserNavChange(idx, 'label', e.target.value)}
+                              className="rounded-xl font-bold border-2 text-xs h-9 mt-0.5"
+                            />
+                          </div>
+
+                          <div>
+                            <Label className="text-[10px] font-bold text-muted-foreground">
+                              Ícone
+                            </Label>
+                            <select
+                              value={item.icon}
+                              onChange={(e) => handleUserNavChange(idx, 'icon', e.target.value)}
+                              className="w-full rounded-xl font-semibold border-2 bg-background text-xs h-9 mt-0.5 px-2"
+                            >
+                              {AVAILABLE_ICONS.map((ic) => (
+                                <option key={ic.id} value={ic.id}>
+                                  {ic.label}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+
+                {/* Alerta de segurança sobre itens fixos */}
+                <div className="p-3 rounded-2xl bg-muted/40 border text-[11px] text-muted-foreground font-semibold flex items-center gap-2">
+                  <AlertCircle className="w-4 h-4 text-amber-500 shrink-0" />
+                  <span>
+                    <strong>Itens Fixos:</strong> Configurações e Masterização permanecem fixos no
+                    rodapé da navegação e não são removíveis.
+                  </span>
+                </div>
+              </Card>
+            </>
+          ) : (
+            <>
+              {/* Editor Sistema Ada Pro (Painel Profissional) */}
+              <Card className="rounded-3xl border-2 p-5 sm:p-6 bg-card space-y-4">
+                <div className="flex items-center justify-between border-b pb-3">
+                  <div className="flex items-center gap-2">
+                    <StethoscopeIcon size={18} className="text-[#FFC800]" />
+                    <h3 className="font-black text-base text-foreground">
+                      Nome do Painel Pro (pro_brand_name)
+                    </h3>
+                  </div>
+                  <Badge className="bg-[#FFC800] text-neutral-900 font-bold text-[10px]">
+                    Pro Whitelabel
+                  </Badge>
+                </div>
+
+                <div className="space-y-2">
+                  <Label className="text-xs font-bold text-muted-foreground">
+                    Nome exibido no topo do /professional e no botão da Sidebar do usuário
+                  </Label>
+                  <Input
+                    maxLength={30}
+                    value={formData.pro_brand_name || ''}
+                    placeholder="Painel Pro"
+                    onChange={(e) => handleInputChange('pro_brand_name', e.target.value)}
+                    className="rounded-2xl font-black text-sm border-2 h-11"
+                  />
+                  <p className="text-[11px] text-muted-foreground font-semibold">
+                    Máximo de 30 caracteres. Fallback padrão: "Painel Pro".
+                  </p>
+                </div>
+              </Card>
+
+              {/* Itens do Menu do Painel Pro */}
+              <Card className="rounded-3xl border-2 p-5 sm:p-6 bg-card space-y-4">
+                <div className="border-b pb-3">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <LayoutDashboard className="w-4 h-4 text-[#1CB0F6]" />
+                      <h3 className="font-black text-base text-foreground">
+                        Itens do Menu Pro (/professional)
+                      </h3>
+                    </div>
+                    <Badge variant="outline" className="text-[10px] font-bold">
+                      {
+                        (formData.pro_nav_customization || DEFAULT_PRO_NAV_ITEMS).filter(
+                          (i) => i.visible,
+                        ).length
+                      }{' '}
+                      visíveis
+                    </Badge>
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Personalize os botões de navegação interna do consultório médico/clínico. Mínimo
+                    1 item visível.
+                  </p>
+                </div>
+
+                <div className="space-y-3">
+                  {(formData.pro_nav_customization || DEFAULT_PRO_NAV_ITEMS).map((item, idx) => {
+                    const isFirst = idx === 0
+                    const isLast =
+                      idx === (formData.pro_nav_customization || DEFAULT_PRO_NAV_ITEMS).length - 1
+                    const IconComp = ICON_MAP[item.icon] || StethoscopeIcon
+
+                    return (
+                      <div
+                        key={item.key}
+                        className={`p-3.5 rounded-2xl border-2 transition-all space-y-3 ${
+                          item.visible
+                            ? 'bg-muted/20 border-border'
+                            : 'bg-muted/5 border-dashed opacity-60'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="flex items-center gap-2.5 min-w-0">
+                            <div className="w-8 h-8 rounded-xl bg-card border flex items-center justify-center shrink-0 text-[#1CB0F6]">
+                              <IconComp className="w-4 h-4" />
+                            </div>
+                            <div className="min-w-0">
+                              <span className="text-[10px] uppercase font-black tracking-wider text-muted-foreground block">
+                                Seção: {item.key}
+                              </span>
+                              <span className="font-black text-xs text-foreground truncate block">
+                                {item.label || item.key}
+                              </span>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-1 shrink-0">
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              disabled={isFirst}
+                              onClick={() => handleMoveProNav(idx, 'up')}
+                              className="h-7 w-7 rounded-lg text-muted-foreground hover:text-foreground"
+                            >
+                              <ArrowUp className="w-3.5 h-3.5" />
+                            </Button>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              disabled={isLast}
+                              onClick={() => handleMoveProNav(idx, 'down')}
+                              className="h-7 w-7 rounded-lg text-muted-foreground hover:text-foreground"
+                            >
+                              <ArrowDown className="w-3.5 h-3.5" />
+                            </Button>
+
+                            <button
+                              type="button"
+                              onClick={() => handleToggleProNavVisible(idx, item.visible)}
+                              className={`h-7 px-2 rounded-xl text-[10px] font-black flex items-center gap-1 border transition-all ${
+                                item.visible
+                                  ? 'bg-emerald-500/10 text-emerald-600 border-emerald-500/30'
+                                  : 'bg-muted text-muted-foreground border-border'
+                              }`}
+                              title={item.visible ? 'Item visível' : 'Item oculto'}
+                            >
+                              {item.visible ? (
+                                <>
+                                  <Eye className="w-3 h-3" />
+                                  <span>Visível</span>
+                                </>
+                              ) : (
+                                <>
+                                  <EyeOff className="w-3 h-3" />
+                                  <span>Oculto</span>
+                                </>
+                              )}
+                            </button>
+                          </div>
+                        </div>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1 border-t">
+                          <div>
+                            <Label className="text-[10px] font-bold text-muted-foreground">
+                              Rótulo da Aba (máx. 20)
+                            </Label>
+                            <Input
+                              maxLength={20}
+                              value={item.label}
+                              placeholder="Nome da aba"
+                              onChange={(e) => handleProNavChange(idx, 'label', e.target.value)}
+                              className="rounded-xl font-bold border-2 text-xs h-9 mt-0.5"
+                            />
+                          </div>
+
+                          <div>
+                            <Label className="text-[10px] font-bold text-muted-foreground">
+                              Ícone
+                            </Label>
+                            <select
+                              value={item.icon}
+                              onChange={(e) => handleProNavChange(idx, 'icon', e.target.value)}
+                              className="w-full rounded-xl font-semibold border-2 bg-background text-xs h-9 mt-0.5 px-2"
+                            >
+                              {AVAILABLE_ICONS.map((ic) => (
+                                <option key={ic.id} value={ic.id}>
+                                  {ic.label}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              </Card>
+            </>
           )}
         </div>
 
@@ -838,7 +1341,15 @@ export function SiteSettingsTab() {
               <div className="flex items-center gap-2">
                 <Smartphone className="w-4 h-4 text-[#1CB0F6]" />
                 <h3 className="font-black text-xs uppercase tracking-wider text-muted-foreground">
-                  Preview em Tempo Real ({selectedPage === 'landing' ? 'Landing' : 'Login'})
+                  Preview (
+                  {selectedPage === 'landing'
+                    ? 'Landing'
+                    : selectedPage === 'login'
+                      ? 'Login'
+                      : selectedPage === 'system'
+                        ? 'Sistema Ada'
+                        : 'Sistema Ada Pro'}
+                  )
                 </h3>
               </div>
               <Badge className="bg-amber-500 hover:bg-amber-500 text-white font-extrabold text-[10px] px-2 py-0.5 rounded-full border-b-2 border-amber-700">
@@ -986,7 +1497,7 @@ export function SiteSettingsTab() {
                       </div>
                     )}
                   </div>
-                ) : (
+                ) : selectedPage === 'login' ? (
                   /* Mini Login Page Preview */
                   <div className="p-5 py-8 text-center space-y-4">
                     <div className="w-12 h-12 rounded-2xl bg-[#58CC02]/15 border-2 border-[#58CC02]/30 flex items-center justify-center mx-auto shadow-sm">
@@ -1046,6 +1557,167 @@ export function SiteSettingsTab() {
                       </p>
                     )}
                   </div>
+                ) : selectedPage === 'system' ? (
+                  /* Mini Preview do Menu / App do Usuário (Sistema Ada) */
+                  <div className="p-4 space-y-4">
+                    {/* Header da Sidebar no Preview */}
+                    <div className="flex items-center gap-2.5 pb-3 border-b">
+                      <div className="w-8 h-8 rounded-xl bg-[#58CC02]/15 border border-[#58CC02]/30 flex items-center justify-center text-[#58CC02] shrink-0">
+                        <Sparkles className="w-4 h-4" />
+                      </div>
+                      <div className="min-w-0">
+                        <div className="font-black text-sm text-foreground truncate">
+                          {formData.brand_name || 'VibeCoding Tarefas'}
+                        </div>
+                        <div className="text-[9px] text-muted-foreground font-semibold">
+                          Menu do Usuário (Sidebar)
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Itens do Menu Ordenados */}
+                    <div className="space-y-1.5">
+                      {(formData.nav_customization || DEFAULT_USER_NAV_ITEMS)
+                        .filter((item) => item.visible)
+                        .map((item, idx) => {
+                          const IconComp = ICON_MAP[item.icon] || LayoutDashboard
+                          const isPro = item.key === 'professional'
+
+                          return (
+                            <div
+                              key={item.key}
+                              className={`flex items-center gap-2.5 px-3 py-2 rounded-xl border text-xs font-bold ${
+                                idx === 0
+                                  ? 'bg-primary/20 text-primary border-primary/30'
+                                  : isPro
+                                    ? 'bg-[#1CB0F6]/10 text-[#1CB0F6] border-[#1CB0F6]/30'
+                                    : 'bg-card text-foreground border-border/80'
+                              }`}
+                            >
+                              <IconComp className="w-4 h-4 shrink-0" />
+                              <span className="truncate flex-1">
+                                {isPro && item.label === 'Painel Pro'
+                                  ? formData.pro_brand_name || 'Painel Pro'
+                                  : item.label || item.key}
+                              </span>
+                              {idx === 0 && (
+                                <span className="w-1.5 h-1.5 rounded-full bg-primary" />
+                              )}
+                            </div>
+                          )
+                        })}
+
+                      {/* Itens de Rodapé Fixos */}
+                      <div className="pt-3 border-t mt-3 space-y-1.5 opacity-70">
+                        <div className="flex items-center gap-2.5 px-3 py-1.5 rounded-xl bg-amber-500/10 text-amber-600 border border-amber-500/20 text-[11px] font-bold">
+                          <Sliders className="w-3.5 h-3.5" />
+                          <span>Masterização (Fixo)</span>
+                        </div>
+                        <div className="flex items-center gap-2.5 px-3 py-1.5 rounded-xl bg-muted text-muted-foreground border text-[11px] font-bold">
+                          <RotateCcw className="w-3.5 h-3.5" />
+                          <span>Configurações (Fixo)</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Representação do Mobile Bottom Nav */}
+                    <div className="pt-2 border-t">
+                      <span className="text-[9px] font-black uppercase tracking-wider text-muted-foreground block mb-2 text-center">
+                        Prévia da Barra Mobile (BottomNav)
+                      </span>
+                      <div className="flex items-center justify-around bg-card border rounded-2xl p-1.5 py-2">
+                        {(formData.nav_customization || DEFAULT_USER_NAV_ITEMS)
+                          .filter((i) => i.visible)
+                          .slice(0, 5)
+                          .map((item) => {
+                            const IconComp = ICON_MAP[item.icon] || LayoutDashboard
+                            return (
+                              <div
+                                key={item.key}
+                                className="flex flex-col items-center gap-0.5 text-center min-w-0 flex-1"
+                              >
+                                <IconComp className="w-3.5 h-3.5 text-muted-foreground" />
+                                <span className="text-[8px] font-bold text-muted-foreground truncate max-w-[40px]">
+                                  {item.label}
+                                </span>
+                              </div>
+                            )
+                          })}
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  /* Mini Preview do Painel Pro (Sistema Ada Pro) */
+                  <div className="p-4 space-y-4">
+                    {/* Header do Painel Pro */}
+                    <div className="p-3.5 rounded-2xl bg-gradient-to-r from-[#1CB0F6] to-[#0284c7] text-white space-y-1 shadow-sm">
+                      <div className="flex items-center gap-2">
+                        <div className="w-7 h-7 rounded-xl bg-white/20 flex items-center justify-center shrink-0">
+                          <StethoscopeIcon size={16} className="text-white" />
+                        </div>
+                        <h5 className="font-black text-xs truncate">
+                          {formData.pro_brand_name || 'Painel Pro'}
+                        </h5>
+                      </div>
+                      <p className="text-[9px] text-white/80 font-medium">
+                        Consultório Médico & Clínico
+                      </p>
+                    </div>
+
+                    {/* Chips do Menu Pro Ordenados */}
+                    <div className="space-y-1.5">
+                      <span className="text-[9px] font-black uppercase tracking-wider text-[#1CB0F6] block">
+                        Abas de Navegação Pro
+                      </span>
+                      <div className="flex flex-col gap-1.5">
+                        {(formData.pro_nav_customization || DEFAULT_PRO_NAV_ITEMS)
+                          .filter((item) => item.visible)
+                          .map((item, idx) => {
+                            const IconComp = ICON_MAP[item.icon] || LayoutDashboard
+                            const isGroups = item.key === 'groups_pro'
+
+                            return (
+                              <div
+                                key={item.key}
+                                className={`flex items-center gap-2.5 px-3 py-2 rounded-xl border text-xs font-bold ${
+                                  idx === 0
+                                    ? 'bg-[#1CB0F6] text-white border-[#1CB0F6] shadow-xs'
+                                    : isGroups
+                                      ? 'bg-[#58CC02]/10 text-[#58CC02] border-[#58CC02]/30'
+                                      : 'bg-card text-foreground border-border'
+                                }`}
+                              >
+                                <IconComp className="w-4 h-4 shrink-0" />
+                                <span className="truncate flex-1">{item.label || item.key}</span>
+                                {isGroups && (
+                                  <Badge className="bg-[#CE82FF] text-white text-[8px] font-black uppercase px-1 py-0">
+                                    Pro
+                                  </Badge>
+                                )}
+                              </div>
+                            )
+                          })}
+                      </div>
+                    </div>
+
+                    {/* Mini Card de Pacientes Pro */}
+                    <div className="p-3 rounded-2xl bg-muted/40 border space-y-2">
+                      <div className="text-[10px] font-black text-foreground">
+                        Exemplo de Conteúdo da Aba
+                      </div>
+                      <div className="p-2 rounded-xl bg-background border flex items-center gap-2">
+                        <div className="w-6 h-6 rounded-lg bg-[#1CB0F6]/20 text-[#1CB0F6] font-black text-[10px] flex items-center justify-center shrink-0">
+                          P
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <div className="text-[10px] font-bold truncate">Paciente Exemplo</div>
+                          <div className="text-[8px] text-muted-foreground truncate">
+                            Plano Nutricional Ativo
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
                 )}
               </div>
 
@@ -1073,12 +1745,29 @@ export function SiteSettingsTab() {
               <RotateCcw className="w-6 h-6" />
             </div>
             <AlertDialogTitle className="text-center font-black text-xl">
-              Restaurar {selectedPage === 'landing' ? 'Landing Page' : 'Login'}?
+              Restaurar{' '}
+              {selectedPage === 'landing'
+                ? 'Landing Page'
+                : selectedPage === 'login'
+                  ? 'Login'
+                  : selectedPage === 'system'
+                    ? 'Sistema Ada'
+                    : 'Sistema Ada Pro'}
+              ?
             </AlertDialogTitle>
             <AlertDialogDescription className="text-center text-xs font-semibold text-muted-foreground">
-              Esta ação substituirá todos os textos da{' '}
-              <strong>{selectedPage === 'landing' ? 'Landing Page' : 'Página de Login'}</strong>{' '}
-              pelos padrões originais do sistema. As configurações da outra página serão mantidas.
+              Esta ação substituirá as configurações de{' '}
+              <strong>
+                {selectedPage === 'landing'
+                  ? 'Landing Page'
+                  : selectedPage === 'login'
+                    ? 'Página de Login'
+                    : selectedPage === 'system'
+                      ? 'Sistema Ada'
+                      : 'Sistema Ada Pro'}
+              </strong>{' '}
+              pelos padrões originais do sistema. As configurações das demais páginas serão
+              mantidas.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter className="flex-col sm:flex-row gap-2 mt-2">

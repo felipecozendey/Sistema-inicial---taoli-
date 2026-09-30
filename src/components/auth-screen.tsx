@@ -5,7 +5,7 @@ import { GameButton } from '@/components/ui/game-button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Sparkles, ArrowLeft, CheckCircle2 } from 'lucide-react'
-import { useSiteSettingsStore } from '@/stores/useSiteSettingsStore'
+import { useSiteSettingsStore, useBrandName } from '@/stores/useSiteSettingsStore'
 
 export function AuthScreen() {
   const { signIn, signUp, user } = useAuth()
@@ -14,6 +14,7 @@ export function AuthScreen() {
   const redirectPath = searchParams.get('redirect') || '/dashboard'
 
   const { settings, flags, loadSiteData } = useSiteSettingsStore()
+  const { brandName } = useBrandName()
 
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -86,12 +87,17 @@ export function AuthScreen() {
           <div className="w-16 h-16 rounded-3xl bg-[#58CC02]/15 border-2 border-[#58CC02]/30 flex items-center justify-center mx-auto shadow-sm">
             <Sparkles className="w-8 h-8 text-[#58CC02]" />
           </div>
-          <h1 className="text-2xl font-black tracking-tight text-foreground">
-            {isSignUp ? 'Criar nova conta' : settings.login_title || 'Bem-vindo de volta!'}
-          </h1>
+          <div className="space-y-0.5">
+            <span className="text-[11px] font-black uppercase tracking-wider text-[#58CC02]">
+              {brandName}
+            </span>
+            <h1 className="text-2xl font-black tracking-tight text-foreground">
+              {isSignUp ? 'Criar nova conta' : settings.login_title || 'Bem-vindo de volta!'}
+            </h1>
+          </div>
           <p className="text-muted-foreground font-semibold text-xs leading-relaxed max-w-xs mx-auto">
             {isSignUp
-              ? 'Comece hoje mesmo sua jornada de produtividade e consistência.'
+              ? `Comece hoje mesmo sua jornada de produtividade com ${brandName}.`
               : settings.login_subtitle || 'Acesse sua conta para continuar evoluindo suas metas.'}
           </p>
         </div>

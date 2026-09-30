@@ -7,6 +7,12 @@ import {
 } from '@/stores/useProfessionalStore'
 import { StethoscopeIcon } from '@/components/professional/StethoscopeIcon'
 import { ClinicConfigModal } from '@/components/professional/ClinicConfigModal'
+import {
+  useSiteSettingsStore,
+  useBrandName,
+  DEFAULT_PRO_NAV_ITEMS,
+  mergeNavCustomization,
+} from '@/stores/useSiteSettingsStore'
 import { PatientDetailsDrawer } from '@/components/professional/PatientDetailsDrawer'
 import { AppointmentModal } from '@/components/professional/AppointmentModal'
 import { NoteModal } from '@/components/professional/NoteModal'
@@ -32,7 +38,34 @@ import {
   Trash2,
   Lock,
   MessageCircle,
+  CheckSquare,
+  Share2,
+  HeartPulse,
+  Wallet,
+  GraduationCap,
+  BarChart2,
+  Sparkles,
+  Flame,
+  Zap,
 } from 'lucide-react'
+
+const ICON_MAP: Record<string, any> = {
+  LayoutDashboard,
+  Users,
+  Calendar,
+  FileText,
+  MessageCircle,
+  StethoscopeIcon,
+  CheckSquare,
+  Share2,
+  HeartPulse,
+  Wallet,
+  GraduationCap,
+  BarChart2,
+  Sparkles,
+  Flame,
+  Zap,
+}
 
 export default function ProfessionalPage() {
   const {
@@ -47,9 +80,30 @@ export default function ProfessionalPage() {
     deleteClinicalNote,
   } = useProfessionalStore()
 
+  const { proBrandName } = useBrandName()
+  const settings = useSiteSettingsStore((s) => s.settings)
+
+  // Mescla personalização do menu Pro
+  const proNavItems = useMemo(() => {
+    return mergeNavCustomization(DEFAULT_PRO_NAV_ITEMS, settings.pro_nav_customization)
+  }, [settings.pro_nav_customization])
+
+  const visibleProNavItems = useMemo(() => {
+    const list = proNavItems.filter((i) => i.visible)
+    return list.length > 0 ? list : DEFAULT_PRO_NAV_ITEMS
+  }, [proNavItems])
+
   const [activeTab, setActiveTab] = useState<
     'overview' | 'patients' | 'appointments' | 'notes' | 'groups_pro'
   >('overview')
+
+  // Se a aba ativa atual não estiver na lista de visíveis, chavear para a primeira visível
+  useEffect(() => {
+    const isCurrentVisible = visibleProNavItems.some((i) => i.key === activeTab)
+    if (!isCurrentVisible && visibleProNavItems.length > 0) {
+      setActiveTab(visibleProNavItems[0].key as any)
+    }
+  }, [visibleProNavItems, activeTab])
   const [clinicModalOpen, setClinicModalOpen] = useState(false)
   const [inviteModalOpen, setInviteModalOpen] = useState(false)
   const [appointmentModalOpen, setAppointmentModalOpen] = useState(false)
@@ -114,7 +168,7 @@ export default function ProfessionalPage() {
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <h1 className="text-2xl font-black tracking-tight">Painel Profissional</h1>
+                <h1 className="text-2xl font-black tracking-tight">{proBrandName}</h1>
                 <Badge className="bg-white text-[#1CB0F6] hover:bg-white text-[10px] font-black uppercase px-2 py-0.5 rounded-full">
                   Consultório Pro
                 </Badge>
@@ -162,85 +216,46 @@ export default function ProfessionalPage() {
         </div>
       )}
 
-      {/* Mobile-first chips roláveis para abas */}
+      {/* Mobile-first chips roláveis para abas customizadas */}
       <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-hide border-b">
-        <button
-          type="button"
-          onClick={() => setActiveTab('overview')}
-          className={`flex items-center gap-2 px-4 py-2.5 rounded-2xl text-xs font-black transition-all shrink-0 border-2 ${
-            activeTab === 'overview'
-              ? 'bg-[#1CB0F6] text-white border-[#1CB0F6] border-b-4'
-              : 'bg-card text-muted-foreground border-transparent hover:bg-muted'
-          }`}
-        >
-          <LayoutDashboard className="w-4 h-4" />
-          <span>Visão Geral</span>
-        </button>
+        {visibleProNavItems.map((item) => {
+          const IconComp = ICON_MAP[item.icon] || LayoutDashboard
+          const isSelected = activeTab === item.key
+          const isGroupsPro = item.key === 'groups_pro'
 
-        <button
-          type="button"
-          onClick={() => setActiveTab('patients')}
-          className={`flex items-center gap-2 px-4 py-2.5 rounded-2xl text-xs font-black transition-all shrink-0 border-2 ${
-            activeTab === 'patients'
-              ? 'bg-[#1CB0F6] text-white border-[#1CB0F6] border-b-4'
-              : 'bg-card text-muted-foreground border-transparent hover:bg-muted'
-          }`}
-        >
-          <Users className="w-4 h-4" />
-          <span>Pacientes</span>
-          {pendingPatients.length > 0 && (
-            <span className="w-5 h-5 rounded-full bg-amber-400 text-amber-900 text-[10px] font-black flex items-center justify-center ml-0.5">
-              {pendingPatients.length}
-            </span>
-          )}
-        </button>
-
-        <button
-          type="button"
-          onClick={() => setActiveTab('appointments')}
-          className={`flex items-center gap-2 px-4 py-2.5 rounded-2xl text-xs font-black transition-all shrink-0 border-2 ${
-            activeTab === 'appointments'
-              ? 'bg-[#1CB0F6] text-white border-[#1CB0F6] border-b-4'
-              : 'bg-card text-muted-foreground border-transparent hover:bg-muted'
-          }`}
-        >
-          <Calendar className="w-4 h-4" />
-          <span>Consultas</span>
-          {appointmentsToday.length > 0 && (
-            <span className="w-5 h-5 rounded-full bg-emerald-500 text-white text-[10px] font-black flex items-center justify-center ml-0.5">
-              {appointmentsToday.length}
-            </span>
-          )}
-        </button>
-
-        <button
-          type="button"
-          onClick={() => setActiveTab('notes')}
-          className={`flex items-center gap-2 px-4 py-2.5 rounded-2xl text-xs font-black transition-all shrink-0 border-2 ${
-            activeTab === 'notes'
-              ? 'bg-[#1CB0F6] text-white border-[#1CB0F6] border-b-4'
-              : 'bg-card text-muted-foreground border-transparent hover:bg-muted'
-          }`}
-        >
-          <FileText className="w-4 h-4" />
-          <span>Anotações Clínicas</span>
-        </button>
-
-        <button
-          type="button"
-          onClick={() => setActiveTab('groups_pro')}
-          className={`flex items-center gap-2 px-4 py-2.5 rounded-2xl text-xs font-black transition-all shrink-0 border-2 ${
-            activeTab === 'groups_pro'
-              ? 'bg-[#58CC02] text-white border-[#58CC02] border-b-4 shadow-sm'
-              : 'bg-card text-muted-foreground border-transparent hover:bg-muted'
-          }`}
-        >
-          <MessageCircle className="w-4 h-4 text-[#58CC02] group-hover:text-inherit" />
-          <span>Grupos Pro</span>
-          <Badge className="bg-[#CE82FF] text-white text-[9px] font-black uppercase px-1.5 py-0.2 rounded-md">
-            Pro
-          </Badge>
-        </button>
+          return (
+            <button
+              key={item.key}
+              type="button"
+              onClick={() => setActiveTab(item.key as any)}
+              className={`flex items-center gap-2 px-4 py-2.5 rounded-2xl text-xs font-black transition-all shrink-0 border-2 ${
+                isSelected
+                  ? isGroupsPro
+                    ? 'bg-[#58CC02] text-white border-[#58CC02] border-b-4 shadow-sm'
+                    : 'bg-[#1CB0F6] text-white border-[#1CB0F6] border-b-4'
+                  : 'bg-card text-muted-foreground border-transparent hover:bg-muted'
+              }`}
+            >
+              <IconComp className="w-4 h-4" />
+              <span>{item.label}</span>
+              {item.key === 'patients' && pendingPatients.length > 0 && (
+                <span className="w-5 h-5 rounded-full bg-amber-400 text-amber-900 text-[10px] font-black flex items-center justify-center ml-0.5">
+                  {pendingPatients.length}
+                </span>
+              )}
+              {item.key === 'appointments' && appointmentsToday.length > 0 && (
+                <span className="w-5 h-5 rounded-full bg-emerald-500 text-white text-[10px] font-black flex items-center justify-center ml-0.5">
+                  {appointmentsToday.length}
+                </span>
+              )}
+              {isGroupsPro && (
+                <Badge className="bg-[#CE82FF] text-white text-[9px] font-black uppercase px-1.5 py-0.2 rounded-md ml-0.5">
+                  Pro
+                </Badge>
+              )}
+            </button>
+          )
+        })}
       </div>
 
       {/* ABA 1: VISÃO GERAL */}

@@ -7,74 +7,111 @@ import {
   Wallet,
   ShieldCheck,
   Share2,
+  GraduationCap,
+  BarChart2,
+  Sparkles,
+  Flame,
+  Zap,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useIsMaster } from '@/stores/useMasterStore'
 import { useFeatureFlagsStore } from '@/stores/useFeatureFlagsStore'
 import { StethoscopeIcon } from '@/components/professional/StethoscopeIcon'
+import {
+  useSiteSettingsStore,
+  useBrandName,
+  DEFAULT_USER_NAV_ITEMS,
+  mergeNavCustomization,
+} from '@/stores/useSiteSettingsStore'
 
-interface BottomNavItem {
-  icon: any
-  label: string
-  shortLabel?: string
-  path: string
-  featureKey?: string
+const ICON_MAP: Record<string, any> = {
+  LayoutDashboard,
+  CheckSquare,
+  Share2,
+  HeartPulse,
+  Wallet,
+  StethoscopeIcon,
+  GraduationCap,
+  BarChart2,
+  Sparkles,
+  Flame,
+  Zap,
+}
+
+const USER_NAV_META: Record<
+  string,
+  {
+    path: string
+    featureKey?: string
+    isProOnly?: boolean
+    shortLabel?: string
+  }
+> = {
+  dashboard: { path: '/dashboard', shortLabel: 'Início' },
+  tasks: { path: '/tasks', featureKey: 'tasks', shortLabel: 'Perf.' },
+  social: { path: '/social', shortLabel: 'Social' },
+  health: { path: '/health', featureKey: 'health', shortLabel: 'Saúde' },
+  finance: { path: '/finance', featureKey: 'finance', shortLabel: 'Finanças' },
+  professional: { path: '/professional', isProOnly: true, shortLabel: 'Pro' },
 }
 
 export function BottomNav() {
   const location = useLocation()
   const { isMaster, isProfessional } = useIsMaster()
   const isEnabled = useFeatureFlagsStore((s) => s.isEnabled)
+  const settings = useSiteSettingsStore((s) => s.settings)
+  const { proBrandName } = useBrandName()
 
-  const items: BottomNavItem[] = [
-    { icon: LayoutDashboard, label: 'Início', shortLabel: 'Início', path: '/dashboard' },
-    {
-      icon: CheckSquare,
-      label: 'Performance',
-      shortLabel: 'Perf.',
-      path: '/tasks',
-      featureKey: 'tasks',
-    },
-    {
-      icon: Share2,
-      label: 'Social',
-      shortLabel: 'Social',
-      path: '/social',
-    },
-    {
-      icon: HeartPulse,
-      label: 'Saúde',
-      shortLabel: 'Saúde',
-      path: '/health',
-      featureKey: 'health',
-    },
-    {
-      icon: Wallet,
-      label: 'Finanças',
-      shortLabel: 'Finanças',
-      path: '/finance',
-      featureKey: 'finance',
-    },
-    ...(isProfessional
+  // Mescla customizações com os itens default
+  const userCustomNav = mergeNavCustomization(DEFAULT_USER_NAV_ITEMS, settings.nav_customization)
+
+  // Itens dinâmicos configurados em Sistema Ada
+  const dynamicItems = userCustomNav
+    .filter((item) => {
+      if (!item.visible) return false
+      const meta = USER_NAV_META[item.key]
+      if (!meta) return true
+      if (meta.isProOnly && !isProfessional) return false
+      if (meta.featureKey && !isEnabled(meta.featureKey)) return false
+      return true
+    })
+    .map((item) => {
+      const meta = USER_NAV_META[item.key]
+      const isProItem = item.key === 'professional'
+      const label = isProItem
+        ? item.label === 'Painel Pro'
+          ? proBrandName
+          : item.label
+        : item.label
+      const IconComponent = ICON_MAP[item.icon] || (isProItem ? StethoscopeIcon : LayoutDashboard)
+
+      return {
+        key: item.key,
+        icon: IconComponent,
+        label,
+        shortLabel: meta?.shortLabel || label,
+        path: meta?.path || `/${item.key}`,
+      }
+    })
+
+  // Itens fixos do sistema (não configuráveis)
+  const fixedItems = [
+    ...(isMaster
       ? [
           {
-            icon: StethoscopeIcon,
-            label: 'Painel Pro',
-            shortLabel: 'Pro',
-            path: '/professional',
+            key: 'master',
+            icon: ShieldCheck,
+            label: 'Master',
+            shortLabel: 'Master',
+            path: '/master',
           },
         ]
       : []),
-    ...(isMaster
-      ? [{ icon: ShieldCheck, label: 'Master', shortLabel: 'Master', path: '/master' }]
-      : []),
-    { icon: Settings, label: 'Ajustes', shortLabel: 'Ajustes', path: '/settings' },
+    { key: 'settings', icon: Settings, label: 'Ajustes', shortLabel: 'Ajustes', path: '/settings' },
   ]
 
-  const visibleItems = items.filter((item) => {
-    if (!item.featureKey) return true
-    return isEnabled(item.featureKey)
-  })
+  const visibleItems = [...dynamicItems, ...fixedItems]
+
   return (
     <nav className="md:hidden fixed bottom-0 left-0 right-0 h-16 bg-card border-t flex items-center justify-around px-0.5 pb-safe z-40 print:hidden overflow-hidden">
       {visibleItems.map((item) => {

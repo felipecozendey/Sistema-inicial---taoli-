@@ -10,6 +10,7 @@ import { useServiceWorker } from '@/hooks/use-service-worker'
 import { AuthProvider, useAuth } from '@/hooks/use-auth'
 import { RequireAuth } from '@/components/RequireAuth'
 import { useOnlineSync } from '@/hooks/use-online-sync'
+import { useSiteSettingsStore, useBrandName } from '@/stores/useSiteSettingsStore'
 import { useFeatureFlagsStore } from '@/stores/useFeatureFlagsStore'
 import { useIsMaster } from '@/stores/useMasterStore'
 import { MasterRouteGuard } from '@/components/master/MasterRouteGuard'
@@ -48,8 +49,21 @@ function BootLoader() {
   const { user } = useAuth()
   const fetchTasks = useAppStore((s) => s.fetchTasks)
   const fetchHabits = useAppStore((s) => s.fetchHabits)
+  const loadSiteData = useSiteSettingsStore((s) => s.loadSiteData)
+  const { brandName } = useBrandName()
   const lastFetchedUserIdRef = useRef<string | null>(null)
   const lastFocusFetchTimeRef = useRef<number>(0)
+
+  // 0. Carregar configurações de site_settings (whitelabel) e sincronizar document.title
+  useEffect(() => {
+    loadSiteData()
+  }, [loadSiteData])
+
+  useEffect(() => {
+    if (brandName) {
+      document.title = brandName
+    }
+  }, [brandName])
 
   // 1. Plug principal: fetchTasks e fetchHabits quando usuário autenticado fica disponível
   useEffect(() => {

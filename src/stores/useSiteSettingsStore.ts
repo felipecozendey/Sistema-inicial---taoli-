@@ -16,8 +16,18 @@ export interface HowItWorksStep {
   description: string
 }
 
+export interface NavItemCustomization {
+  key: string
+  label: string
+  icon: string
+  order: number
+  visible: boolean
+}
+
 export interface SiteSettingsData {
   app_name: string
+  brand_name: string
+  pro_brand_name: string
   hero_title: string
   hero_subtitle: string
   cta_primary_label: string
@@ -32,6 +42,8 @@ export interface SiteSettingsData {
   copyright_text?: string
   features: FeatureCardItem[]
   steps: HowItWorksStep[]
+  nav_customization: NavItemCustomization[]
+  pro_nav_customization: NavItemCustomization[]
 }
 
 export interface ContentFlagsData {
@@ -43,8 +55,27 @@ export interface ContentFlagsData {
   public_signup: boolean
 }
 
+export const DEFAULT_USER_NAV_ITEMS: NavItemCustomization[] = [
+  { key: 'dashboard', label: 'Dashboard', icon: 'LayoutDashboard', order: 0, visible: true },
+  { key: 'tasks', label: 'Performance', icon: 'CheckSquare', order: 1, visible: true },
+  { key: 'social', label: 'Social', icon: 'Share2', order: 2, visible: true },
+  { key: 'health', label: 'Saúde', icon: 'HeartPulse', order: 3, visible: true },
+  { key: 'finance', label: 'Finanças', icon: 'Wallet', order: 4, visible: true },
+  { key: 'professional', label: 'Painel Pro', icon: 'StethoscopeIcon', order: 5, visible: true },
+]
+
+export const DEFAULT_PRO_NAV_ITEMS: NavItemCustomization[] = [
+  { key: 'overview', label: 'Visão Geral', icon: 'LayoutDashboard', order: 0, visible: true },
+  { key: 'patients', label: 'Pacientes', icon: 'Users', order: 1, visible: true },
+  { key: 'appointments', label: 'Consultas', icon: 'Calendar', order: 2, visible: true },
+  { key: 'notes', label: 'Anotações Clínicas', icon: 'FileText', order: 3, visible: true },
+  { key: 'groups_pro', label: 'Grupos Pro', icon: 'MessageCircle', order: 4, visible: true },
+]
+
 export const DEFAULT_SITE_SETTINGS: SiteSettingsData = {
   app_name: 'VibeCoding Tarefas',
+  brand_name: 'VibeCoding Tarefas',
+  pro_brand_name: 'Painel Pro',
   hero_title: 'Organize sua vida com o poder do VibeCoding',
   hero_subtitle:
     'Tarefas, hábitos, saúde física e mental, estudos e finanças pessoais em um ecossistema gamificado e ultra-rápido.',
@@ -119,6 +150,8 @@ export const DEFAULT_SITE_SETTINGS: SiteSettingsData = {
       description: 'Suba de nível com streaks contínuos e relatórios em tempo real sem atrito.',
     },
   ],
+  nav_customization: DEFAULT_USER_NAV_ITEMS,
+  pro_nav_customization: DEFAULT_PRO_NAV_ITEMS,
 }
 
 export const DEFAULT_CONTENT_FLAGS: ContentFlagsData = {
@@ -142,7 +175,7 @@ interface SiteSettingsState {
   ) => Promise<boolean>
   toggleContentFlag: (key: keyof ContentFlagsData, enabled: boolean) => Promise<boolean>
   restoreDefaults: () => Promise<boolean>
-  restorePageDefaults: (page: 'landing' | 'login') => Promise<boolean>
+  restorePageDefaults: (page: 'landing' | 'login' | 'system' | 'system_pro') => Promise<boolean>
 }
 
 export const useSiteSettingsStore = create<SiteSettingsState>((set, get) => ({
@@ -174,6 +207,14 @@ export const useSiteSettingsStore = create<SiteSettingsState>((set, get) => ({
                 // mantem string pura
               }
             }
+
+            // Merge inteligente para itens de menu: garantir que chaves novas apareçam
+            if (row.key === 'nav_customization' && Array.isArray(val)) {
+              val = mergeNavCustomization(DEFAULT_USER_NAV_ITEMS, val)
+            } else if (row.key === 'pro_nav_customization' && Array.isArray(val)) {
+              val = mergeNavCustomization(DEFAULT_PRO_NAV_ITEMS, val)
+            }
+
             ;(newSettings as any)[row.key] = val
           }
         })
@@ -306,7 +347,7 @@ export const useSiteSettingsStore = create<SiteSettingsState>((set, get) => ({
     }
   },
 
-  restorePageDefaults: async (page: 'landing' | 'login') => {
+  restorePageDefaults: async (page: 'landing' | 'login' | 'system' | 'system_pro') => {
     const prevSettings = get().settings
     const prevFlags = get().flags
 
@@ -328,9 +369,13 @@ export const useSiteSettingsStore = create<SiteSettingsState>((set, get) => ({
         'steps',
       ]
       flagsToReset = ['hero', 'features_section', 'how_it_works', 'final_cta', 'footer']
-    } else {
+    } else if (page === 'login') {
       keysToReset = ['login_title', 'login_subtitle', 'login_button_label', 'login_footer_text']
       flagsToReset = ['public_signup']
+    } else if (page === 'system') {
+      keysToReset = ['brand_name', 'nav_customization']
+    } else if (page === 'system_pro') {
+      keysToReset = ['pro_brand_name', 'pro_nav_customization']
     }
 
     const nextSettings: SiteSettingsData = { ...prevSettings }
@@ -359,17 +404,24 @@ export const useSiteSettingsStore = create<SiteSettingsState>((set, get) => ({
         updated_at: new Date().toISOString(),
       }))
 
-      const [resSettings, resFlags] = await Promise.all([
-        dbFrom('site_settings').upsert(settingEntries),
-        dbFrom('content_flags').upsert(flagEntries),
-      ])
+      const promises: Promise<any>[] = [dbFrom('site_settings').upsert(settingEntries)]
+      if (flagEntries.length > 0) {
+        promises.push(dbFrom('content_flags').upsert(flagEntries))
+      }
 
-      if (resSettings.error) throw resSettings.error
-      if (resFlags.error) throw resFlags.error
+      const results = await Promise.all(promises)
+      for (const res of results) {
+        if (res.error) throw res.error
+      }
 
-      toast.success(
-        `Padrões de ${page === 'landing' ? 'Landing Page' : 'Página de Login'} restaurados!`,
-      )
+      const pageLabels: Record<string, string> = {
+        landing: 'Landing Page',
+        login: 'Página de Login',
+        system: 'Sistema Ada',
+        system_pro: 'Sistema Ada Pro',
+      }
+
+      toast.success(`Padrões de ${pageLabels[page] || page} restaurados!`)
       return true
     } catch (err: any) {
       set({ settings: prevSettings, flags: prevFlags })
@@ -378,3 +430,53 @@ export const useSiteSettingsStore = create<SiteSettingsState>((set, get) => ({
     }
   },
 }))
+
+/**
+ * Função utilitária para merge de personalizações de navegação:
+ * - Preserva chaves salvas com rótulos, ícones, ordem e visibilidade
+ * - Adiciona chaves default que não estavam presentes no JSON salvo
+ * - Garante ordenação estável pelo campo 'order'
+ */
+export function mergeNavCustomization(
+  defaultItems: NavItemCustomization[],
+  savedItems: NavItemCustomization[] = [],
+): NavItemCustomization[] {
+  const savedMap = new Map<string, NavItemCustomization>()
+  savedItems.forEach((item) => {
+    if (item && item.key) {
+      savedMap.set(item.key, item)
+    }
+  })
+
+  // Para cada item default, pega a personalização salva ou o default
+  const merged: NavItemCustomization[] = defaultItems.map((defItem) => {
+    const saved = savedMap.get(defItem.key)
+    if (!saved) return defItem
+    return {
+      key: defItem.key,
+      label: typeof saved.label === 'string' && saved.label.trim() ? saved.label : defItem.label,
+      icon: saved.icon || defItem.icon,
+      order: typeof saved.order === 'number' ? saved.order : defItem.order,
+      visible: typeof saved.visible === 'boolean' ? saved.visible : defItem.visible,
+    }
+  })
+
+  return merged.sort((a, b) => a.order - b.order)
+}
+
+/**
+ * Hook para consumo único e padronizado do nome do sistema e Pro:
+ * Devolve brandName com fallback para app_name e depois 'VibeCoding Tarefas',
+ * e proBrandName com fallback para 'Painel Pro'.
+ */
+export function useBrandName() {
+  const settings = useSiteSettingsStore((s) => s.settings)
+  const brandName = (settings.brand_name || settings.app_name || 'VibeCoding Tarefas').trim()
+  const proBrandName = (settings.pro_brand_name || 'Painel Pro').trim()
+
+  return {
+    brandName,
+    proBrandName,
+    appName: brandName,
+  }
+}

@@ -1,8 +1,9 @@
 import { Sparkles } from 'lucide-react'
-import { useSiteSettingsStore } from '@/stores/useSiteSettingsStore'
+import { useSiteSettingsStore, useBrandName } from '@/stores/useSiteSettingsStore'
 
 export function LandingFooter() {
   const { settings } = useSiteSettingsStore()
+  const { brandName } = useBrandName()
   const currentYear = new Date().getFullYear()
 
   return (
@@ -13,9 +14,7 @@ export function LandingFooter() {
             <Sparkles className="w-5 h-5 text-[#58CC02]" />
           </div>
           <div>
-            <span className="font-black text-base text-foreground">
-              {settings.app_name || 'VibeCoding Tarefas'}
-            </span>
+            <span className="font-black text-base text-foreground">{brandName}</span>
             <p className="text-xs text-muted-foreground font-semibold">
               {settings.footer_message ||
                 'Desenvolvido com foco em alta performance e simplicidade.'}
@@ -24,8 +23,7 @@ export function LandingFooter() {
         </div>
 
         <div className="text-xs font-semibold text-muted-foreground">
-          © {currentYear} {settings.app_name || 'VibeCoding Tarefas'}.{' '}
-          {settings.copyright_text || 'Todos os direitos reservados.'}
+          © {currentYear} {brandName}. {settings.copyright_text || 'Todos os direitos reservados.'}
         </div>
       </div>
     </footer>

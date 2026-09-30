@@ -2,11 +2,12 @@ import { Link } from 'react-router-dom'
 import { Sparkles, ArrowRight, User } from 'lucide-react'
 import { GameButton } from '@/components/ui/game-button'
 import { useAuth } from '@/hooks/use-auth'
-import { useSiteSettingsStore } from '@/stores/useSiteSettingsStore'
+import { useSiteSettingsStore, useBrandName } from '@/stores/useSiteSettingsStore'
 
 export function LandingNavbar() {
   const { user } = useAuth()
   const { settings } = useSiteSettingsStore()
+  const { brandName } = useBrandName()
 
   return (
     <header className="sticky top-0 z-50 backdrop-blur-md bg-background/85 border-b">
@@ -16,7 +17,7 @@ export function LandingNavbar() {
             <Sparkles className="w-5 h-5 sm:w-6 sm:h-6 text-[#58CC02]" />
           </div>
           <span className="font-black text-lg sm:text-xl tracking-tight text-foreground">
-            {settings.app_name || 'VibeCoding Tarefas'}
+            {brandName}
           </span>
         </Link>
 

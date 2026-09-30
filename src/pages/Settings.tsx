@@ -141,7 +141,7 @@ export default function Settings() {
   ]
 
   const colorThemes = [
-    { value: 'default' as const, label: 'Zenith Bloom', colors: ['#58CC02', '#FFC800', '#1CB0F6'] },
+    { value: 'default' as const, label: 'Vibe Bloom', colors: ['#58CC02', '#FFC800', '#1CB0F6'] },
     { value: 'ocean' as const, label: 'Oceano', colors: ['#0284c7', '#06b6d4', '#38bdf8'] },
     { value: 'forest' as const, label: 'Floresta', colors: ['#4d7c0f', '#059669', '#84cc16'] },
     { value: 'sunset' as const, label: 'Sunset', colors: ['#FF6B35', '#F72585', '#FFB627'] },
