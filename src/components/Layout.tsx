@@ -2,6 +2,7 @@ import { Outlet } from 'react-router-dom'
 import { Sidebar } from '@/components/layout/sidebar'
 import { BottomNav } from '@/components/layout/bottom-nav'
 import { FocusRadarToggle } from '@/components/focus-radar/focus-radar-toggle'
+import { TourManager } from '@/components/tours/TourManager'
 
 export default function Layout() {
   return (
@@ -14,6 +15,8 @@ export default function Layout() {
       </div>
       <BottomNav />
       <FocusRadarToggle />
+      {/* Motor de tutoriais do app do usuário */}
+      <TourManager context="user" />
     </div>
   )
 }

@@ -155,6 +155,24 @@ export function MasterAuditTab() {
           icon: Trash2,
           color: 'bg-rose-500/10 text-rose-600 border-rose-500/30',
         }
+      case 'reset_user_usage_data':
+        return {
+          label: 'Limpou Dados de Uso',
+          icon: Trash2,
+          color: 'bg-rose-500/10 text-rose-600 border-rose-500/30',
+        }
+      case 'reset_user_clinical_data':
+        return {
+          label: 'Limpou Consultório',
+          icon: Trash2,
+          color: 'bg-amber-500/10 text-amber-600 border-amber-500/30',
+        }
+      case 'reset_user_all_data':
+        return {
+          label: 'Reset Completo da Conta',
+          icon: Trash2,
+          color: 'bg-red-500/15 text-red-700 border-red-500/40',
+        }
       default:
         return {
           label: action,
@@ -218,6 +236,9 @@ export function MasterAuditTab() {
           <option value="create_exercise">Criar Exercício Global</option>
           <option value="update_exercise">Atualizar Exercício Global</option>
           <option value="delete_exercise">Excluir Exercício Global</option>
+          <option value="reset_user_usage_data">Reset Dados de Uso</option>
+          <option value="reset_user_clinical_data">Reset Consultório</option>
+          <option value="reset_user_all_data">Reset Completo de Conta</option>
         </select>
       </div>
 

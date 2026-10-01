@@ -117,10 +117,13 @@ export function SiteSettingsTab() {
     loadSiteData,
   } = useSiteSettingsStore()
 
-  // Tab selector: 'landing' | 'login' | 'system' | 'system_pro'
-  const [selectedPage, setSelectedPage] = useState<'landing' | 'login' | 'system' | 'system_pro'>(
-    'landing',
-  )
+  // Tab selector: 'landing' | 'login' | 'system' | 'system_pro' | 'tutorials'
+  const [selectedPage, setSelectedPage] = useState<
+    'landing' | 'login' | 'system' | 'system_pro' | 'tutorials'
+  >('landing')
+
+  // Selected tutorial being edited
+  const [editingTutorialId, setEditingTutorialId] = useState<string | null>(null)
 
   // Local form state for zero-lag editing and live preview
   const [formData, setFormData] = useState<SiteSettingsData>(settings)
@@ -335,9 +338,119 @@ export function SiteSettingsTab() {
           pro_brand_name: DEFAULT_SITE_SETTINGS.pro_brand_name,
           pro_nav_customization: DEFAULT_PRO_NAV_ITEMS,
         }))
+      } else if (selectedPage === 'tutorials') {
+        setFormData((prev) => ({
+          ...prev,
+          tutorials: [],
+        }))
+        setEditingTutorialId(null)
       }
       setHasChanges(false)
     }
+  }
+
+  // Tutorial CRUD helpers
+  const currentTutorials = formData.tutorials || []
+  const activeTutorial = currentTutorials.find((t) => t.id === editingTutorialId) || null
+
+  const handleAddTutorial = () => {
+    const newId = `tut-${Date.now()}`
+    const newTut = {
+      id: newId,
+      audience: 'user' as const,
+      target_page: 'dashboard',
+      title: 'Novo Tutorial',
+      content: 'Instruções claras para guiar o usuário nesta tela.',
+      type: 'tour' as const,
+      trigger: 'first_access' as const,
+      active: true,
+      steps: [
+        {
+          step: 1,
+          title: 'Primeiro passo',
+          content: 'Bem-vindo! Esta é a visão geral do seu dia.',
+          target: 'Visão Geral',
+        },
+        {
+          step: 2,
+          title: 'Segundo passo',
+          content: 'Acompanhe seu progresso e hábitos por aqui.',
+          target: 'Hábitos e Tarefas',
+        },
+      ],
+    }
+    const nextList = [...currentTutorials, newTut]
+    handleInputChange('tutorials', nextList)
+    setEditingTutorialId(newId)
+  }
+
+  const handleUpdateActiveTutorial = (field: string, value: any) => {
+    if (!editingTutorialId) return
+    const nextList = currentTutorials.map((t) => {
+      if (t.id === editingTutorialId) {
+        return { ...t, [field]: value }
+      }
+      return t
+    })
+    handleInputChange('tutorials', nextList)
+  }
+
+  const handleDeleteTutorial = (id: string) => {
+    const nextList = currentTutorials.filter((t) => t.id !== id)
+    handleInputChange('tutorials', nextList)
+    if (editingTutorialId === id) {
+      setEditingTutorialId(null)
+    }
+  }
+
+  const handleToggleTutorialActive = (id: string, current: boolean) => {
+    const nextList = currentTutorials.map((t) => {
+      if (t.id === id) {
+        return { ...t, active: !current }
+      }
+      return t
+    })
+    handleInputChange('tutorials', nextList)
+  }
+
+  const handleAddStepToTutorial = () => {
+    if (!activeTutorial) return
+    const curSteps = activeTutorial.steps || []
+    const nextStepNum = curSteps.length + 1
+    const newStep = {
+      step: nextStepNum,
+      title: `Passo ${nextStepNum}`,
+      content: 'Descrição deste passo do tour.',
+      target: '',
+    }
+    handleUpdateActiveTutorial('steps', [...curSteps, newStep])
+  }
+
+  const handleUpdateStep = (stepIdx: number, field: string, val: any) => {
+    if (!activeTutorial) return
+    const curSteps = [...(activeTutorial.steps || [])]
+    curSteps[stepIdx] = { ...curSteps[stepIdx], [field]: val }
+    handleUpdateActiveTutorial('steps', curSteps)
+  }
+
+  const handleRemoveStepFromTutorial = (stepIdx: number) => {
+    if (!activeTutorial) return
+    const curSteps = (activeTutorial.steps || [])
+      .filter((_, i) => i !== stepIdx)
+      .map((s, idx) => ({ ...s, step: idx + 1 }))
+    handleUpdateActiveTutorial('steps', curSteps)
+  }
+
+  const handleMoveTutorialStep = (stepIdx: number, direction: 'up' | 'down') => {
+    if (!activeTutorial) return
+    const curSteps = [...(activeTutorial.steps || [])]
+    const targetIdx = direction === 'up' ? stepIdx - 1 : stepIdx + 1
+    if (targetIdx < 0 || targetIdx >= curSteps.length) return
+    const temp = curSteps[stepIdx]
+    curSteps[stepIdx] = curSteps[targetIdx]
+    curSteps[targetIdx] = temp
+    const reindexed = curSteps.map((s, idx) => ({ ...s, step: idx + 1 }))
+    handleUpdateActiveTutorial('steps', reindexed)
   }
 
   return (
@@ -379,7 +492,9 @@ export function SiteSettingsTab() {
                   ? 'Login'
                   : selectedPage === 'system'
                     ? 'Ada'
-                    : 'Ada Pro'}
+                    : selectedPage === 'system_pro'
+                      ? 'Ada Pro'
+                      : 'Tutoriais'}
             </span>
           </Button>
 
@@ -448,6 +563,19 @@ export function SiteSettingsTab() {
           >
             <StethoscopeIcon size={16} className="text-neutral-800" />
             <span>Sistema Ada Pro</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setSelectedPage('tutorials')}
+            className={`flex items-center gap-2 px-4 py-2 rounded-xl font-black text-xs transition-all shrink-0 ${
+              selectedPage === 'tutorials'
+                ? 'bg-[#1CB0F6] text-white shadow-md border-b-2 border-[#1899D6]'
+                : 'text-muted-foreground hover:text-foreground'
+            }`}
+          >
+            <GraduationCap className="w-4 h-4 text-white" />
+            <span>Tutoriais</span>
           </button>
         </div>
       </div>
@@ -1158,40 +1286,353 @@ export function SiteSettingsTab() {
                 </div>
               </Card>
             </>
+          ) : selectedPage === 'tutorials' ? (
+            <>
+              {/* Seção Tutoriais: Editor Completo */}
+              <Card className="rounded-3xl border-2 p-5 sm:p-6 bg-card space-y-5">
+                <div className="flex items-center justify-between border-b pb-3">
+                  <div className="flex items-center gap-2">
+                    <GraduationCap className="w-5 h-5 text-[#1CB0F6]" />
+                    <h3 className="font-black text-base text-foreground">
+                      Gerenciamento de Tutoriais & Tours
+                    </h3>
+                  </div>
+                  <Button
+                    type="button"
+                    onClick={handleAddTutorial}
+                    className="rounded-2xl bg-[#58CC02] hover:bg-[#58CC02]/90 border-b-4 border-[#46A302] text-white font-black text-xs h-9 px-3.5 flex items-center gap-1.5 active:translate-y-0.5 active:border-b-0"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    <span>Novo tutorial</span>
+                  </Button>
+                </div>
+
+                <p className="text-xs text-muted-foreground font-semibold">
+                  Crie tours guiados, popups ou dicas contextuais para qualquer tela do usuário ou do Painel Pro.
+                </p>
+
+                {/* Lista de Tutoriais Cadastrados */}
+                <div className="space-y-2">
+                  <Label className="text-xs font-bold text-muted-foreground uppercase tracking-wider">
+                    Tutoriais Criados ({currentTutorials.length})
+                  </Label>
+
+                  {currentTutorials.length === 0 ? (
+                    <div className="p-8 text-center border-2 border-dashed rounded-3xl bg-muted/20 space-y-3">
+                      <GraduationCap className="w-10 h-10 text-muted-foreground mx-auto opacity-40" />
+                      <div>
+                        <p className="font-black text-sm text-foreground">Nenhum tutorial criado ainda</p>
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                          O sistema inicia limpo. Clique em "Novo tutorial" para criar o primeiro tour.
+                        </p>
+                      </div>
+                      <Button
+                        type="button"
+                        onClick={handleAddTutorial}
+                        className="rounded-2xl bg-[#1CB0F6] hover:bg-[#1CB0F6]/90 border-b-4 border-[#1899D6] text-white font-black text-xs h-9 px-4"
+                      >
+                        <Plus className="w-3.5 h-3.5 mr-1" /> Criar meu primeiro tutorial
+                      </Button>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-1 gap-2.5">
+                      {currentTutorials.map((tut) => {
+                        const isSelected = tut.id === editingTutorialId
+                        return (
+                          <div
+                            key={tut.id}
+                            onClick={() => setEditingTutorialId(tut.id)}
+                            className={`p-3.5 rounded-2xl border-2 cursor-pointer transition-all flex items-center justify-between gap-3 ${
+                              isSelected
+                                ? 'border-[#1CB0F6] bg-[#1CB0F6]/10 shadow-sm'
+                                : 'bg-card border-border hover:bg-muted/30'
+                            }`}
+                          >
+                            <div className="min-w-0 flex-1">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <span className="font-black text-xs text-foreground truncate">
+                                  {tut.title || 'Tutorial sem título'}
+                                </span>
+                                <Badge
+                                  variant="outline"
+                                  className="text-[9px] font-black uppercase px-1.5 py-0"
+                                >
+                                  {tut.audience === 'professional' ? 'Painel Pro' : 'Usuário'}
+                                </Badge>
+                                <Badge
+                                  className={`text-[9px] font-black uppercase px-1.5 py-0 ${
+                                    tut.type === 'tour'
+                                      ? 'bg-[#58CC02] text-white'
+                                      : tut.type === 'popup'
+                                        ? 'bg-[#1CB0F6] text-white'
+                                        : 'bg-[#FFC800] text-neutral-900'
+                                  }`}
+                                >
+                                  {tut.type}
+                                </Badge>
+                                <Badge
+                                  variant="outline"
+                                  className="text-[9px] font-bold text-muted-foreground"
+                                >
+                                  {tut.target_page}
+                                </Badge>
+                              </div>
+                              <p className="text-[11px] text-muted-foreground truncate mt-0.5">
+                                {tut.content || (tut.steps?.length ? `${tut.steps.length} passos` : 'Sem conteúdo')}
+                              </p>
+                            </div>
+
+                            <div className="flex items-center gap-2 shrink-0" onClick={(e) => e.stopPropagation()}>
+                              <Switch
+                                checked={tut.active}
+                                onCheckedChange={() => handleToggleTutorialActive(tut.id, tut.active)}
+                                className="data-[state=checked]:bg-[#58CC02]"
+                              />
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => handleDeleteTutorial(tut.id)}
+                                className="h-8 w-8 text-muted-foreground hover:text-destructive rounded-xl"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </Button>
+                            </div>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  )}
+                </div>
+
+                {/* Formulário de Edição do Tutorial Ativo */}
+                {activeTutorial && (
+                  <div className="pt-4 border-t space-y-4 animate-in fade-in">
+                    {/* Breadcrumb de Contexto Claro */}
+                    <div className="p-3 rounded-2xl bg-muted/60 border text-xs font-black text-foreground flex items-center gap-1.5 flex-wrap">
+                      <span className="text-[#1CB0F6]">
+                        {activeTutorial.audience === 'professional' ? 'Painel Pro' : 'Sistema do usuário'}
+                      </span>
+                      <span className="text-muted-foreground">›</span>
+                      <span className="capitalize">{activeTutorial.target_page}</span>
+                      <span className="text-muted-foreground">›</span>
+                      <span className="text-foreground truncate">{activeTutorial.title}</span>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div>
+                        <Label className="text-xs font-bold text-muted-foreground">Público</Label>
+                        <select
+                          value={activeTutorial.audience}
+                          onChange={(e) => handleUpdateActiveTutorial('audience', e.target.value)}
+                          className="w-full rounded-2xl font-bold border-2 bg-background text-xs h-10 mt-1 px-3"
+                        >
+                          <option value="user">Sistema do usuário</option>
+                          <option value="professional">Painel Pro (/professional)</option>
+                        </select>
+                      </div>
+
+                      <div>
+                        <Label className="text-xs font-bold text-muted-foreground">Página-alvo</Label>
+                        <select
+                          value={activeTutorial.target_page}
+                          onChange={(e) => handleUpdateActiveTutorial('target_page', e.target.value)}
+                          className="w-full rounded-2xl font-bold border-2 bg-background text-xs h-10 mt-1 px-3"
+                        >
+                          {activeTutorial.audience === 'professional' ? (
+                            <>
+                              <option value="overview">Visão Geral Pro</option>
+                              <option value="patients">Pacientes</option>
+                              <option value="appointments">Consultas / Agenda</option>
+                              <option value="notes">Anotações Clínicas</option>
+                              <option value="groups_pro">Grupos Pro</option>
+                            </>
+                          ) : (
+                            <>
+                              <option value="dashboard">Dashboard</option>
+                              <option value="tasks">Performance (Tarefas e Hábitos)</option>
+                              <option value="health">Saúde & Nutrição</option>
+                              <option value="finance">Finanças</option>
+                              <option value="social">Social</option>
+                              <option value="studies">Estudos</option>
+                              <option value="settings">Configurações</option>
+                            </>
+                          )}
+                        </select>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div>
+                        <Label className="text-xs font-bold text-muted-foreground">Tipo de Tutorial</Label>
+                        <select
+                          value={activeTutorial.type}
+                          onChange={(e) => handleUpdateActiveTutorial('type', e.target.value)}
+                          className="w-full rounded-2xl font-bold border-2 bg-background text-xs h-10 mt-1 px-3"
+                        >
+                          <option value="tour">Tour por Passos (Passo a passo com destaque)</option>
+                          <option value="popup">Popup Informativo (Modal com botão Entendi)</option>
+                          <option value="dica">Dica no Canto (Card discreto dismissível)</option>
+                        </select>
+                      </div>
+
+                      <div>
+                        <Label className="text-xs font-bold text-muted-foreground">Gatilho de Exibição</Label>
+                        <select
+                          value={activeTutorial.trigger}
+                          onChange={(e) => handleUpdateActiveTutorial('trigger', e.target.value)}
+                          className="w-full rounded-2xl font-bold border-2 bg-background text-xs h-10 mt-1 px-3"
+                        >
+                          <option value="first_access">Primeiro acesso (1x, dismissível)</option>
+                          <option value="always">Sempre que abrir a página</option>
+                          <option value="help_button">Botão de ajuda (ícone ? no header)</option>
+                        </select>
+                      </div>
+                    </div>
+
+                    <div className="space-y-1">
+                      <Label className="text-xs font-bold text-muted-foreground">Título do Tutorial</Label>
+                      <Input
+                        value={activeTutorial.title}
+                        onChange={(e) => handleUpdateActiveTutorial('title', e.target.value)}
+                        placeholder="Ex: Tour de boas-vindas à Saúde"
+                        className="rounded-2xl font-black text-sm border-2 h-10"
+                      />
+                    </div>
+
+                    <div className="space-y-1">
+                      <Label className="text-xs font-bold text-muted-foreground">
+                        Texto Curto / Resumo
+                      </Label>
+                      <Textarea
+                        rows={2}
+                        value={activeTutorial.content}
+                        onChange={(e) => handleUpdateActiveTutorial('content', e.target.value)}
+                        placeholder="Mensagem explicativa para o usuário..."
+                        className="rounded-2xl font-semibold text-xs border-2"
+                      />
+                    </div>
+
+                    {/* Editor de Passos (apenas se tipo === 'tour') */}
+                    {activeTutorial.type === 'tour' && (
+                      <div className="pt-3 border-t space-y-3">
+                        <div className="flex items-center justify-between">
+                          <Label className="text-xs font-black uppercase text-foreground tracking-wider">
+                            Passos do Tour ({activeTutorial.steps?.length || 0})
+                          </Label>
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            onClick={handleAddStepToTutorial}
+                            className="rounded-xl font-bold text-xs h-8 px-3"
+                          >
+                            <Plus className="w-3 h-3 mr-1" /> Adicionar passo
+                          </Button>
+                        </div>
+
+                        <div className="space-y-2.5">
+                          {(activeTutorial.steps || []).map((step, sIdx) => {
+                            const isFirst = sIdx === 0
+                            const isLast = sIdx === (activeTutorial.steps || []).length - 1
+                            return (
+                              <div
+                                key={sIdx}
+                                className="p-3.5 rounded-2xl border-2 bg-muted/20 space-y-2.5"
+                              >
+                                <div className="flex items-center justify-between gap-2">
+                                  <div className="flex items-center gap-2">
+                                    <span className="w-6 h-6 rounded-lg bg-[#58CC02] text-white font-black text-xs flex items-center justify-center shrink-0">
+                                      {step.step || sIdx + 1}
+                                    </span>
+                                    <span className="font-black text-xs text-foreground">
+                                      {step.title || `Passo ${sIdx + 1}`}
+                                    </span>
+                                  </div>
+
+                                  <div className="flex items-center gap-1">
+                                    <Button
+                                      type="button"
+                                      variant="ghost"
+                                      size="icon"
+                                      disabled={isFirst}
+                                      onClick={() => handleMoveTutorialStep(sIdx, 'up')}
+                                      className="h-7 w-7 rounded-lg"
+                                    >
+                                      <ArrowUp className="w-3 h-3" />
+                                    </Button>
+                                    <Button
+                                      type="button"
+                                      variant="ghost"
+                                      size="icon"
+                                      disabled={isLast}
+                                      onClick={() => handleMoveTutorialStep(sIdx, 'down')}
+                                      className="h-7 w-7 rounded-lg"
+                                    >
+                                      <ArrowDown className="w-3 h-3" />
+                                    </Button>
+                                    <Button
+                                      type="button"
+                                      variant="ghost"
+                                      size="icon"
+                                      onClick={() => handleRemoveStepFromTutorial(sIdx)}
+                                      className="h-7 w-7 rounded-lg text-muted-foreground hover:text-destructive"
+                                    >
+                                      <Trash2 className="w-3 h-3" />
+                                    </Button>
+                                  </div>
+                                </div>
+
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                  <div>
+                                    <Label className="text-[10px] font-bold text-muted-foreground">
+                                      Título do passo
+                                    </Label>
+                                    <Input
+                                      value={step.title || ''}
+                                      placeholder="Título"
+                                      onChange={(e) => handleUpdateStep(sIdx, 'title', e.target.value)}
+                                      className="rounded-xl text-xs font-bold border-2 h-8 mt-0.5"
+                                    />
+                                  </div>
+                                  <div>
+                                    <Label className="text-[10px] font-bold text-muted-foreground">
+                                      Elemento alvo / destaque (opcional)
+                                    </Label>
+                                    <Input
+                                      value={step.target || ''}
+                                      placeholder="Ex: Botão de Nova Tarefa"
+                                      onChange={(e) => handleUpdateStep(sIdx, 'target', e.target.value)}
+                                      className="rounded-xl text-xs font-semibold border-2 h-8 mt-0.5"
+                                    />
+                                  </div>
+                                </div>
+
+                                <div>
+                                  <Label className="text-[10px] font-bold text-muted-foreground">
+                                    Texto explicativo deste passo
+                                  </Label>
+                                  <Textarea
+                                    rows={2}
+                                    value={step.content}
+                                    placeholder="O que o usuário deve saber sobre esta seção..."
+                                    onChange={(e) => handleUpdateStep(sIdx, 'content', e.target.value)}
+                                    className="rounded-xl text-xs font-semibold border-2 mt-0.5"
+                                  />
+                                </div>
+                              </div>
+                            )
+                          })}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </Card>
+            </>
           ) : (
             <>
               {/* Editor Sistema Ada Pro (Painel Profissional) */}
-              <Card className="rounded-3xl border-2 p-5 sm:p-6 bg-card space-y-4">
-                <div className="flex items-center justify-between border-b pb-3">
-                  <div className="flex items-center gap-2">
-                    <StethoscopeIcon size={18} className="text-[#FFC800]" />
-                    <h3 className="font-black text-base text-foreground">
-                      Nome do Painel Pro (pro_brand_name)
-                    </h3>
-                  </div>
-                  <Badge className="bg-[#FFC800] text-neutral-900 font-bold text-[10px]">
-                    Pro Whitelabel
-                  </Badge>
-                </div>
-
-                <div className="space-y-2">
-                  <Label className="text-xs font-bold text-muted-foreground">
-                    Nome exibido no topo do /professional e no botão da Sidebar do usuário
-                  </Label>
-                  <Input
-                    maxLength={30}
-                    value={formData.pro_brand_name || ''}
-                    placeholder="Painel Pro"
-                    onChange={(e) => handleInputChange('pro_brand_name', e.target.value)}
-                    className="rounded-2xl font-black text-sm border-2 h-11"
-                  />
-                  <p className="text-[11px] text-muted-foreground font-semibold">
-                    Máximo de 30 caracteres. Fallback padrão: "Painel Pro".
-                  </p>
-                </div>
-              </Card>
-
-              {/* Itens do Menu do Painel Pro */}
               <Card className="rounded-3xl border-2 p-5 sm:p-6 bg-card space-y-4">
                 <div className="border-b pb-3">
                   <div className="flex items-center justify-between">
@@ -1348,7 +1789,9 @@ export function SiteSettingsTab() {
                       ? 'Login'
                       : selectedPage === 'system'
                         ? 'Sistema Ada'
-                        : 'Sistema Ada Pro'}
+                        : selectedPage === 'system_pro'
+                          ? 'Sistema Ada Pro'
+                          : 'Tutoriais'}
                   )
                 </h3>
               </div>
@@ -1718,6 +2161,125 @@ export function SiteSettingsTab() {
                       </div>
                     </div>
                   </div>
+                ) : (
+                  /* Mini Preview do Tutorial Selecionado (ou mock geral) */
+                  <div className="p-4 space-y-4 relative min-h-[420px] flex flex-col justify-between">
+                    {/* Mock da tela de fundo */}
+                    <div className="space-y-3 opacity-40 pointer-events-none">
+                      <div className="flex items-center justify-between pb-2 border-b">
+                        <div className="h-4 w-28 bg-muted-foreground/30 rounded-lg" />
+                        <div className="h-6 w-6 rounded-full bg-muted-foreground/30" />
+                      </div>
+                      <div className="h-16 rounded-2xl bg-muted/80 border border-dashed" />
+                      <div className="grid grid-cols-2 gap-2">
+                        <div className="h-14 rounded-xl bg-muted/80" />
+                        <div className="h-14 rounded-xl bg-muted/80" />
+                      </div>
+                      <div className="h-20 rounded-2xl bg-muted/80" />
+                    </div>
+
+                    {/* Sobreposição do Tutorial Ativo */}
+                    {activeTutorial ? (
+                      <div className="my-auto relative z-10 animate-in zoom-in-95 duration-200">
+                        {activeTutorial.type === 'tour' ? (
+                          /* Tour Card Preview */
+                          <div className="p-4 rounded-3xl bg-card border-2 border-[#58CC02] shadow-2xl space-y-3">
+                            <div className="flex items-center justify-between">
+                              <Badge className="bg-[#58CC02] text-white text-[9px] font-black">
+                                Passo 1 de {activeTutorial.steps?.length || 1}
+                              </Badge>
+                              <span className="text-[10px] text-muted-foreground font-bold">
+                                {activeTutorial.target_page}
+                              </span>
+                            </div>
+
+                            <div>
+                              <h5 className="font-black text-sm text-foreground">
+                                {activeTutorial.steps?.[0]?.title || activeTutorial.title}
+                              </h5>
+                              <p className="text-xs text-muted-foreground font-medium mt-1 leading-relaxed">
+                                {activeTutorial.steps?.[0]?.content || activeTutorial.content}
+                              </p>
+                              {activeTutorial.steps?.[0]?.target && (
+                                <div className="mt-2 text-[10px] font-bold text-[#1CB0F6] bg-[#1CB0F6]/10 px-2 py-0.5 rounded-lg inline-block">
+                                  🎯 Alvo: {activeTutorial.steps[0].target}
+                                </div>
+                              )}
+                            </div>
+
+                            <div className="flex items-center justify-between pt-2 border-t">
+                              <span className="text-[10px] font-bold text-muted-foreground">Pular</span>
+                              <div className="flex items-center gap-1.5">
+                                <Button
+                                  type="button"
+                                  size="sm"
+                                  disabled
+                                  className="h-7 text-[10px] rounded-xl font-bold"
+                                  variant="outline"
+                                >
+                                  Anterior
+                                </Button>
+                                <Button
+                                  type="button"
+                                  size="sm"
+                                  className="h-7 text-[10px] rounded-xl font-black bg-[#58CC02] border-b-2 border-[#46A302] text-white"
+                                >
+                                  Próximo
+                                </Button>
+                              </div>
+                            </div>
+                          </div>
+                        ) : activeTutorial.type === 'popup' ? (
+                          /* Popup Modal Preview */
+                          <div className="p-5 rounded-3xl bg-card border-2 border-[#1CB0F6] shadow-2xl space-y-3 text-center">
+                            <div className="w-10 h-10 rounded-2xl bg-[#1CB0F6]/15 text-[#1CB0F6] flex items-center justify-center mx-auto">
+                              <GraduationCap className="w-5 h-5" />
+                            </div>
+                            <h5 className="font-black text-sm text-foreground">
+                              {activeTutorial.title}
+                            </h5>
+                            <p className="text-xs text-muted-foreground font-medium leading-relaxed">
+                              {activeTutorial.content}
+                            </p>
+                            <Button
+                              type="button"
+                              className="w-full h-9 rounded-2xl font-black text-xs bg-[#1CB0F6] border-b-4 border-[#1899D6] text-white active:translate-y-0.5"
+                            >
+                              Entendi
+                            </Button>
+                          </div>
+                        ) : (
+                          /* Dica no Canto Preview */
+                          <div className="p-3.5 rounded-2xl bg-amber-500/15 border-2 border-amber-500/30 text-amber-950 dark:text-amber-100 shadow-lg space-y-1.5">
+                            <div className="flex items-center justify-between">
+                              <span className="text-[10px] font-black uppercase text-amber-600 dark:text-amber-400">
+                                💡 Dica rápida
+                              </span>
+                              <span className="text-[10px] text-muted-foreground font-bold">✕</span>
+                            </div>
+                            <h6 className="font-black text-xs text-foreground">
+                              {activeTutorial.title}
+                            </h6>
+                            <p className="text-[11px] text-muted-foreground font-medium leading-relaxed">
+                              {activeTutorial.content}
+                            </p>
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      <div className="text-center p-6 border-2 border-dashed rounded-3xl bg-muted/40 my-auto">
+                        <GraduationCap className="w-8 h-8 text-muted-foreground mx-auto mb-2 opacity-50" />
+                        <p className="text-xs font-black text-foreground">Selecione ou crie um tutorial</p>
+                        <p className="text-[10px] text-muted-foreground mt-0.5">
+                          A prévia em tempo real de como o usuário verá o tour aparecerá aqui.
+                        </p>
+                      </div>
+                    )}
+
+                    <div className="text-center text-[10px] font-bold text-muted-foreground pt-2 border-t">
+                      Simulação da tela: {activeTutorial?.target_page || 'geral'}
+                    </div>
+                  </div>
                 )}
               </div>
 
@@ -1752,7 +2314,9 @@ export function SiteSettingsTab() {
                   ? 'Login'
                   : selectedPage === 'system'
                     ? 'Sistema Ada'
-                    : 'Sistema Ada Pro'}
+                    : selectedPage === 'system_pro'
+                      ? 'Sistema Ada Pro'
+                      : 'Tutoriais'}
               ?
             </AlertDialogTitle>
             <AlertDialogDescription className="text-center text-xs font-semibold text-muted-foreground">
@@ -1764,7 +2328,9 @@ export function SiteSettingsTab() {
                     ? 'Página de Login'
                     : selectedPage === 'system'
                       ? 'Sistema Ada'
-                      : 'Sistema Ada Pro'}
+                      : selectedPage === 'system_pro'
+                        ? 'Sistema Ada Pro'
+                        : 'Tutoriais (a lista será limpa)'}
               </strong>{' '}
               pelos padrões originais do sistema. As configurações das demais páginas serão
               mantidas.

@@ -13,10 +13,12 @@ import { useOnlineSync } from '@/hooks/use-online-sync'
 import { useSiteSettingsStore, useBrandName } from '@/stores/useSiteSettingsStore'
 import { useFeatureFlagsStore } from '@/stores/useFeatureFlagsStore'
 import { useIsMaster } from '@/stores/useMasterStore'
+import { supabase } from '@/lib/supabase/client'
 import { MasterRouteGuard } from '@/components/master/MasterRouteGuard'
 import { ProfessionalRouteGuard } from '@/components/professional/ProfessionalRouteGuard'
 import { FeatureGate } from '@/components/master/FeatureGate'
 import { SuspendedScreen } from '@/components/master/SuspendedScreen'
+import { toast } from 'sonner'
 
 import Layout from './components/Layout'
 import Landing from './pages/Landing'
@@ -51,8 +53,77 @@ function BootLoader() {
   const fetchHabits = useAppStore((s) => s.fetchHabits)
   const loadSiteData = useSiteSettingsStore((s) => s.loadSiteData)
   const { brandName } = useBrandName()
+  const resetUserDataState = useAppStore((s) => s.resetUserDataState)
   const lastFetchedUserIdRef = useRef<string | null>(null)
   const lastFocusFetchTimeRef = useRef<number>(0)
+  const isCheckingResetRef = useRef(false)
+
+  // Função auxiliar para verificar account_reset_at do usuário autenticado
+  const checkAccountReset = async (userId: string) => {
+    if (isCheckingResetRef.current) return
+    isCheckingResetRef.current = true
+    try {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('account_reset_at')
+        .eq('id', userId)
+        .single()
+
+      if (error || !data) return
+
+      const accountResetAt = (data as any)?.account_reset_at
+      if (!accountResetAt) return
+
+      const resetTimestamp = new Date(accountResetAt).getTime()
+      if (isNaN(resetTimestamp)) return
+
+      const localSeen = localStorage.getItem('vt_last_reset_seen')
+      const localSeenTimestamp = localSeen ? new Date(localSeen).getTime() : 0
+
+      // Se o carimbo do banco for mais recente que o local visto
+      if (resetTimestamp > localSeenTimestamp) {
+        // Limpar as chaves vt_* relacionadas a dados (preservar preferências de sessão/tema/login)
+        const keysToPreserve = new Set([
+          'vt_last_reset_seen',
+          'theme',
+          'vite-ui-theme',
+          'supabase.auth.token',
+          'sb-',
+        ])
+
+        const toRemove: string[] = []
+        for (let i = 0; i < localStorage.length; i++) {
+          const key = localStorage.key(i)
+          if (!key) continue
+          if (keysToPreserve.has(key)) continue
+          if (key.startsWith('sb-')) continue // sessao supabase
+          if (key.startsWith('vt_')) {
+            // Preservar tours dismissed? vt_tour_dismissed_*
+            if (key.startsWith('vt_tour_dismissed_')) continue
+            toRemove.push(key)
+          }
+        }
+        toRemove.forEach((k) => localStorage.removeItem(k))
+
+        // Resetar o estado da useAppStore para vazio
+        resetUserDataState()
+
+        // Gravar vt_last_reset_seen com o carimbo atualizado
+        localStorage.setItem('vt_last_reset_seen', accountResetAt)
+
+        // Toast de aviso
+        toast.info('Sua conta foi atualizada pelo administrador')
+
+        // Sincronizar novamente do banco
+        await fetchTasks()
+        await fetchHabits()
+      }
+    } catch (err) {
+      console.warn('Erro ao verificar account_reset_at:', err)
+    } finally {
+      isCheckingResetRef.current = false
+    }
+  }
 
   // 0. Carregar configurações de site_settings (whitelabel) e sincronizar document.title
   useEffect(() => {
@@ -65,22 +136,24 @@ function BootLoader() {
     }
   }, [brandName])
 
-  // 1. Plug principal: fetchTasks e fetchHabits quando usuário autenticado fica disponível
+  // 1. Plug principal: fetchTasks e fetchHabits quando usuário autenticado fica disponível + checar reset
   useEffect(() => {
     loadFlags(user?.id)
 
     if (user?.id) {
       if (lastFetchedUserIdRef.current !== user.id) {
         lastFetchedUserIdRef.current = user.id
-        fetchTasks()
-        fetchHabits()
+        checkAccountReset(user.id).then(() => {
+          fetchTasks()
+          fetchHabits()
+        })
       }
     } else {
       lastFetchedUserIdRef.current = null
     }
   }, [loadFlags, user?.id, fetchTasks, fetchHabits])
 
-  // 2. Frescor automático: listener de visibilitychange e focus com debounce (mínimo 15s)
+  // 2. Frescor automático: listener de visibilitychange e focus com debounce (mínimo 15s) + checagem de reset
   useEffect(() => {
     if (!user?.id) return
 
@@ -90,6 +163,7 @@ function BootLoader() {
       // Debounce de 15 segundos entre refetches acionados por visibilidade/foco
       if (now - lastFocusFetchTimeRef.current < 15000) return
       lastFocusFetchTimeRef.current = now
+      checkAccountReset(user.id)
       fetchTasks()
       fetchHabits()
     }

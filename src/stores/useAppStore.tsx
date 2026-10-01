@@ -566,6 +566,7 @@ interface AppState {
   offlineQueue: OfflineAction[]
   addToOfflineQueue: (action: OfflineAction) => void
   clearOfflineQueue: () => void
+  resetUserDataState: () => void
   hardReset: () => Promise<void>
 }
 
@@ -3092,6 +3093,36 @@ export const AppStoreProvider = ({ children }: { children: ReactNode }) => {
     setJiuCategories((p) => p.filter((c) => c.id !== id))
     ;(supabase as any).from('jiu_categories').delete().eq('id', id).then()
   }
+  const resetUserDataState = () => {
+    // Limpa estado em memória para valores vazios
+    setTasks([])
+    setHabits([])
+    setHydrationLogs([])
+    setMoodLogs([])
+    setDigestionLogs([])
+    setUrineLogs([])
+    setMealLogs([])
+    setDailyChecklist({})
+    setWorkoutRoutines([])
+    setWorkoutHistory([])
+    setPersonalRecords({ benchPress: '', squat: '', runTime: '' })
+    setBodyMetrics([])
+    setMentalHealthLogs([])
+    setJournalEntries([])
+    setMindEvents([])
+    setPatientGoals(initialPatientGoals)
+    setMedicalExams([])
+    setMetabolicLogs([])
+    setNutritionMicroGoals([])
+    setFastingLogs([])
+    setActiveFastingStart(null)
+    setJiuProfile(null)
+    setJiuTechniques([])
+    setJiuLogs([])
+    setJiuCategories([])
+    setOfflineQueue([])
+  }
+
   const addToOfflineQueue = (action: OfflineAction) => setOfflineQueue((p) => [...p, action])
   const clearOfflineQueue = () => setOfflineQueue([])
   const hardReset = async () => {
@@ -3289,6 +3320,7 @@ export const AppStoreProvider = ({ children }: { children: ReactNode }) => {
     offlineQueue,
     addToOfflineQueue,
     clearOfflineQueue,
+    resetUserDataState,
     hardReset,
   }
 

@@ -5,6 +5,7 @@ import { supabase } from '@/lib/supabase/client'
 import { Loader2, AlertCircle, RefreshCw } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { toast } from 'sonner'
+import { TourManager } from '@/components/tours/TourManager'
 
 interface ProfessionalRouteGuardProps {
   children?: React.ReactNode
@@ -123,7 +124,12 @@ export const ProfessionalRouteGuard: React.FC<ProfessionalRouteGuardProps> = ({ 
     return <Navigate to="/dashboard" replace />
   }
 
-  return children ? <>{children}</> : <Outlet />
+  return (
+    <>
+      {children ? <>{children}</> : <Outlet />}
+      <TourManager context="professional" />
+    </>
+  )
 }
 
 export default ProfessionalRouteGuard

@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { Profile, AdminAuditLog, useMasterStore } from '@/stores/useMasterStore'
+import { supabase } from '@/lib/supabase/client'
 import {
   Dialog,
   DialogContent,
@@ -7,6 +8,16 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -29,6 +40,8 @@ import {
   Save,
   CheckCircle2,
   ExternalLink,
+  Trash2,
+  RotateCcw,
 } from 'lucide-react'
 import { toast } from 'sonner'
 
@@ -108,6 +121,12 @@ export function UserDetailsModal({
   const [auditLogs, setAuditLogs] = useState<AdminAuditLog[]>([])
   const [hasEmailProvider, setHasEmailProvider] = useState<boolean>(false)
   const [loadingDetails, setLoadingDetails] = useState(false)
+
+  // Account reset dialog state
+  const [resetDialogOpen, setResetDialogOpen] = useState(false)
+  const [resetScope, setResetScope] = useState<'usage' | 'clinical' | 'all'>('usage')
+  const [confirmInput, setConfirmInput] = useState('')
+  const [resettingAccount, setResettingAccount] = useState(false)
 
   const isSelf = Boolean(user && currentUserId && user.id === currentUserId)
 
@@ -216,6 +235,51 @@ export function UserDetailsModal({
     if (!res.ok) {
       // Rollback
       setOverrides((prev) => ({ ...prev, [key]: Boolean(currentVal) }))
+    }
+  }
+
+  const openResetConfirm = (scope: 'usage' | 'clinical' | 'all') => {
+    setResetScope(scope)
+    setConfirmInput('')
+    setResetDialogOpen(true)
+  }
+
+  const handleExecuteReset = async () => {
+    if (confirmInput !== 'APAGAR' || !user) return
+    setResettingAccount(true)
+    try {
+      const { data, error } = await (supabase as any).rpc('master_reset_user_data', {
+        target_user_id: user.id,
+        reset_scope: resetScope,
+      })
+
+      if (error) {
+        throw new Error(error.message || 'Falha ao resetar dados da conta')
+      }
+
+      const scopeLabels = {
+        usage: 'dados de uso',
+        clinical: 'dados do consultório',
+        all: 'todos os dados',
+      }
+      toast.success(
+        `Reset concluído! Os ${scopeLabels[resetScope]} de ${user.email} foram apagados.`,
+      )
+
+      // Atualizar lista de usuários e detalhes
+      await useMasterStore.getState().loadMasterData()
+      getUserDetails(user.id).then((res) => {
+        if (res.ok) {
+          setAuditLogs(res.audit_logs || [])
+        }
+      })
+
+      setResetDialogOpen(false)
+      setConfirmInput('')
+    } catch (err: any) {
+      toast.error(err.message || 'Erro ao resetar conta do usuário')
+    } finally {
+      setResettingAccount(false)
     }
   }
 
@@ -415,6 +479,71 @@ export function UserDetailsModal({
                   </Button>
                 </div>
               </form>
+
+              {/* Card "Resetar conta" no rodapé da aba Perfil */}
+              <div className="pt-4 border-t space-y-3">
+                <div className="p-4 rounded-3xl border-2 border-red-500/30 bg-red-500/5 space-y-3">
+                  <div className="flex items-center gap-2">
+                    <div className="w-8 h-8 rounded-xl bg-red-500/15 border border-red-500/30 flex items-center justify-center text-red-500 shrink-0">
+                      <Trash2 className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <h4 className="font-black text-sm text-foreground flex items-center gap-2">
+                        <span>Resetar Conta do Usuário</span>
+                        <Badge
+                          variant="destructive"
+                          className="font-extrabold text-[9px] px-2 py-0.5 rounded-full"
+                        >
+                          Zona de Perigo
+                        </Badge>
+                      </h4>
+                      <p className="text-[11px] text-muted-foreground font-semibold">
+                        Limpe dados operacionais específicos ou todos os registros sem excluir a
+                        conta de autenticação.
+                      </p>
+                    </div>
+                  </div>
+
+                  <p className="text-xs text-muted-foreground leading-relaxed">
+                    Escolha o escopo de limpeza. O usuário receberá aviso no próximo acesso e os
+                    dados sincronizados serão resetados.
+                  </p>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 pt-1">
+                    {/* Botão 1: Limpar dados de uso */}
+                    <Button
+                      type="button"
+                      variant="destructive"
+                      onClick={() => openResetConfirm('usage')}
+                      className="rounded-2xl font-black text-xs h-10 bg-rose-500 hover:bg-rose-600 border-b-4 border-rose-700 text-white flex items-center justify-center gap-1.5 active:translate-y-0.5 active:border-b-0"
+                    >
+                      <RotateCcw className="w-3.5 h-3.5" />
+                      <span>Limpar dados de uso</span>
+                    </Button>
+
+                    {/* Botão 2: Limpar dados do consultório */}
+                    <Button
+                      type="button"
+                      onClick={() => openResetConfirm('clinical')}
+                      className="rounded-2xl font-black text-xs h-10 bg-[#FFC800] hover:bg-[#e6b400] border-b-4 border-[#cca000] text-neutral-900 flex items-center justify-center gap-1.5 active:translate-y-0.5 active:border-b-0 shadow-xs"
+                    >
+                      <RotateCcw className="w-3.5 h-3.5" />
+                      <span>Limpar consultório</span>
+                    </Button>
+
+                    {/* Botão 3: Limpar tudo */}
+                    <Button
+                      type="button"
+                      variant="destructive"
+                      onClick={() => openResetConfirm('all')}
+                      className="rounded-2xl font-black text-xs h-10 bg-red-600 hover:bg-red-700 border-b-4 border-red-800 text-white flex items-center justify-center gap-1.5 active:translate-y-0.5 active:border-b-0"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                      <span>Limpar tudo</span>
+                    </Button>
+                  </div>
+                </div>
+              </div>
             </TabsContent>
 
             {/* ABA 2: SENHA & E-MAILS */}
@@ -673,6 +802,72 @@ export function UserDetailsModal({
           </div>
         </Tabs>
       </DialogContent>
+
+      {/* AlertDialog de Confirmação Digitada com APAGAR */}
+      <AlertDialog open={resetDialogOpen} onOpenChange={setResetDialogOpen}>
+        <AlertDialogContent className="rounded-3xl border-2 max-w-md">
+          <AlertDialogHeader>
+            <div className="w-12 h-12 rounded-2xl bg-red-500/15 text-red-500 flex items-center justify-center mx-auto mb-2 border-2 border-red-500/30">
+              <AlertTriangle className="w-6 h-6" />
+            </div>
+            <AlertDialogTitle className="text-center font-black text-lg">
+              {resetScope === 'usage'
+                ? `Apagar todos os dados de uso de ${user.email}?`
+                : resetScope === 'clinical'
+                  ? `Apagar os dados de consultório de ${user.email}?`
+                  : `Apagar TODOS os dados de ${user.email}?`}
+            </AlertDialogTitle>
+            <AlertDialogDescription className="text-center text-xs font-semibold text-muted-foreground space-y-2">
+              <span className="block text-red-600 font-bold">
+                Esta ação não pode ser desfeita. Os dados serão removidos permanentemente e
+                registrado na auditoria.
+              </span>
+              <span className="block text-muted-foreground text-[11px]">
+                {resetScope === 'usage' &&
+                  'Serão excluídos: tarefas, hábitos, refeições, treinos, hidratação, registros mentais, finanças, estudos e postagens.'}
+                {resetScope === 'clinical' &&
+                  'Serão excluídos: consultas, anotações de consultório, vínculos de paciente, metas clínicas, exames e planos alimentares.'}
+                {resetScope === 'all' &&
+                  'Serão excluídos TODOS os dados pessoais de uso e de consultório do usuário.'}
+              </span>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+
+          <div className="space-y-2 py-2">
+            <Label className="text-xs font-bold text-foreground block text-center">
+              Para confirmar, digite exatamente{' '}
+              <span className="font-mono text-red-600 font-black">APAGAR</span>:
+            </Label>
+            <Input
+              value={confirmInput}
+              onChange={(e) => setConfirmInput(e.target.value)}
+              placeholder="Digite APAGAR"
+              autoFocus
+              className="rounded-2xl font-mono text-center font-black uppercase text-sm border-2 h-11 tracking-wider"
+            />
+          </div>
+
+          <AlertDialogFooter className="flex-col sm:flex-row gap-2 mt-2">
+            <AlertDialogCancel
+              disabled={resettingAccount}
+              onClick={() => {
+                setResetDialogOpen(false)
+                setConfirmInput('')
+              }}
+              className="rounded-2xl border-2 font-bold flex-1"
+            >
+              Cancelar
+            </AlertDialogCancel>
+            <AlertDialogAction
+              disabled={confirmInput !== 'APAGAR' || resettingAccount}
+              onClick={handleExecuteReset}
+              className="rounded-2xl font-black bg-red-600 hover:bg-red-700 border-b-4 border-red-800 text-white flex-1 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {resettingAccount ? 'Apagando...' : 'Confirmar reset'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Dialog>
   )
 }

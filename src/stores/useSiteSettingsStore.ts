@@ -24,6 +24,25 @@ export interface NavItemCustomization {
   visible: boolean
 }
 
+export interface TutorialStep {
+  step: number
+  title?: string
+  content: string
+  target?: string // seletor ou descrição do elemento alvo
+}
+
+export interface TutorialItem {
+  id: string
+  audience: 'user' | 'professional' // Sistema do usuário ou Painel Pro
+  target_page: string // ex: 'dashboard', 'health', 'tasks', 'finance', 'social', 'studies', 'appointments', etc.
+  title: string
+  content: string // texto curto / descrição
+  type: 'tour' | 'popup' | 'tip'
+  trigger: 'first_access' | 'always' | 'help_button'
+  active: boolean
+  steps: TutorialStep[]
+}
+
 export interface SiteSettingsData {
   app_name: string
   brand_name: string
@@ -44,6 +63,7 @@ export interface SiteSettingsData {
   steps: HowItWorksStep[]
   nav_customization: NavItemCustomization[]
   pro_nav_customization: NavItemCustomization[]
+  tutorials: TutorialItem[]
 }
 
 export interface ContentFlagsData {
@@ -152,6 +172,7 @@ export const DEFAULT_SITE_SETTINGS: SiteSettingsData = {
   ],
   nav_customization: DEFAULT_USER_NAV_ITEMS,
   pro_nav_customization: DEFAULT_PRO_NAV_ITEMS,
+  tutorials: [],
 }
 
 export const DEFAULT_CONTENT_FLAGS: ContentFlagsData = {
@@ -175,7 +196,9 @@ interface SiteSettingsState {
   ) => Promise<boolean>
   toggleContentFlag: (key: keyof ContentFlagsData, enabled: boolean) => Promise<boolean>
   restoreDefaults: () => Promise<boolean>
-  restorePageDefaults: (page: 'landing' | 'login' | 'system' | 'system_pro') => Promise<boolean>
+  restorePageDefaults: (
+    page: 'landing' | 'login' | 'system' | 'system_pro' | 'tutorials',
+  ) => Promise<boolean>
 }
 
 export const useSiteSettingsStore = create<SiteSettingsState>((set, get) => ({
@@ -210,6 +233,8 @@ export const useSiteSettingsStore = create<SiteSettingsState>((set, get) => ({
             // Merge inteligente para itens de menu: garantir que chaves novas apareçam
             if (row.key === 'nav_customization' && Array.isArray(val)) {
               val = mergeNavCustomization(DEFAULT_USER_NAV_ITEMS, val)
+            } else if (row.key === 'tutorials' && Array.isArray(val)) {
+              val = val.filter(Boolean)
             } else if (row.key === 'pro_nav_customization' && Array.isArray(val)) {
               val = mergeNavCustomization(DEFAULT_PRO_NAV_ITEMS, val)
             }
@@ -342,7 +367,9 @@ export const useSiteSettingsStore = create<SiteSettingsState>((set, get) => ({
     }
   },
 
-  restorePageDefaults: async (page: 'landing' | 'login' | 'system' | 'system_pro') => {
+  restorePageDefaults: async (
+    page: 'landing' | 'login' | 'system' | 'system_pro' | 'tutorials',
+  ) => {
     const prevSettings = get().settings
     const prevFlags = get().flags
 
@@ -371,6 +398,8 @@ export const useSiteSettingsStore = create<SiteSettingsState>((set, get) => ({
       keysToReset = ['brand_name', 'nav_customization']
     } else if (page === 'system_pro') {
       keysToReset = ['pro_brand_name', 'pro_nav_customization']
+    } else if (page === 'tutorials') {
+      keysToReset = ['tutorials']
     }
 
     const nextSettings: SiteSettingsData = { ...prevSettings }
@@ -415,6 +444,7 @@ export const useSiteSettingsStore = create<SiteSettingsState>((set, get) => ({
         login: 'Página de Login',
         system: 'Sistema Ada',
         system_pro: 'Sistema Ada Pro',
+        tutorials: 'Tutoriais',
       }
 
       toast.success(`Padrões de ${pageLabels[page] || page} restaurados!`)
