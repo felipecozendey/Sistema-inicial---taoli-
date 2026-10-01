@@ -1308,7 +1308,8 @@ export function SiteSettingsTab() {
                 </div>
 
                 <p className="text-xs text-muted-foreground font-semibold">
-                  Crie tours guiados, popups ou dicas contextuais para qualquer tela do usuário ou do Painel Pro.
+                  Crie tours guiados, popups ou dicas contextuais para qualquer tela do usuário ou
+                  do Painel Pro.
                 </p>
 
                 {/* Lista de Tutoriais Cadastrados */}
@@ -1321,9 +1322,12 @@ export function SiteSettingsTab() {
                     <div className="p-8 text-center border-2 border-dashed rounded-3xl bg-muted/20 space-y-3">
                       <GraduationCap className="w-10 h-10 text-muted-foreground mx-auto opacity-40" />
                       <div>
-                        <p className="font-black text-sm text-foreground">Nenhum tutorial criado ainda</p>
+                        <p className="font-black text-sm text-foreground">
+                          Nenhum tutorial criado ainda
+                        </p>
                         <p className="text-xs text-muted-foreground mt-0.5">
-                          O sistema inicia limpo. Clique em "Novo tutorial" para criar o primeiro tour.
+                          O sistema inicia limpo. Clique em "Novo tutorial" para criar o primeiro
+                          tour.
                         </p>
                       </div>
                       <Button
@@ -1378,14 +1382,22 @@ export function SiteSettingsTab() {
                                 </Badge>
                               </div>
                               <p className="text-[11px] text-muted-foreground truncate mt-0.5">
-                                {tut.content || (tut.steps?.length ? `${tut.steps.length} passos` : 'Sem conteúdo')}
+                                {tut.content ||
+                                  (tut.steps?.length
+                                    ? `${tut.steps.length} passos`
+                                    : 'Sem conteúdo')}
                               </p>
                             </div>
 
-                            <div className="flex items-center gap-2 shrink-0" onClick={(e) => e.stopPropagation()}>
+                            <div
+                              className="flex items-center gap-2 shrink-0"
+                              onClick={(e) => e.stopPropagation()}
+                            >
                               <Switch
                                 checked={tut.active}
-                                onCheckedChange={() => handleToggleTutorialActive(tut.id, tut.active)}
+                                onCheckedChange={() =>
+                                  handleToggleTutorialActive(tut.id, tut.active)
+                                }
                                 className="data-[state=checked]:bg-[#58CC02]"
                               />
                               <Button
@@ -1411,7 +1423,9 @@ export function SiteSettingsTab() {
                     {/* Breadcrumb de Contexto Claro */}
                     <div className="p-3 rounded-2xl bg-muted/60 border text-xs font-black text-foreground flex items-center gap-1.5 flex-wrap">
                       <span className="text-[#1CB0F6]">
-                        {activeTutorial.audience === 'professional' ? 'Painel Pro' : 'Sistema do usuário'}
+                        {activeTutorial.audience === 'professional'
+                          ? 'Painel Pro'
+                          : 'Sistema do usuário'}
                       </span>
                       <span className="text-muted-foreground">›</span>
                       <span className="capitalize">{activeTutorial.target_page}</span>
@@ -1433,10 +1447,14 @@ export function SiteSettingsTab() {
                       </div>
 
                       <div>
-                        <Label className="text-xs font-bold text-muted-foreground">Página-alvo</Label>
+                        <Label className="text-xs font-bold text-muted-foreground">
+                          Página-alvo
+                        </Label>
                         <select
                           value={activeTutorial.target_page}
-                          onChange={(e) => handleUpdateActiveTutorial('target_page', e.target.value)}
+                          onChange={(e) =>
+                            handleUpdateActiveTutorial('target_page', e.target.value)
+                          }
                           className="w-full rounded-2xl font-bold border-2 bg-background text-xs h-10 mt-1 px-3"
                         >
                           {activeTutorial.audience === 'professional' ? (
@@ -1464,7 +1482,9 @@ export function SiteSettingsTab() {
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                       <div>
-                        <Label className="text-xs font-bold text-muted-foreground">Tipo de Tutorial</Label>
+                        <Label className="text-xs font-bold text-muted-foreground">
+                          Tipo de Tutorial
+                        </Label>
                         <select
                           value={activeTutorial.type}
                           onChange={(e) => handleUpdateActiveTutorial('type', e.target.value)}
@@ -1472,12 +1492,14 @@ export function SiteSettingsTab() {
                         >
                           <option value="tour">Tour por Passos (Passo a passo com destaque)</option>
                           <option value="popup">Popup Informativo (Modal com botão Entendi)</option>
-                          <option value="dica">Dica no Canto (Card discreto dismissível)</option>
+                          <option value="tip">Dica no Canto (Card discreto dismissível)</option>
                         </select>
                       </div>
 
                       <div>
-                        <Label className="text-xs font-bold text-muted-foreground">Gatilho de Exibição</Label>
+                        <Label className="text-xs font-bold text-muted-foreground">
+                          Gatilho de Exibição
+                        </Label>
                         <select
                           value={activeTutorial.trigger}
                           onChange={(e) => handleUpdateActiveTutorial('trigger', e.target.value)}
@@ -1491,7 +1513,9 @@ export function SiteSettingsTab() {
                     </div>
 
                     <div className="space-y-1">
-                      <Label className="text-xs font-bold text-muted-foreground">Título do Tutorial</Label>
+                      <Label className="text-xs font-bold text-muted-foreground">
+                        Título do Tutorial
+                      </Label>
                       <Input
                         value={activeTutorial.title}
                         onChange={(e) => handleUpdateActiveTutorial('title', e.target.value)}
@@ -1591,7 +1615,9 @@ export function SiteSettingsTab() {
                                     <Input
                                       value={step.title || ''}
                                       placeholder="Título"
-                                      onChange={(e) => handleUpdateStep(sIdx, 'title', e.target.value)}
+                                      onChange={(e) =>
+                                        handleUpdateStep(sIdx, 'title', e.target.value)
+                                      }
                                       className="rounded-xl text-xs font-bold border-2 h-8 mt-0.5"
                                     />
                                   </div>
@@ -1602,7 +1628,9 @@ export function SiteSettingsTab() {
                                     <Input
                                       value={step.target || ''}
                                       placeholder="Ex: Botão de Nova Tarefa"
-                                      onChange={(e) => handleUpdateStep(sIdx, 'target', e.target.value)}
+                                      onChange={(e) =>
+                                        handleUpdateStep(sIdx, 'target', e.target.value)
+                                      }
                                       className="rounded-xl text-xs font-semibold border-2 h-8 mt-0.5"
                                     />
                                   </div>
@@ -1616,7 +1644,9 @@ export function SiteSettingsTab() {
                                     rows={2}
                                     value={step.content}
                                     placeholder="O que o usuário deve saber sobre esta seção..."
-                                    onChange={(e) => handleUpdateStep(sIdx, 'content', e.target.value)}
+                                    onChange={(e) =>
+                                      handleUpdateStep(sIdx, 'content', e.target.value)
+                                    }
                                     className="rounded-xl text-xs font-semibold border-2 mt-0.5"
                                   />
                                 </div>
@@ -2089,7 +2119,7 @@ export function SiteSettingsTab() {
                       </div>
                     </div>
                   </div>
-                ) : (
+                ) : selectedPage === 'system_pro' ? (
                   /* Mini Preview do Painel Pro (Sistema Ada Pro) */
                   <div className="p-4 space-y-4">
                     {/* Header do Painel Pro */}
@@ -2208,7 +2238,9 @@ export function SiteSettingsTab() {
                             </div>
 
                             <div className="flex items-center justify-between pt-2 border-t">
-                              <span className="text-[10px] font-bold text-muted-foreground">Pular</span>
+                              <span className="text-[10px] font-bold text-muted-foreground">
+                                Pular
+                              </span>
                               <div className="flex items-center gap-1.5">
                                 <Button
                                   type="button"
@@ -2269,7 +2301,9 @@ export function SiteSettingsTab() {
                     ) : (
                       <div className="text-center p-6 border-2 border-dashed rounded-3xl bg-muted/40 my-auto">
                         <GraduationCap className="w-8 h-8 text-muted-foreground mx-auto mb-2 opacity-50" />
-                        <p className="text-xs font-black text-foreground">Selecione ou crie um tutorial</p>
+                        <p className="text-xs font-black text-foreground">
+                          Selecione ou crie um tutorial
+                        </p>
                         <p className="text-[10px] text-muted-foreground mt-0.5">
                           A prévia em tempo real de como o usuário verá o tour aparecerá aqui.
                         </p>
