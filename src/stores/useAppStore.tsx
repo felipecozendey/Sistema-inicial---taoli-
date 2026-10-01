@@ -577,301 +577,12 @@ const todayStr = () => {
 }
 const nowIso = () => new Date().toISOString()
 
-function genCompletions(prob: number): string[] {
-  const result: string[] = []
-  const today = new Date()
-  for (let i = 0; i < 30; i++) {
-    if (Math.random() < prob) {
-      const d = new Date(today)
-      d.setDate(d.getDate() - i)
-      result.push(d.toISOString().split('T')[0])
-    }
-  }
-  return result
-}
-
-function genHydrationMock(): HydrationLog[] {
-  const logs: HydrationLog[] = []
-  const amounts = [250, 500, 250, 500, 250]
-  for (let i = 0; i < 7; i++) {
-    const d = new Date()
-    d.setDate(d.getDate() - i)
-    const ds = d.toISOString().split('T')[0]
-    const count = 2 + Math.floor(Math.random() * 3)
-    for (let j = 0; j < count; j++) {
-      const ts = new Date(d)
-      ts.setHours(8 + j * 3, Math.floor(Math.random() * 60), 0, 0)
-      logs.push({
-        id: `hl${i}${j}`,
-        date: ds,
-        amount: amounts[j % amounts.length],
-        timestamp: ts.toISOString(),
-      })
-    }
-  }
-  return logs
-}
-
-function genMoodMock(): MoodLog[] {
-  const logs: MoodLog[] = []
-  const levels: MoodLevel[] = [4, 3, 5, 2, 4, 3, 4]
-  for (let i = 0; i < 7; i++) {
-    const d = new Date()
-    d.setDate(d.getDate() - i)
-    const ds = d.toISOString().split('T')[0]
-    const ts = new Date(d)
-    ts.setHours(9 + Math.floor(Math.random() * 8), 0, 0, 0)
-    logs.push({
-      id: `ml${i}`,
-      date: ds,
-      moodLevel: levels[i],
-      note: i < 2 ? 'Sentindo-se bem!' : '',
-      tagId: i < 2 ? '1' : '',
-      timestamp: ts.toISOString(),
-    })
-  }
-  return logs
-}
-
-function genDigestionMock(): DigestionLog[] {
-  const logs: DigestionLog[] = []
-  const types: BowelType[] = [4, 3, 4, 5, 4, 3, 4]
-  for (let i = 0; i < 7; i++) {
-    const d = new Date()
-    d.setDate(d.getDate() - i)
-    const ds = d.toISOString().split('T')[0]
-    const ts = new Date(d)
-    ts.setHours(8, 30, 0, 0)
-    logs.push({
-      id: `dl${i}`,
-      date: ds,
-      bristolType: types[i],
-      note: '',
-      timestamp: ts.toISOString(),
-    })
-  }
-  return logs
-}
-
-function genUrineMock(): UrineLog[] {
-  const logs: UrineLog[] = []
-  const types = [2, 2, 3, 1, 2, 3, 2]
-  for (let i = 0; i < 7; i++) {
-    const d = new Date()
-    d.setDate(d.getDate() - i)
-    const ds = d.toISOString().split('T')[0]
-    const ts = new Date(d)
-    ts.setHours(10, 0, 0, 0)
-    logs.push({
-      id: `ul${i}`,
-      date: ds,
-      colorType: types[i],
-      note: '',
-      timestamp: ts.toISOString(),
-    })
-  }
-  return logs
-}
-
-const initialBodyMetrics: BodyMetric[] = []
 const initialPatientGoals: PatientGoal = {
   targetWeight: 0,
   targetBodyFat: 0,
   targetLeanMass: 0,
   height: 0,
 }
-const initialMedicalExams: MedicalExam[] = []
-const initialMicroGoals: NutritionMicroGoal[] = [
-  { id: 'mg1', title: 'Bati a Proteína', isActive: true, emoji: '🥩' },
-  { id: 'mg2', title: 'Zero Açúcar', isActive: true, emoji: '🚫' },
-  { id: 'mg3', title: 'Vegetais no Prato', isActive: true, emoji: '🥦' },
-  { id: 'mg4', title: '2L de Água', isActive: true, emoji: '💧' },
-  { id: 'mg5', title: 'Sem Ultraprocessados', isActive: true, emoji: '⛔' },
-  { id: 'mg6', title: 'Fibras no Prato', isActive: true, emoji: '🌾' },
-]
-
-const initialMentalHealthLogs: MentalHealthLog[] = [
-  {
-    id: 'mhl1',
-    date: '2026-07-10',
-    mood: 3,
-    stressLevel: 3,
-    anxietyLevel: 2,
-    sadnessLevel: 3,
-    sleepQuality: 3,
-    mentalTriggers: 'Reunião difícil no trabalho',
-    timestamp: '2026-07-10T14:00:00Z',
-  },
-  {
-    id: 'mhl2',
-    date: '2026-07-11',
-    mood: 4,
-    stressLevel: 2,
-    anxietyLevel: 1,
-    sadnessLevel: 4,
-    sleepQuality: 4,
-    mentalTriggers: '',
-    timestamp: '2026-07-11T14:00:00Z',
-  },
-  {
-    id: 'mhl3',
-    date: '2026-07-12',
-    mood: 2,
-    stressLevel: 4,
-    anxietyLevel: 4,
-    sadnessLevel: 2,
-    sleepQuality: 2,
-    mentalTriggers: 'Prazo apertado e falta de sono',
-    timestamp: '2026-07-12T14:00:00Z',
-  },
-  {
-    id: 'mhl4',
-    date: '2026-07-13',
-    mood: 5,
-    stressLevel: 1,
-    anxietyLevel: 1,
-    sadnessLevel: 5,
-    sleepQuality: 5,
-    mentalTriggers: '',
-    timestamp: '2026-07-13T14:00:00Z',
-  },
-  {
-    id: 'mhl5',
-    date: '2026-07-14',
-    mood: 3,
-    stressLevel: 3,
-    anxietyLevel: 3,
-    sadnessLevel: 3,
-    sleepQuality: 3,
-    mentalTriggers: 'Discordância com colega',
-    timestamp: '2026-07-14T14:00:00Z',
-  },
-  {
-    id: 'mhl6',
-    date: '2026-07-15',
-    mood: 4,
-    stressLevel: 2,
-    anxietyLevel: 2,
-    sadnessLevel: 4,
-    sleepQuality: 4,
-    mentalTriggers: 'Excesso de cafeína',
-    timestamp: '2026-07-15T14:00:00Z',
-  },
-]
-
-const initialTags: Tag[] = [
-  { id: '1', name: 'Saúde', color: '#10b981' },
-  { id: '2', name: 'Trabalho', color: '#3b82f6' },
-  { id: '3', name: 'Estudo', color: '#8b5cf6' },
-  { id: '4', name: 'Lazer', color: '#f59e0b' },
-]
-
-const initialTasks: Task[] = [
-  {
-    id: 't1',
-    title: 'Meditação Matinal (10 min)',
-    dueDate: todayStr(),
-    energyLevel: 1,
-    priority: 'low',
-    estimatedTime: 10,
-    tagId: '1',
-    tagIds: ['1'],
-    completed: false,
-    subtasks: [],
-  },
-  {
-    id: 't2',
-    title: 'Avançar no Projeto Principal',
-    dueDate: todayStr(),
-    energyLevel: 3,
-    priority: 'high',
-    estimatedTime: 120,
-    tagId: '2',
-    tagIds: ['2'],
-    completed: false,
-    subtasks: [
-      { id: 'st1', title: 'Definir escopo do sprint', completed: true },
-      { id: 'st2', title: 'Criar protótipo inicial', completed: true },
-      { id: 'st3', title: 'Revisar com a equipe', completed: false },
-      { id: 'st4', title: 'Documentar decisões', completed: false },
-      { id: 'st5', title: 'Preparar demo', completed: false },
-    ],
-  },
-  {
-    id: 't3',
-    title: 'Ler documentação técnica',
-    dueDate: todayStr(),
-    energyLevel: 2,
-    priority: 'medium',
-    estimatedTime: 30,
-    tagId: '3',
-    tagIds: ['3'],
-    completed: true,
-    subtasks: [],
-  },
-  {
-    id: 't4',
-    title: 'Revisar código do colega',
-    dueDate: todayStr(),
-    energyLevel: 2,
-    priority: 'medium',
-    estimatedTime: 45,
-    tagId: '2',
-    tagIds: ['2'],
-    completed: false,
-    subtasks: [
-      { id: 'st6', title: 'Clonar branch', completed: true },
-      { id: 'st7', title: 'Rodar testes locais', completed: false },
-    ],
-  },
-]
-
-const initialHabits: Habit[] = [
-  {
-    id: 'h1',
-    title: 'Beber 2L de água',
-    frequency: 'daily',
-    weekDays: [],
-    weeklyGoal: 0,
-    tagId: '1',
-    completions: genCompletions(0.8),
-    escudos: 2,
-    frozenDates: [],
-  },
-  {
-    id: 'h2',
-    title: 'Exercícios matinais',
-    frequency: 'weekly',
-    weekDays: [1, 3, 5],
-    weeklyGoal: 0,
-    tagId: '1',
-    completions: genCompletions(0.6),
-    escudos: 1,
-    frozenDates: [],
-  },
-  {
-    id: 'h3',
-    title: 'Leitura noturna',
-    frequency: 'daily',
-    weekDays: [],
-    weeklyGoal: 0,
-    tagId: '3',
-    completions: genCompletions(0.5),
-    escudos: 2,
-    frozenDates: [],
-  },
-  {
-    id: 'h4',
-    title: 'Caminhada ao ar livre',
-    frequency: 'weekly',
-    weekDays: [2, 4, 6],
-    weeklyGoal: 3,
-    tagId: '4',
-    completions: genCompletions(0.4),
-    escudos: 2,
-    frozenDates: [],
-  },
-]
 
 export const AppStoreProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<User>(() => {
@@ -890,7 +601,7 @@ export const AppStoreProvider = ({ children }: { children: ReactNode }) => {
   })
   const [tags, setTags] = useState<Tag[]>(() => {
     const s = localStorage.getItem('vt_tags')
-    return s ? JSON.parse(s) : initialTags
+    return s ? JSON.parse(s) : []
   })
   const [tasks, setTasks] = useState<Task[]>(() => {
     const s = localStorage.getItem('vt_tasks')
@@ -905,7 +616,7 @@ export const AppStoreProvider = ({ children }: { children: ReactNode }) => {
         tagIds: t.tagIds || (t.tagId ? [t.tagId] : []),
       }))
     }
-    return initialTasks
+    return []
   })
   const [habits, setHabits] = useState<Habit[]>(() => {
     const s = localStorage.getItem('vt_habits')
@@ -918,23 +629,23 @@ export const AppStoreProvider = ({ children }: { children: ReactNode }) => {
         weeklyGoal: h.weeklyGoal || 0,
       }))
     }
-    return initialHabits
+    return []
   })
   const [hydrationLogs, setHydrationLogs] = useState<HydrationLog[]>(() => {
     const s = localStorage.getItem('vt_hydration_logs')
-    return s ? JSON.parse(s) : genHydrationMock()
+    return s ? JSON.parse(s) : []
   })
   const [moodLogs, setMoodLogs] = useState<MoodLog[]>(() => {
     const s = localStorage.getItem('vt_mood_logs')
-    return s ? JSON.parse(s) : genMoodMock()
+    return s ? JSON.parse(s) : []
   })
   const [digestionLogs, setDigestionLogs] = useState<DigestionLog[]>(() => {
     const s = localStorage.getItem('vt_digestion_logs')
-    return s ? JSON.parse(s) : genDigestionMock()
+    return s ? JSON.parse(s) : []
   })
   const [urineLogs, setUrineLogs] = useState<UrineLog[]>(() => {
     const s = localStorage.getItem('vt_urine_logs')
-    return s ? JSON.parse(s) : genUrineMock()
+    return s ? JSON.parse(s) : []
   })
   const [mealLogs, setMealLogs] = useState<MealLog[]>(() => {
     const s = localStorage.getItem('vt_meal_logs')
@@ -958,11 +669,11 @@ export const AppStoreProvider = ({ children }: { children: ReactNode }) => {
   })
   const [bodyMetrics, setBodyMetrics] = useState<BodyMetric[]>(() => {
     const s = localStorage.getItem('vt_body_metrics')
-    return s ? JSON.parse(s) : initialBodyMetrics
+    return s ? JSON.parse(s) : []
   })
   const [mentalHealthLogs, setMentalHealthLogs] = useState<MentalHealthLog[]>(() => {
     const s = localStorage.getItem('vt_mental_health_logs')
-    return s ? JSON.parse(s) : initialMentalHealthLogs
+    return s ? JSON.parse(s) : []
   })
   const [journalEntries, setJournalEntries] = useState<JournalEntry[]>(() => {
     const s = localStorage.getItem('vt_journal_entries')
@@ -978,7 +689,7 @@ export const AppStoreProvider = ({ children }: { children: ReactNode }) => {
   })
   const [medicalExams, setMedicalExams] = useState<MedicalExam[]>(() => {
     const s = localStorage.getItem('vt_medical_exams')
-    return s ? JSON.parse(s) : initialMedicalExams
+    return s ? JSON.parse(s) : []
   })
   const [metabolicLogs, setMetabolicLogs] = useState<MetabolicLog[]>(() => {
     const s = localStorage.getItem('vt_metabolic_logs')
@@ -986,7 +697,7 @@ export const AppStoreProvider = ({ children }: { children: ReactNode }) => {
   })
   const [nutritionMicroGoals, setNutritionMicroGoals] = useState<NutritionMicroGoal[]>(() => {
     const s = localStorage.getItem('vt_nutrition_micro_goals')
-    return s ? JSON.parse(s) : initialMicroGoals
+    return s ? JSON.parse(s) : []
   })
   const [focusRadar, setFocusRadar] = useState<FocusRadarSettings>(() => {
     const s = localStorage.getItem('vt_focus_radar')
