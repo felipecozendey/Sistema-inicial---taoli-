@@ -27,6 +27,18 @@ export interface PatientLink {
   responded_at: string | null
   granted_pages: string[]
   allow_multidisciplinary?: boolean
+  is_offline?: boolean
+  offline_details?: {
+    phone?: string
+    birth_date?: string
+    gender?: string
+    notes?: string
+    created_offline_at?: string
+    created_by_professional_id?: string
+    first_conversion_by?: string
+    conversion_requested_at?: string
+    [key: string]: any
+  }
   patient_name?: string
   patient_email?: string
   professional_name?: string
@@ -185,6 +197,28 @@ interface ProfessionalState {
 
   // Patient link management
   invitePatientByEmail: (email: string) => Promise<boolean>
+  checkOfflineEmail: (email: string) => Promise<{
+    status: 'free' | 'offline_patient' | 'registered_user' | 'already_linked'
+    patient_id?: string
+    first_professional_id?: string
+    first_professional_name?: string
+    message?: string
+  }>
+  createOfflinePatient: (data: {
+    displayName: string
+    email: string
+    phone?: string
+    birthDate?: string
+    gender?: string
+    notes?: string
+  }) => Promise<{ ok: boolean; patientId?: string; error?: string }>
+  convertOfflinePatient: (patientId: string) => Promise<{
+    ok: boolean
+    isFirst?: boolean
+    warning?: string
+    message?: string
+    actionLink?: string | null
+  }>
   respondPatientInvite: (
     linkId: string,
     accept: boolean,
@@ -357,11 +391,14 @@ export const useProfessionalStore = create<ProfessionalState>((set, get) => ({
         ]),
       )
 
-      let patientProfilesMap: Record<string, { name: string; email: string }> = {}
+      let patientProfilesMap: Record<
+        string,
+        { name: string; email: string; is_offline?: boolean }
+      > = {}
       if (patientIds.length > 0) {
         const { data: pProfiles } = await supabase
           .from('profiles')
-          .select('id, display_name, email')
+          .select('id, display_name, email, is_offline')
           .in('id', patientIds)
 
         if (pProfiles) {
@@ -369,6 +406,7 @@ export const useProfessionalStore = create<ProfessionalState>((set, get) => ({
             patientProfilesMap[p.id] = {
               name: p.display_name || p.email.split('@')[0],
               email: p.email,
+              is_offline: Boolean(p.is_offline),
             }
           })
         }
@@ -378,6 +416,8 @@ export const useProfessionalStore = create<ProfessionalState>((set, get) => ({
         ...l,
         granted_pages: Array.isArray(l.granted_pages) ? l.granted_pages : [],
         allow_multidisciplinary: Boolean(l.allow_multidisciplinary),
+        is_offline: Boolean(patientProfilesMap[l.patient_id]?.is_offline),
+        offline_details: l.offline_details || {},
         patient_name: patientProfilesMap[l.patient_id]?.name || 'Paciente',
         patient_email: patientProfilesMap[l.patient_id]?.email || '',
       }))

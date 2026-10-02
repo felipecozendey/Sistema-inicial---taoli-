@@ -100,18 +100,18 @@ Deno.serve(async (req: Request) => {
       auth: { autoRefreshToken: false, persistSession: false },
     })
 
-    // Check if caller is master
+    // Fetch caller profile
     const { data: callerProfile, error: profileError } = await adminClient
       .from('profiles')
       .select('id, email, role, status')
       .eq('id', callerUser.id)
       .single()
 
-    if (profileError || !callerProfile || callerProfile.role !== 'master') {
+    if (profileError || !callerProfile) {
       return new Response(
         JSON.stringify({
           ok: false,
-          error: 'Acesso negado: apenas usuários Master podem executar esta ação.',
+          error: 'Perfil do solicitante não encontrado.',
         }),
         { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
       )
@@ -124,8 +124,135 @@ Deno.serve(async (req: Request) => {
       })
     }
 
-    const body: ManageUsersRequest = await req.json()
+    const body: ManageUsersRequest & {
+      patient_id?: string
+      notes?: string
+      phone?: string
+      birth_date?: string
+      gender?: string
+    } = await req.json()
     const { action } = body
+
+    // ACTION: CONVERT / INVITE OFFLINE PATIENT (allowed for healthcare professionals linked to the patient, or master)
+    if (action === 'send_offline_conversion_invite') {
+      const patientId = body.patient_id || body.user_id || body.target_user_id
+      if (!patientId) {
+        return new Response(JSON.stringify({ ok: false, error: 'ID do paciente obrigatório.' }), {
+          status: 400,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        })
+      }
+
+      // Verify caller is linked as active professional or is master
+      let isAllowed = callerProfile.role === 'master'
+      if (!isAllowed) {
+        const { data: link } = await adminClient
+          .from('professional_patients')
+          .select('id, status')
+          .eq('professional_id', callerUser.id)
+          .eq('patient_id', patientId)
+          .eq('status', 'active')
+          .maybeSingle()
+        if (link) isAllowed = true
+      }
+
+      if (!isAllowed) {
+        return new Response(
+          JSON.stringify({
+            ok: false,
+            error: 'Acesso negado: vínculo profissional não encontrado.',
+          }),
+          { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+        )
+      }
+
+      // Call convert_offline_patient RPC
+      const { data: convData, error: convErr } = await adminClient.rpc('convert_offline_patient', {
+        p_patient_id: patientId,
+      })
+
+      if (convErr) {
+        return new Response(
+          JSON.stringify({
+            ok: false,
+            error: convErr.message || 'Falha ao processar conversão do paciente.',
+          }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+        )
+      }
+
+      // Fetch patient profile
+      const { data: patProfile } = await adminClient
+        .from('profiles')
+        .select('id, email, display_name')
+        .eq('id', patientId)
+        .maybeSingle()
+
+      const patientEmail = patProfile?.email || convData?.patient_email
+
+      // Generate magic / recovery link for patient
+      let actionLink: string | null = null
+      if (patientEmail) {
+        const linkRes = await adminClient.auth.admin.generateLink({
+          type: 'magiclink',
+          email: patientEmail,
+        })
+        if (linkRes.data?.properties?.action_link) {
+          actionLink = linkRes.data.properties.action_link
+        } else {
+          const recRes = await adminClient.auth.admin.generateLink({
+            type: 'recovery',
+            email: patientEmail,
+          })
+          if (recRes.data?.properties?.action_link) {
+            actionLink = recRes.data.properties.action_link
+          }
+        }
+      }
+
+      let emailSent = false
+      if (resendApiKey && patientEmail && actionLink) {
+        emailSent = await sendResendEmail(
+          patientEmail,
+          'Convite de Acesso ao Sistema - VibeCoding Tarefas',
+          `
+            <div style="font-family: sans-serif; padding: 24px; max-width: 600px; margin: 0 auto; border: 1px solid #e2e8f0; border-radius: 16px;">
+              <h2 style="color: #1CB0F6; margin-bottom: 8px;">Olá${patProfile?.display_name ? `, ${patProfile.display_name}` : ''}!</h2>
+              <p style="color: #334155; font-size: 15px; line-height: 1.5;">Seu profissional de saúde convidou você para acessar o sistema no <strong>VibeCoding Tarefas</strong>.</p>
+              <p style="color: #334155; font-size: 14px; line-height: 1.5;">Ao acessar pela primeira vez, você poderá definir sua senha e visualizar suas consultas, planos alimentares, treinos e evoluções clínicas registradas.</p>
+              <div style="margin: 28px 0; text-align: center;">
+                <a href="${actionLink}" style="display:inline-block;padding:14px 28px;background:#58CC02;color:#ffffff;text-decoration:none;border-radius:14px;font-weight:bold;font-size:15px;box-shadow: 0 4px 0 #46a302;">Finalizar Meu Cadastro</a>
+              </div>
+              <p style="font-size: 12px; color: #94a3b8; word-break: break-all;">Caso o botão não funcione, acesse pelo link: ${actionLink}</p>
+            </div>
+          `,
+        )
+      }
+
+      return new Response(
+        JSON.stringify({
+          ok: true,
+          data: {
+            ...convData,
+            email_sent: emailSent,
+            has_email_provider: Boolean(resendApiKey),
+            action_link: !resendApiKey ? actionLink : null,
+          },
+        }),
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+      )
+    }
+
+    // All other actions require MASTER role
+    if (callerProfile.role !== 'master') {
+      return new Response(
+        JSON.stringify({
+          ok: false,
+          error: 'Acesso negado: apenas usuários Master podem executar esta ação.',
+        }),
+        { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+      )
+    }
 
     // ACTION: CHECK EMAIL PROVIDER
     if (action === 'check_email_provider') {
