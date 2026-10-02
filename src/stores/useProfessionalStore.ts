@@ -567,6 +567,176 @@ export const useProfessionalStore = create<ProfessionalState>((set, get) => ({
     }
   },
 
+  checkOfflineEmail: async (email: string) => {
+    const cleanEmail = email.trim().toLowerCase()
+    if (!cleanEmail || !cleanEmail.includes('@')) {
+      return { status: 'free' }
+    }
+    try {
+      const { data, error } = await supabase.rpc('check_offline_email', {
+        email_to_check: cleanEmail,
+      })
+      if (error) {
+        console.error('checkOfflineEmail error:', error)
+        return { status: 'free' }
+      }
+      return data as {
+        status: 'free' | 'offline_patient' | 'registered_user' | 'already_linked'
+        patient_id?: string
+        first_professional_id?: string
+        first_professional_name?: string
+        message?: string
+      }
+    } catch (err) {
+      console.error('checkOfflineEmail unexpected error:', err)
+      return { status: 'free' }
+    }
+  },
+
+  createOfflinePatient: async (data: {
+    displayName: string
+    email: string
+    phone?: string
+    birthDate?: string
+    gender?: string
+    notes?: string
+  }) => {
+    const cleanEmail = data.email.trim().toLowerCase()
+    const cleanName = data.displayName.trim()
+
+    if (!cleanName) {
+      toast.error('O nome do paciente é obrigatório.')
+      return { ok: false, error: 'O nome do paciente é obrigatório.' }
+    }
+    if (!cleanEmail || !cleanEmail.includes('@')) {
+      toast.error('Informe um e-mail válido.')
+      return { ok: false, error: 'Informe um e-mail válido.' }
+    }
+
+    try {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser()
+      if (!user) throw new Error('Não autenticado')
+
+      // Call create_offline_patient RPC
+      const { data: newPatientId, error: rpcErr } = await supabase.rpc('create_offline_patient', {
+        p_professional_id: user.id,
+        p_email: cleanEmail,
+        p_display_name: cleanName,
+        p_phone: data.phone?.trim() || null,
+        p_birth_date: data.birthDate || null,
+        p_notes: data.notes?.trim() || null,
+        p_gender: data.gender || null,
+      })
+
+      if (rpcErr) {
+        toast.error(rpcErr.message || 'Erro ao criar paciente offline.')
+        return { ok: false, error: rpcErr.message }
+      }
+
+      // Optimistic update of local patients list
+      const tempLink: PatientLink = {
+        id: `offline-link-${Date.now()}`,
+        professional_id: user.id,
+        patient_id: newPatientId,
+        status: 'active',
+        requested_by: user.id,
+        created_at: new Date().toISOString(),
+        responded_at: new Date().toISOString(),
+        granted_pages: ['tarefas', 'saude', 'prontuario_geral', 'nutricao', 'exercicios', 'raio_x'],
+        allow_multidisciplinary: false,
+        is_offline: true,
+        offline_details: {
+          phone: data.phone?.trim(),
+          birth_date: data.birthDate,
+          gender: data.gender,
+          notes: data.notes?.trim(),
+          created_offline_at: new Date().toISOString(),
+          created_by_professional_id: user.id,
+        },
+        patient_name: cleanName,
+        patient_email: cleanEmail,
+      }
+
+      set((state) => ({
+        patients: [tempLink, ...state.patients.filter((p) => p.patient_id !== newPatientId)],
+      }))
+
+      toast.success(`Paciente offline "${cleanName}" cadastrado com sucesso!`)
+
+      // Background reload to synchronize link id & database state
+      get()
+        .loadProfessionalData()
+        .catch(() => {})
+
+      return { ok: true, patientId: newPatientId }
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Erro ao cadastrar paciente offline'
+      toast.error(message)
+      return { ok: false, error: message }
+    }
+  },
+
+  convertOfflinePatient: async (patientId: string) => {
+    const prevPatients = get().patients
+    try {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession()
+
+      if (!session) throw new Error('Não autenticado')
+
+      // Call manage-users edge function with action send_offline_conversion_invite
+      const res = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL || 'https://vibecoding.supabase.co'}/functions/v1/manage-users`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${session.access_token}`,
+          },
+          body: JSON.stringify({
+            action: 'send_offline_conversion_invite',
+            patient_id: patientId,
+          }),
+        },
+      )
+
+      const result = await res.json()
+      if (!res.ok || !result.ok) {
+        throw new Error(result.error || 'Falha ao processar conversão do paciente.')
+      }
+
+      const resData = result.data || {}
+
+      if (resData.warning) {
+        toast.warning(resData.warning)
+      } else {
+        toast.success(resData.message || 'Convite de conversão registrado com sucesso!')
+      }
+
+      // Reload professional data to reflect first_conversion_by in offline_details
+      get()
+        .loadProfessionalData()
+        .catch(() => {})
+
+      return {
+        ok: true,
+        isFirst: resData.is_first,
+        warning: resData.warning,
+        message: resData.message,
+        actionLink: resData.action_link || null,
+      }
+    } catch (err) {
+      // Rollback on failure
+      set({ patients: prevPatients })
+      const message = err instanceof Error ? err.message : 'Erro ao converter paciente'
+      toast.error(message)
+      return { ok: false, warning: message }
+    }
+  },
+
   invitePatientByEmail: async (email: string) => {
     const cleanEmail = email.trim().toLowerCase()
     if (!cleanEmail || !cleanEmail.includes('@')) {

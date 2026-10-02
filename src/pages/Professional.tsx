@@ -17,6 +17,7 @@ import { PatientDetailsDrawer } from '@/components/professional/PatientDetailsDr
 import { AppointmentModal } from '@/components/professional/AppointmentModal'
 import { NoteModal } from '@/components/professional/NoteModal'
 import { InvitePatientModal } from '@/components/professional/InvitePatientModal'
+import { CreateOfflinePatientModal } from '@/components/professional/CreateOfflinePatientModal'
 import { ProfessionalGroupsTab } from '@/components/professional/ProfessionalGroupsTab'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -106,6 +107,7 @@ export default function ProfessionalPage() {
   }, [visibleProNavItems, activeTab])
   const [clinicModalOpen, setClinicModalOpen] = useState(false)
   const [inviteModalOpen, setInviteModalOpen] = useState(false)
+  const [offlinePatientModalOpen, setOfflinePatientModalOpen] = useState(false)
   const [appointmentModalOpen, setAppointmentModalOpen] = useState(false)
   const [noteModalOpen, setNoteModalOpen] = useState(false)
   const [selectedPatientForDrawer, setSelectedPatientForDrawer] = useState<PatientLink | null>(null)
@@ -424,13 +426,23 @@ export default function ProfessionalPage() {
               </select>
             </div>
 
-            <Button
-              onClick={() => setInviteModalOpen(true)}
-              className="rounded-2xl h-11 px-5 font-black bg-[#1CB0F6] hover:bg-[#1899d6] text-white border-b-4 border-[#1899d6] active:border-b-0 active:translate-y-1 transition-all text-xs flex items-center gap-2 shadow-sm shrink-0"
-            >
-              <Plus className="w-4 h-4" />
-              <span>Convidar Paciente</span>
-            </Button>
+            <div className="flex items-center gap-2 shrink-0">
+              <Button
+                onClick={() => setOfflinePatientModalOpen(true)}
+                className="rounded-2xl h-11 px-4 font-black bg-[#1CB0F6] hover:bg-[#1899d6] text-white border-b-4 border-[#147eb0] active:border-b-0 active:translate-y-1 transition-all text-xs flex items-center gap-1.5 shadow-sm"
+              >
+                <Plus className="w-4 h-4 stroke-[3]" />
+                <span>+ Paciente offline</span>
+              </Button>
+              <Button
+                onClick={() => setInviteModalOpen(true)}
+                variant="outline"
+                className="rounded-2xl h-11 px-4 font-extrabold border-2 border-border text-xs flex items-center gap-1.5 hover:bg-muted"
+              >
+                <Plus className="w-4 h-4" />
+                <span>Convidar paciente</span>
+              </Button>
+            </div>
           </div>
 
           <div className="bg-card border-2 rounded-3xl overflow-hidden shadow-sm">
@@ -463,6 +475,11 @@ export default function ProfessionalPage() {
                       <div className="min-w-0">
                         <div className="font-bold text-sm text-foreground flex items-center gap-2 truncate">
                           <span>{p.patient_name}</span>
+                          {p.is_offline && (
+                            <span className="px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-amber-500/15 text-amber-800 dark:text-amber-300 border border-amber-500/30 shrink-0">
+                              Offline
+                            </span>
+                          )}
                           {p.status === 'active' && (
                             <Badge className="bg-emerald-500 text-white text-[9px] font-black uppercase px-2 py-0.2">
                               Ativo
@@ -708,6 +725,11 @@ export default function ProfessionalPage() {
       />
 
       <InvitePatientModal open={inviteModalOpen} onOpenChange={setInviteModalOpen} />
+
+      <CreateOfflinePatientModal
+        open={offlinePatientModalOpen}
+        onOpenChange={setOfflinePatientModalOpen}
+      />
 
       <AppointmentModal
         open={appointmentModalOpen}

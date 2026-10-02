@@ -5,6 +5,7 @@ import {
   DialogHeader,
   DialogTitle,
   DialogDescription,
+  DialogFooter,
 } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -65,6 +66,7 @@ import {
   normalizeGrantedPages,
   ScopeId,
 } from './consent-scopes.tsx'
+import { Send, Copy, Check, Globe } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { TaskForm } from '@/components/tasks/task-form'
 import { HabitForm } from '@/components/habits/habit-form'
@@ -115,6 +117,7 @@ export function PatientDetailsDrawer({ patient, open, onOpenChange }: PatientDet
     fetchPatientMultidisciplinaryScopes,
     setActivePatient,
     endPatientLink,
+    convertOfflinePatient,
   } = useProfessionalStore()
 
   const [currentUserId, setCurrentUserId] = useState<string | null>(null)
@@ -128,6 +131,18 @@ export function PatientDetailsDrawer({ patient, open, onOpenChange }: PatientDet
   const [activeTab, setActiveTab] = useState<string>('')
   const [confirmEndOpen, setConfirmEndOpen] = useState(false)
   const [ending, setEnding] = useState(false)
+
+  // Conversão de paciente offline
+  const [confirmConvertOpen, setConfirmConvertOpen] = useState(false)
+  const [converting, setConverting] = useState(false)
+  const [conversionResult, setConversionResult] = useState<{
+    open: boolean
+    warning?: string
+    message?: string
+    actionLink?: string | null
+    isFirst?: boolean
+  }>({ open: false })
+  const [copiedLink, setCopiedLink] = useState(false)
 
   // Multidisciplinary scope mapping
   const [multidisciplinaryInfo, setMultidisciplinaryInfo] = useState<{
@@ -379,6 +394,32 @@ export function PatientDetailsDrawer({ patient, open, onOpenChange }: PatientDet
 
   const initials = (patient.patient_name || patient.patient_email || 'P').slice(0, 2).toUpperCase()
 
+  const handleConvertPatient = async () => {
+    if (!patient) return
+    setConverting(true)
+    const res = await convertOfflinePatient(patient.patient_id)
+    setConverting(false)
+    setConfirmConvertOpen(false)
+
+    if (res.ok) {
+      setConversionResult({
+        open: true,
+        warning: res.warning,
+        message: res.message,
+        actionLink: res.actionLink,
+        isFirst: res.isFirst,
+      })
+    }
+  }
+
+  const handleCopyActionLink = () => {
+    if (conversionResult.actionLink) {
+      navigator.clipboard.writeText(conversionResult.actionLink)
+      setCopiedLink(true)
+      setTimeout(() => setCopiedLink(false), 2500)
+    }
+  }
+
   return (
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
@@ -386,13 +427,18 @@ export function PatientDetailsDrawer({ patient, open, onOpenChange }: PatientDet
           {/* Cabeçalho Pro Fixo (Sticky): Card do paciente + badges granulares + barra de abas rolável */}
           <DialogHeader className="shrink-0 sticky top-0 z-20 p-4 sm:p-6 pb-2.5 border-b bg-background/95 backdrop-blur-md space-y-3">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-3 min-w-0">
                 <div className="w-11 h-11 sm:w-12 sm:h-12 rounded-2xl bg-[#1CB0F6] text-white flex items-center justify-center font-black text-base sm:text-lg shadow-sm shrink-0 border-b-2 border-[#147eb0]">
                   {initials}
                 </div>
                 <div className="min-w-0 flex-1">
-                  <DialogTitle className="text-base sm:text-xl font-black text-foreground flex items-center gap-2 truncate">
+                  <DialogTitle className="text-base sm:text-xl font-black text-foreground flex items-center gap-2 truncate flex-wrap">
                     <span className="truncate">{patient.patient_name || 'Paciente'}</span>
+                    {patient.is_offline && (
+                      <span className="px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-amber-500/15 text-amber-800 dark:text-amber-300 border border-amber-500/30 shrink-0">
+                        Offline
+                      </span>
+                    )}
                     <Badge className="bg-[#1CB0F6] text-white text-[10px] font-extrabold uppercase shrink-0">
                       {patient.status === 'active' ? 'Ativo' : patient.status}
                     </Badge>
@@ -402,6 +448,20 @@ export function PatientDetailsDrawer({ patient, open, onOpenChange }: PatientDet
                   </DialogDescription>
                 </div>
               </div>
+
+              {/* Botão de conversão se paciente offline */}
+              {patient.is_offline && (
+                <div className="shrink-0 self-start sm:self-center">
+                  <Button
+                    type="button"
+                    onClick={() => setConfirmConvertOpen(true)}
+                    className="rounded-2xl h-10 px-3.5 sm:px-4 font-black bg-[#58CC02] hover:bg-[#46a302] text-white border-b-4 border-[#3c8c02] active:border-b-0 active:translate-y-1 transition-all text-xs flex items-center gap-1.5 shadow-sm cursor-pointer whitespace-nowrap"
+                  >
+                    <Send className="w-3.5 h-3.5" />
+                    <span>Convidar para o sistema</span>
+                  </Button>
+                </div>
+              )}
 
               {/* Badges granulares dos escopos disponíveis */}
               {visibleTabs.length > 0 && (
@@ -2384,6 +2444,135 @@ export function PatientDetailsDrawer({ patient, open, onOpenChange }: PatientDet
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Confirmação de conversão de paciente offline */}
+      <AlertDialog open={confirmConvertOpen} onOpenChange={setConfirmConvertOpen}>
+        <AlertDialogContent className="max-w-md rounded-3xl border-2 p-6 shadow-2xl">
+          <AlertDialogHeader>
+            <div className="w-12 h-12 rounded-2xl bg-[#58CC02]/15 text-[#58CC02] flex items-center justify-center mb-1">
+              <Globe className="w-6 h-6" />
+            </div>
+            <AlertDialogTitle className="text-lg font-black text-foreground">
+              Convidar paciente para o sistema?
+            </AlertDialogTitle>
+            <AlertDialogDescription className="text-xs text-muted-foreground leading-relaxed">
+              Um convite de acesso será registrado para{' '}
+              <strong>{patient.patient_name || patient.patient_email}</strong> (
+              {patient.patient_email}). O paciente receberá um e-mail com link para definir sua
+              senha e acessar consultas, dietas, treinos e evoluções clínicas.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="gap-2 pt-2">
+            <AlertDialogCancel disabled={converting} className="rounded-2xl font-bold">
+              Cancelar
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => {
+                e.preventDefault()
+                handleConvertPatient()
+              }}
+              disabled={converting}
+              className="rounded-2xl font-black bg-[#58CC02] hover:bg-[#46a302] text-white border-b-4 border-[#3c8c02] active:border-b-0 active:translate-y-1 transition-all"
+            >
+              {converting ? 'Enviando...' : 'Sim, convidar paciente'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Modal estruturado de resultado da conversão (com link copiável e/ou aviso de 1º profissional) */}
+      <Dialog
+        open={conversionResult.open}
+        onOpenChange={(o) => setConversionResult((prev) => ({ ...prev, open: o }))}
+      >
+        <DialogContent className="max-w-md rounded-3xl border-2 p-6 shadow-2xl">
+          <DialogHeader>
+            <div
+              className={cn(
+                'w-12 h-12 rounded-2xl flex items-center justify-center mb-1',
+                conversionResult.warning
+                  ? 'bg-amber-500/15 text-amber-600'
+                  : 'bg-emerald-500/15 text-emerald-600',
+              )}
+            >
+              <Send className="w-6 h-6" />
+            </div>
+            <DialogTitle className="text-lg font-black text-foreground">
+              {conversionResult.warning ? 'Atenção na Conversão' : 'Convite Gerado com Sucesso!'}
+            </DialogTitle>
+            <DialogDescription className="text-xs text-muted-foreground leading-relaxed">
+              {conversionResult.message ||
+                'A solicitação de conversão do paciente offline foi processada.'}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-3 py-2 text-xs">
+            {/* Aviso estruturado se outro profissional já solicitou primeiro */}
+            {conversionResult.warning && (
+              <div className="p-3.5 rounded-2xl bg-amber-500/10 border-2 border-amber-500/40 text-amber-900 dark:text-amber-200 space-y-1">
+                <p className="font-black text-[11px] uppercase tracking-wide">
+                  Prioridade de Importação
+                </p>
+                <p className="text-[11px] leading-relaxed">{conversionResult.warning}</p>
+              </div>
+            )}
+
+            {/* Link de ativação caso o Resend não esteja configurado */}
+            {conversionResult.actionLink && (
+              <div className="space-y-2 p-3.5 rounded-2xl bg-[#1CB0F6]/10 border-2 border-[#1CB0F6]/30">
+                <div className="flex items-center justify-between">
+                  <span className="font-extrabold text-[11px] text-foreground">
+                    Link de Ativação Manual
+                  </span>
+                  <span className="text-[10px] text-muted-foreground font-semibold">
+                    Envie para o paciente
+                  </span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="text"
+                    readOnly
+                    value={conversionResult.actionLink}
+                    className="w-full h-9 px-2.5 rounded-xl border bg-background text-[11px] font-mono text-muted-foreground truncate select-all"
+                  />
+                  <Button
+                    type="button"
+                    size="sm"
+                    onClick={handleCopyActionLink}
+                    className="h-9 px-3 rounded-xl font-black bg-[#1CB0F6] hover:bg-[#1899d6] text-white shrink-0 border-b-2 border-[#147eb0]"
+                  >
+                    {copiedLink ? (
+                      <>
+                        <Check className="w-3.5 h-3.5 mr-1 text-white" />
+                        Copiado!
+                      </>
+                    ) : (
+                      <>
+                        <Copy className="w-3.5 h-3.5 mr-1" />
+                        Copiar
+                      </>
+                    )}
+                  </Button>
+                </div>
+                <p className="text-[10px] text-muted-foreground leading-relaxed">
+                  Como o envio de e-mails em lote não possui chave de API Resend ativa, você pode
+                  copiar este link diretamente e enviá-lo por WhatsApp ou mensagem ao paciente.
+                </p>
+              </div>
+            )}
+          </div>
+
+          <DialogFooter className="pt-2">
+            <Button
+              type="button"
+              onClick={() => setConversionResult({ open: false })}
+              className="w-full rounded-2xl h-11 font-black bg-[#1CB0F6] hover:bg-[#1899d6] text-white border-b-4 border-[#147eb0]"
+            >
+              Concluir
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Confirmação de encerramento */}
       <AlertDialog open={confirmEndOpen} onOpenChange={setConfirmEndOpen}>
