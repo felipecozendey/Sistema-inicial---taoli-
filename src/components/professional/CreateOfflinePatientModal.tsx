@@ -111,12 +111,16 @@ export function CreateOfflinePatientModal({ open, onOpenChange }: CreateOfflineP
     }
   }, [email, checkOfflineEmail])
 
+  const cleanEmail = email.trim().toLowerCase()
+  const hasEmail = cleanEmail.length > 0
+
   const isFormValid =
     displayName.trim().length > 0 &&
-    email.trim().includes('@') &&
-    emailStatus !== 'registered_user' &&
-    emailStatus !== 'already_linked' &&
-    (emailStatus !== 'offline_patient' || acknowledgedSecondary)
+    (!hasEmail ||
+      (cleanEmail.includes('@') &&
+        emailStatus !== 'registered_user' &&
+        emailStatus !== 'already_linked' &&
+        (emailStatus !== 'offline_patient' || acknowledgedSecondary)))
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -125,7 +129,7 @@ export function CreateOfflinePatientModal({ open, onOpenChange }: CreateOfflineP
     setSaving(true)
     const res = await createOfflinePatient({
       displayName: displayName.trim(),
-      email: email.trim().toLowerCase(),
+      email: cleanEmail || undefined,
       phone: phone.trim() || undefined,
       birthDate: birthDate || undefined,
       gender: gender || undefined,
@@ -171,10 +175,12 @@ export function CreateOfflinePatientModal({ open, onOpenChange }: CreateOfflineP
             </div>
           </div>
 
-          {/* E-mail * com verificação */}
+          {/* E-mail do Paciente (opcional) com verificação */}
           <div className="space-y-1.5">
             <div className="flex items-center justify-between">
-              <Label className="text-xs font-bold text-foreground">E-mail do Paciente *</Label>
+              <Label className="text-xs font-bold text-foreground">
+                E-mail do Paciente (opcional)
+              </Label>
               {checkingEmail && (
                 <span className="text-[10px] text-muted-foreground flex items-center gap-1">
                   <Loader2 className="w-3 h-3 animate-spin text-[#1CB0F6]" />
@@ -186,10 +192,9 @@ export function CreateOfflinePatientModal({ open, onOpenChange }: CreateOfflineP
               <Mail className="w-4 h-4 text-muted-foreground absolute left-3 top-1/2 -translate-y-1/2" />
               <Input
                 type="email"
-                required
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                placeholder="paciente@dominio.com"
+                placeholder="Deixe vazio se o paciente ainda não tem e-mail no sistema"
                 className="pl-9 rounded-2xl border-2 h-11 text-xs"
               />
             </div>

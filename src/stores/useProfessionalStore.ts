@@ -206,12 +206,16 @@ interface ProfessionalState {
   }>
   createOfflinePatient: (data: {
     displayName: string
-    email: string
+    email?: string
     phone?: string
     birthDate?: string
     gender?: string
     notes?: string
   }) => Promise<{ ok: boolean; patientId?: string; error?: string }>
+  setOfflinePatientEmail: (
+    patientId: string,
+    email: string,
+  ) => Promise<{ ok: boolean; error?: string }>
   convertOfflinePatient: (patientId: string) => Promise<{
     ok: boolean
     isFirst?: boolean
@@ -595,20 +599,20 @@ export const useProfessionalStore = create<ProfessionalState>((set, get) => ({
 
   createOfflinePatient: async (data: {
     displayName: string
-    email: string
+    email?: string
     phone?: string
     birthDate?: string
     gender?: string
     notes?: string
   }) => {
-    const cleanEmail = data.email.trim().toLowerCase()
+    const cleanEmail = data.email ? data.email.trim().toLowerCase() : ''
     const cleanName = data.displayName.trim()
 
     if (!cleanName) {
       toast.error('O nome do paciente é obrigatório.')
       return { ok: false, error: 'O nome do paciente é obrigatório.' }
     }
-    if (!cleanEmail || !cleanEmail.includes('@')) {
+    if (cleanEmail && !cleanEmail.includes('@')) {
       toast.error('Informe um e-mail válido.')
       return { ok: false, error: 'Informe um e-mail válido.' }
     }
@@ -622,7 +626,7 @@ export const useProfessionalStore = create<ProfessionalState>((set, get) => ({
       // Call create_offline_patient RPC
       const { data: newPatientId, error: rpcErr } = await supabase.rpc('create_offline_patient', {
         p_professional_id: user.id,
-        p_email: cleanEmail,
+        p_email: cleanEmail || null,
         p_display_name: cleanName,
         p_phone: data.phone?.trim() || null,
         p_birth_date: data.birthDate || null,
@@ -652,6 +656,7 @@ export const useProfessionalStore = create<ProfessionalState>((set, get) => ({
           birth_date: data.birthDate,
           gender: data.gender,
           notes: data.notes?.trim(),
+          email_pending: !cleanEmail,
           created_offline_at: new Date().toISOString(),
           created_by_professional_id: user.id,
         },
@@ -673,6 +678,44 @@ export const useProfessionalStore = create<ProfessionalState>((set, get) => ({
       return { ok: true, patientId: newPatientId }
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Erro ao cadastrar paciente offline'
+      toast.error(message)
+      return { ok: false, error: message }
+    }
+  },
+
+  setOfflinePatientEmail: async (patientId: string, email: string) => {
+    const clean = email.trim().toLowerCase()
+    if (!clean || !clean.includes('@')) {
+      toast.error('Informe um e-mail válido.')
+      return { ok: false, error: 'Informe um e-mail válido.' }
+    }
+    try {
+      const { data, error } = await (supabase.rpc as any)('set_offline_patient_email', {
+        p_patient_id: patientId,
+        p_email: clean,
+      })
+      if (error) {
+        toast.error(error.message || 'Erro ao definir e-mail do paciente.')
+        return { ok: false, error: error.message }
+      }
+      // Optimistic update of local state
+      set((state) => ({
+        patients: state.patients.map((p) =>
+          p.patient_id === patientId
+            ? {
+                ...p,
+                patient_email: clean,
+                offline_details: {
+                  ...p.offline_details,
+                  email_pending: false,
+                },
+              }
+            : p,
+        ),
+      }))
+      return { ok: true }
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Erro ao atualizar e-mail'
       toast.error(message)
       return { ok: false, error: message }
     }

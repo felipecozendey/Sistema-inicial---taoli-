@@ -431,8 +431,7 @@ export default function ProfessionalPage() {
                 onClick={() => setOfflinePatientModalOpen(true)}
                 className="rounded-2xl h-11 px-4 font-black bg-[#1CB0F6] hover:bg-[#1899d6] text-white border-b-4 border-[#147eb0] active:border-b-0 active:translate-y-1 transition-all text-xs flex items-center gap-1.5 shadow-sm"
               >
-                <Plus className="w-4 h-4 stroke-[3]" />
-                <span>+ Paciente offline</span>
+                <span>Paciente offline</span>
               </Button>
               <Button
                 onClick={() => setInviteModalOpen(true)}
@@ -500,7 +499,9 @@ export default function ProfessionalPage() {
                           )}
                         </div>
                         <div className="text-xs text-muted-foreground truncate">
-                          {p.patient_email}
+                          {p.patient_email && !p.patient_email.endsWith('@pacientes.offline')
+                            ? p.patient_email
+                            : p.offline_details?.phone || 'E-mail pendente'}
                         </div>
                       </div>
                     </div>

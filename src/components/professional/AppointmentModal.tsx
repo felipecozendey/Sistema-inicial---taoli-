@@ -80,11 +80,18 @@ export function AppointmentModal({ open, onOpenChange, activePatients }: Appoint
               className="w-full rounded-2xl border-2 bg-card text-xs font-bold text-foreground h-11 px-3 focus:outline-none focus:ring-2 focus:ring-[#1CB0F6]"
             >
               <option value="">Selecione um paciente...</option>
-              {activePatients.map((p) => (
-                <option key={p.patient_id} value={p.patient_id}>
-                  {p.patient_name || p.patient_email}
-                </option>
-              ))}
+              {activePatients.map((p) => {
+                const isSynthetic =
+                  !p.patient_email || p.patient_email.endsWith('@pacientes.offline')
+                const contact = !isSynthetic
+                  ? p.patient_email
+                  : p.offline_details?.phone || 'Offline'
+                return (
+                  <option key={p.patient_id} value={p.patient_id}>
+                    {p.patient_name ? `${p.patient_name} (${contact})` : contact}
+                  </option>
+                )
+              })}
             </select>
             {activePatients.length === 0 && (
               <p className="text-[11px] text-amber-500 font-semibold">

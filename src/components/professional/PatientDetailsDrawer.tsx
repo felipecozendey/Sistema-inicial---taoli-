@@ -66,7 +66,9 @@ import {
   normalizeGrantedPages,
   ScopeId,
 } from './consent-scopes.tsx'
-import { Send, Copy, Check, Globe } from 'lucide-react'
+import { Send, Copy, Check, Globe, Mail, Loader2, XCircle, Info, AlertTriangle } from 'lucide-react'
+import { Label } from '@/components/ui/label'
+import { Input } from '@/components/ui/input'
 import { cn } from '@/lib/utils'
 import { TaskForm } from '@/components/tasks/task-form'
 import { HabitForm } from '@/components/habits/habit-form'
@@ -118,6 +120,8 @@ export function PatientDetailsDrawer({ patient, open, onOpenChange }: PatientDet
     setActivePatient,
     endPatientLink,
     convertOfflinePatient,
+    checkOfflineEmail,
+    setOfflinePatientEmail,
   } = useProfessionalStore()
 
   const [currentUserId, setCurrentUserId] = useState<string | null>(null)
@@ -135,6 +139,13 @@ export function PatientDetailsDrawer({ patient, open, onOpenChange }: PatientDet
   // Conversão de paciente offline
   const [confirmConvertOpen, setConfirmConvertOpen] = useState(false)
   const [converting, setConverting] = useState(false)
+  const [convertEmailInput, setConvertEmailInput] = useState('')
+  const [checkingConvertEmail, setCheckingConvertEmail] = useState(false)
+  const [convertEmailStatus, setConvertEmailStatus] = useState<
+    'idle' | 'free' | 'offline_patient' | 'registered_user' | 'already_linked'
+  >('idle')
+  const [convertEmailMessage, setConvertEmailMessage] = useState<string | null>(null)
+  const [acknowledgedConvertSecondary, setAcknowledgedConvertSecondary] = useState(false)
   const [conversionResult, setConversionResult] = useState<{
     open: boolean
     warning?: string
@@ -143,6 +154,58 @@ export function PatientDetailsDrawer({ patient, open, onOpenChange }: PatientDet
     isFirst?: boolean
   }>({ open: false })
   const [copiedLink, setCopiedLink] = useState(false)
+
+  const isSyntheticEmail =
+    !patient?.patient_email || patient.patient_email.endsWith('@pacientes.offline')
+  const isEmailPending = Boolean(patient?.offline_details?.email_pending) || isSyntheticEmail
+  const displayEmailOrContact = !isSyntheticEmail
+    ? patient?.patient_email
+    : patient?.offline_details?.phone || 'E-mail pendente'
+
+  // Reset conversion input when confirm dialog opens
+  useEffect(() => {
+    if (confirmConvertOpen) {
+      setConvertEmailInput('')
+      setConvertEmailStatus('idle')
+      setConvertEmailMessage(null)
+      setAcknowledgedConvertSecondary(false)
+      setCheckingConvertEmail(false)
+    }
+  }, [confirmConvertOpen])
+
+  // Debounce check on conversion email input if email is pending
+  useEffect(() => {
+    if (!confirmConvertOpen || !isEmailPending) return
+    const clean = convertEmailInput.trim().toLowerCase()
+    if (!clean || !clean.includes('@') || clean.length < 5) {
+      setConvertEmailStatus('idle')
+      setConvertEmailMessage(null)
+      setAcknowledgedConvertSecondary(false)
+      return
+    }
+
+    let active = true
+    const timer = setTimeout(async () => {
+      setCheckingConvertEmail(true)
+      try {
+        const res = await checkOfflineEmail(clean)
+        if (!active) return
+        setConvertEmailStatus(res.status)
+        setConvertEmailMessage(res.message || null)
+        setAcknowledgedConvertSecondary(false)
+      } catch (e) {
+        if (!active) return
+        setConvertEmailStatus('idle')
+      } finally {
+        if (active) setCheckingConvertEmail(false)
+      }
+    }, 450)
+
+    return () => {
+      active = false
+      clearTimeout(timer)
+    }
+  }, [convertEmailInput, confirmConvertOpen, isEmailPending, checkOfflineEmail])
 
   // Multidisciplinary scope mapping
   const [multidisciplinaryInfo, setMultidisciplinaryInfo] = useState<{
@@ -392,11 +455,31 @@ export function PatientDetailsDrawer({ patient, open, onOpenChange }: PatientDet
     }
   }
 
-  const initials = (patient.patient_name || patient.patient_email || 'P').slice(0, 2).toUpperCase()
+  const initials = (patient.patient_name || displayEmailOrContact || 'P').slice(0, 2).toUpperCase()
+
+  const isConvertEmailValid =
+    !isEmailPending ||
+    (convertEmailInput.trim().includes('@') &&
+      convertEmailStatus !== 'registered_user' &&
+      convertEmailStatus !== 'already_linked' &&
+      (convertEmailStatus !== 'offline_patient' || acknowledgedConvertSecondary))
 
   const handleConvertPatient = async () => {
-    if (!patient) return
+    if (!patient || !isConvertEmailValid) return
     setConverting(true)
+
+    // Se email pendente, atualiza o email antes de converter
+    if (isEmailPending) {
+      const emailRes = await setOfflinePatientEmail(
+        patient.patient_id,
+        convertEmailInput.trim().toLowerCase(),
+      )
+      if (!emailRes.ok) {
+        setConverting(false)
+        return
+      }
+    }
+
     const res = await convertOfflinePatient(patient.patient_id)
     setConverting(false)
     setConfirmConvertOpen(false)
@@ -444,7 +527,7 @@ export function PatientDetailsDrawer({ patient, open, onOpenChange }: PatientDet
                     </Badge>
                   </DialogTitle>
                   <DialogDescription className="text-xs text-muted-foreground truncate mt-0.5">
-                    {patient.patient_email} • Vínculo desde {safeFormatDate(patient.created_at)}
+                    {displayEmailOrContact} • Vínculo desde {safeFormatDate(patient.created_at)}
                   </DialogDescription>
                 </div>
               </div>
@@ -2456,12 +2539,104 @@ export function PatientDetailsDrawer({ patient, open, onOpenChange }: PatientDet
               Convidar paciente para o sistema?
             </AlertDialogTitle>
             <AlertDialogDescription className="text-xs text-muted-foreground leading-relaxed">
-              Um convite de acesso será registrado para{' '}
-              <strong>{patient.patient_name || patient.patient_email}</strong> (
-              {patient.patient_email}). O paciente receberá um e-mail com link para definir sua
-              senha e acessar consultas, dietas, treinos e evoluções clínicas.
+              {isEmailPending ? (
+                <>
+                  Este paciente foi cadastrado sem e-mail. Informe o e-mail real do paciente para
+                  enviar o convite de ativação e permitir o acesso às consultas, dietas e treinos.
+                </>
+              ) : (
+                <>
+                  Um convite de acesso será registrado para{' '}
+                  <strong>{patient.patient_name || displayEmailOrContact}</strong> (
+                  {displayEmailOrContact}). O paciente receberá um e-mail com link para definir sua
+                  senha e acessar o sistema.
+                </>
+              )}
             </AlertDialogDescription>
           </AlertDialogHeader>
+
+          {/* Campo de e-mail quando pendente */}
+          {isEmailPending && (
+            <div className="space-y-3 py-2 text-xs">
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <Label className="text-xs font-bold text-foreground">E-mail do Paciente *</Label>
+                  {checkingConvertEmail && (
+                    <span className="text-[10px] text-muted-foreground flex items-center gap-1">
+                      <Loader2 className="w-3 h-3 animate-spin text-[#1CB0F6]" />
+                      Verificando...
+                    </span>
+                  )}
+                </div>
+                <div className="relative">
+                  <Mail className="w-4 h-4 text-muted-foreground absolute left-3 top-1/2 -translate-y-1/2" />
+                  <Input
+                    type="email"
+                    value={convertEmailInput}
+                    onChange={(e) => setConvertEmailInput(e.target.value)}
+                    placeholder="paciente@dominio.com"
+                    className="pl-9 rounded-2xl border-2 h-10 text-xs"
+                    disabled={converting}
+                  />
+                </div>
+              </div>
+
+              {/* Status de validação do e-mail */}
+              {convertEmailStatus === 'registered_user' && (
+                <div className="p-3 rounded-2xl bg-rose-500/10 border-2 border-rose-500/30 text-rose-700 dark:text-rose-400 text-xs flex items-start gap-2">
+                  <XCircle className="w-4 h-4 shrink-0 mt-0.5 text-rose-600" />
+                  <div className="space-y-0.5">
+                    <p className="font-black text-[11px] uppercase tracking-wide">
+                      E-mail Já Cadastrado Online
+                    </p>
+                    <p className="text-[11px] leading-relaxed">
+                      Este e-mail já pertence a um usuário ativo no sistema. Não é possível associar
+                      esta conta offline a ele.
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {convertEmailStatus === 'already_linked' && (
+                <div className="p-3 rounded-2xl bg-amber-500/10 border-2 border-amber-500/30 text-amber-800 dark:text-amber-300 text-xs flex items-start gap-2">
+                  <Info className="w-4 h-4 shrink-0 mt-0.5 text-amber-600" />
+                  <div className="space-y-0.5">
+                    <p className="font-black text-[11px] uppercase tracking-wide">Já Cadastrado</p>
+                    <p className="text-[11px] leading-relaxed">
+                      Você já possui este paciente com este e-mail em seu consultório.
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {convertEmailStatus === 'offline_patient' && (
+                <div className="p-3 rounded-2xl bg-amber-500/10 border-2 border-amber-500/40 text-amber-900 dark:text-amber-200 text-xs space-y-2">
+                  <div className="flex items-start gap-2">
+                    <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5 text-amber-600" />
+                    <p className="text-[11px] leading-relaxed">
+                      {convertEmailMessage ||
+                        'Este e-mail já foi registrado como offline por outro profissional. Ao converter, apenas o primeiro profissional a solicitar terá os dados importados.'}
+                    </p>
+                  </div>
+                  <div className="flex items-center justify-end">
+                    <Button
+                      type="button"
+                      size="sm"
+                      onClick={() => setAcknowledgedConvertSecondary(true)}
+                      className={`rounded-xl h-7 px-3 text-[11px] font-black ${
+                        acknowledgedConvertSecondary
+                          ? 'bg-emerald-600 hover:bg-emerald-700 text-white'
+                          : 'bg-amber-600 hover:bg-amber-700 text-white'
+                      }`}
+                    >
+                      {acknowledgedConvertSecondary ? '✓ Confirmado' : 'Estou Ciente e Prosseguir'}
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
           <AlertDialogFooter className="gap-2 pt-2">
             <AlertDialogCancel disabled={converting} className="rounded-2xl font-bold">
               Cancelar
@@ -2471,8 +2646,8 @@ export function PatientDetailsDrawer({ patient, open, onOpenChange }: PatientDet
                 e.preventDefault()
                 handleConvertPatient()
               }}
-              disabled={converting}
-              className="rounded-2xl font-black bg-[#58CC02] hover:bg-[#46a302] text-white border-b-4 border-[#3c8c02] active:border-b-0 active:translate-y-1 transition-all"
+              disabled={converting || !isConvertEmailValid}
+              className="rounded-2xl font-black bg-[#58CC02] hover:bg-[#46a302] text-white border-b-4 border-[#3c8c02] active:border-b-0 active:translate-y-1 transition-all disabled:opacity-50"
             >
               {converting ? 'Enviando...' : 'Sim, convidar paciente'}
             </AlertDialogAction>
