@@ -66,6 +66,8 @@ export interface Appointment {
   duration_minutes: number
   status: 'scheduled' | 'done' | 'canceled' | 'no_show'
   notes: string | null
+  location_name?: string | null
+  reminder_task_id?: string | null
   created_at: string
   updated_at: string
   patient_name?: string
@@ -77,9 +79,11 @@ export interface ClinicalNote {
   patient_id: string
   appointment_id: string | null
   content: string
+  is_multidisciplinary?: boolean
   created_at: string
   updated_at: string
   patient_name?: string
+  professional_name?: string
 }
 
 export interface PatientReadData {
@@ -248,6 +252,7 @@ interface ProfessionalState {
   updatePatientCareLocations: (linkId: string, careLocations: string[]) => Promise<boolean>
   deletePatientFromPro: (linkId: string) => Promise<boolean>
   endPatientLink: (linkId: string) => Promise<boolean>
+  restorePatientLink: (linkId: string) => Promise<boolean>
 
   // Appointments
   createAppointment: (data: {
@@ -256,7 +261,21 @@ interface ProfessionalState {
     scheduled_at: string
     duration_minutes?: number
     notes?: string
+    location_name?: string | null
+    createReminder?: boolean
   }) => Promise<boolean>
+  updateAppointment: (
+    id: string,
+    data: {
+      patient_id?: string
+      title?: string
+      scheduled_at?: string
+      duration_minutes?: number
+      notes?: string
+      location_name?: string | null
+      createReminder?: boolean
+    },
+  ) => Promise<boolean>
   updateAppointmentStatus: (
     id: string,
     status: 'scheduled' | 'done' | 'canceled' | 'no_show',
@@ -264,10 +283,12 @@ interface ProfessionalState {
   deleteAppointment: (id: string) => Promise<boolean>
 
   // Notes
+  fetchPatientClinicalNotes: (patientId: string) => Promise<ClinicalNote[]>
   createClinicalNote: (data: {
     patient_id: string
     appointment_id?: string | null
     content: string
+    is_multidisciplinary?: boolean
   }) => Promise<boolean>
   updateClinicalNote: (id: string, content: string) => Promise<boolean>
   deleteClinicalNote: (id: string) => Promise<boolean>
@@ -1150,6 +1171,35 @@ export const useProfessionalStore = create<ProfessionalState>((set, get) => ({
     }
   },
 
+  restorePatientLink: async (linkId: string) => {
+    const prevPatients = get().patients
+    const prevMyProfessionals = get().myProfessionals
+
+    // Optimistic
+    set((state) => ({
+      patients: state.patients.map((p) => (p.id === linkId ? { ...p, status: 'active' } : p)),
+      myProfessionals: state.myProfessionals.map((p) =>
+        p.id === linkId ? { ...p, status: 'active' } : p,
+      ),
+    }))
+
+    try {
+      const { data, error } = await (supabase.rpc as any)('restore_patient_link', {
+        p_link_id: linkId,
+      })
+
+      if (error) throw error
+
+      toast.success('Vínculo com o paciente restaurado com sucesso!')
+      return true
+    } catch (err) {
+      set({ patients: prevPatients, myProfessionals: prevMyProfessionals })
+      const message = err instanceof Error ? err.message : 'Erro ao restaurar vínculo'
+      toast.error(message)
+      return false
+    }
+  },
+
   createAppointment: async (data) => {
     try {
       const {
@@ -1158,6 +1208,35 @@ export const useProfessionalStore = create<ProfessionalState>((set, get) => ({
       if (!user) throw new Error('Não autenticado')
 
       const patient = get().patients.find((p) => p.patient_id === data.patient_id)
+      const patientName = patient?.patient_name || 'Paciente'
+
+      let reminderTaskId: string | null = null
+
+      // Se solicitado lembrete, criar tarefa na agenda do próprio profissional
+      if (data.createReminder) {
+        try {
+          const { data: createdTask, error: taskErr } = await supabase
+            .from('tasks')
+            .insert({
+              user_id: user.id,
+              title: `🔔 Lembrete: consulta com ${patientName}`,
+              due_date: data.scheduled_at,
+              scheduled_date: data.scheduled_at,
+              priority: 'high',
+              energy_level: 2,
+              estimated_time: data.duration_minutes || 50,
+              completed: false,
+            })
+            .select('id')
+            .single()
+
+          if (!taskErr && createdTask) {
+            reminderTaskId = createdTask.id
+          }
+        } catch (taskErr) {
+          console.warn('Erro ao criar lembrete de consulta na agenda:', taskErr)
+        }
+      }
 
       const payload = {
         professional_id: user.id,
@@ -1167,6 +1246,8 @@ export const useProfessionalStore = create<ProfessionalState>((set, get) => ({
         duration_minutes: data.duration_minutes || 50,
         status: 'scheduled',
         notes: data.notes || null,
+        location_name: data.location_name || null,
+        reminder_task_id: reminderTaskId,
       }
 
       const { data: created, error } = await supabase
@@ -1179,7 +1260,7 @@ export const useProfessionalStore = create<ProfessionalState>((set, get) => ({
 
       const enriched: Appointment = {
         ...(created as any),
-        patient_name: patient?.patient_name || 'Paciente',
+        patient_name: patientName,
       }
 
       set((state) => ({
@@ -1197,8 +1278,120 @@ export const useProfessionalStore = create<ProfessionalState>((set, get) => ({
     }
   },
 
+  updateAppointment: async (id, data) => {
+    try {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser()
+      if (!user) throw new Error('Não autenticado')
+
+      const current = get().appointments.find((a) => a.id === id)
+      if (!current) throw new Error('Consulta não encontrada')
+
+      const patient = get().patients.find(
+        (p) => p.patient_id === (data.patient_id || current.patient_id),
+      )
+      const patientName = patient?.patient_name || current.patient_name || 'Paciente'
+      const scheduledAt = data.scheduled_at || current.scheduled_at
+      const duration = data.duration_minutes || current.duration_minutes || 50
+
+      let reminderTaskId = current.reminder_task_id || null
+
+      if (data.createReminder !== undefined) {
+        if (data.createReminder) {
+          if (reminderTaskId) {
+            // Atualizar tarefa existente
+            await supabase
+              .from('tasks')
+              .update({
+                title: `🔔 Lembrete: consulta com ${patientName}`,
+                due_date: scheduledAt,
+                scheduled_date: scheduledAt,
+                estimated_time: duration,
+              })
+              .eq('id', reminderTaskId)
+          } else {
+            // Criar nova tarefa
+            const { data: createdTask } = await supabase
+              .from('tasks')
+              .insert({
+                user_id: user.id,
+                title: `🔔 Lembrete: consulta com ${patientName}`,
+                due_date: scheduledAt,
+                scheduled_date: scheduledAt,
+                priority: 'high',
+                energy_level: 2,
+                estimated_time: duration,
+                completed: false,
+              })
+              .select('id')
+              .single()
+
+            if (createdTask) reminderTaskId = createdTask.id
+          }
+        } else if (reminderTaskId) {
+          // Desmarcou lembrete: apagar tarefa correspondente
+          await supabase.from('tasks').delete().eq('id', reminderTaskId)
+          reminderTaskId = null
+        }
+      } else if (reminderTaskId && data.scheduled_at) {
+        // Atualizar data/hora se mudou
+        await supabase
+          .from('tasks')
+          .update({
+            due_date: scheduledAt,
+            scheduled_date: scheduledAt,
+          })
+          .eq('id', reminderTaskId)
+      }
+
+      const payload: any = {
+        updated_at: new Date().toISOString(),
+        reminder_task_id: reminderTaskId,
+      }
+      if (data.patient_id) payload.patient_id = data.patient_id
+      if (data.title !== undefined) payload.title = data.title || 'Consulta'
+      if (data.scheduled_at) payload.scheduled_at = data.scheduled_at
+      if (data.duration_minutes !== undefined) payload.duration_minutes = data.duration_minutes
+      if (data.notes !== undefined) payload.notes = data.notes || null
+      if (data.location_name !== undefined) payload.location_name = data.location_name || null
+
+      const { data: updated, error } = await supabase
+        .from('professional_appointments')
+        .update(payload)
+        .eq('id', id)
+        .select()
+        .single()
+
+      if (error) throw error
+
+      set((state) => ({
+        appointments: state.appointments
+          .map((a) =>
+            a.id === id
+              ? {
+                  ...(updated as any),
+                  patient_name: patientName,
+                }
+              : a,
+          )
+          .sort(
+            (a, b) => new Date(a.scheduled_at).getTime() - new Date(b.scheduled_at).getTime(),
+          ),
+      }))
+
+      toast.success('Consulta atualizada com sucesso!')
+      return true
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Erro ao atualizar consulta'
+      toast.error(message)
+      return false
+    }
+  },
+
   updateAppointmentStatus: async (id, status) => {
     const prev = get().appointments
+    const target = prev.find((a) => a.id === id)
     set((state) => ({
       appointments: state.appointments.map((a) => (a.id === id ? { ...a, status } : a)),
     }))
@@ -1210,6 +1403,19 @@ export const useProfessionalStore = create<ProfessionalState>((set, get) => ({
         .eq('id', id)
 
       if (error) throw error
+
+      // Se cancelou a consulta ou concluiu, marcar ou remover lembrete da agenda
+      if (target?.reminder_task_id) {
+        if (status === 'canceled' || status === 'no_show') {
+          await supabase.from('tasks').delete().eq('id', target.reminder_task_id)
+        } else if (status === 'done') {
+          await supabase
+            .from('tasks')
+            .update({ completed: true })
+            .eq('id', target.reminder_task_id)
+        }
+      }
+
       toast.success('Status da consulta atualizado!')
       return true
     } catch (err) {
@@ -1222,11 +1428,17 @@ export const useProfessionalStore = create<ProfessionalState>((set, get) => ({
 
   deleteAppointment: async (id) => {
     const prev = get().appointments
+    const target = prev.find((a) => a.id === id)
     set((state) => ({
       appointments: state.appointments.filter((a) => a.id !== id),
     }))
 
     try {
+      // Se há tarefa de lembrete associada, excluí-la junto
+      if (target?.reminder_task_id) {
+        await supabase.from('tasks').delete().eq('id', target.reminder_task_id)
+      }
+
       const { error } = await supabase.from('professional_appointments').delete().eq('id', id)
       if (error) throw error
       toast.success('Consulta removida!')
@@ -1236,6 +1448,35 @@ export const useProfessionalStore = create<ProfessionalState>((set, get) => ({
       const message = err instanceof Error ? err.message : 'Erro ao remover consulta'
       toast.error(message)
       return false
+    }
+  },
+
+  fetchPatientClinicalNotes: async (patientId: string) => {
+    try {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser()
+      if (!user) return []
+
+      const { data, error } = await supabase
+        .from('professional_notes')
+        .select('*')
+        .eq('patient_id', patientId)
+        .order('created_at', { ascending: false })
+
+      if (error) throw error
+      const rawList = data || []
+      const profIds = Array.from(new Set(rawList.map((n: any) => n.professional_id)))
+      const namesMap = await get().getProfessionalNames(profIds)
+
+      return rawList.map((n: any) => ({
+        ...n,
+        is_multidisciplinary: Boolean(n.is_multidisciplinary),
+        professional_name: namesMap.get(n.professional_id) || 'Profissional',
+      }))
+    } catch (err) {
+      console.error('Error fetching patient clinical notes:', err)
+      return []
     }
   },
 
@@ -1253,6 +1494,7 @@ export const useProfessionalStore = create<ProfessionalState>((set, get) => ({
         patient_id: data.patient_id,
         appointment_id: data.appointment_id || null,
         content: data.content,
+        is_multidisciplinary: Boolean(data.is_multidisciplinary),
       }
 
       const { data: created, error } = await supabase
@@ -1266,16 +1508,17 @@ export const useProfessionalStore = create<ProfessionalState>((set, get) => ({
       const enriched: ClinicalNote = {
         ...(created as any),
         patient_name: patient?.patient_name || 'Paciente',
+        is_multidisciplinary: Boolean(created?.is_multidisciplinary),
       }
 
       set((state) => ({
         notes: [enriched, ...state.notes],
       }))
 
-      toast.success('Anotação clínica salva!')
+      toast.success('Entrada de prontuário salva com sucesso!')
       return true
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Erro ao salvar anotação clínica'
+      const message = err instanceof Error ? err.message : 'Erro ao salvar entrada no prontuário'
       toast.error(message)
       return false
     }

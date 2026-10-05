@@ -2036,9 +2036,11 @@ export type Database = {
           created_at: string
           duration_minutes: number | null
           id: string
+          location_name: string | null
           notes: string | null
           patient_id: string
           professional_id: string
+          reminder_task_id: string | null
           scheduled_at: string
           status: string | null
           title: string | null
@@ -2048,9 +2050,11 @@ export type Database = {
           created_at?: string
           duration_minutes?: number | null
           id?: string
+          location_name?: string | null
           notes?: string | null
           patient_id: string
           professional_id: string
+          reminder_task_id?: string | null
           scheduled_at: string
           status?: string | null
           title?: string | null
@@ -2060,15 +2064,25 @@ export type Database = {
           created_at?: string
           duration_minutes?: number | null
           id?: string
+          location_name?: string | null
           notes?: string | null
           patient_id?: string
           professional_id?: string
+          reminder_task_id?: string | null
           scheduled_at?: string
           status?: string | null
           title?: string | null
           updated_at?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "professional_appointments_reminder_task_id_fkey"
+            columns: ["reminder_task_id"]
+            isOneToOne: false
+            referencedRelation: "tasks"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       professional_notes: {
         Row: {
@@ -2076,6 +2090,7 @@ export type Database = {
           content: string
           created_at: string
           id: string
+          is_multidisciplinary: boolean
           patient_id: string
           professional_id: string
           updated_at: string
@@ -2085,6 +2100,7 @@ export type Database = {
           content: string
           created_at?: string
           id?: string
+          is_multidisciplinary?: boolean
           patient_id: string
           professional_id: string
           updated_at?: string
@@ -2094,6 +2110,7 @@ export type Database = {
           content?: string
           created_at?: string
           id?: string
+          is_multidisciplinary?: boolean
           patient_id?: string
           professional_id?: string
           updated_at?: string
@@ -2790,6 +2807,7 @@ export type Database = {
         Args: { p_group_id: string; p_post_id: string }
         Returns: boolean
       }
+      restore_patient_link: { Args: { p_link_id: string }; Returns: Json }
       set_content_flag: {
         Args: { p_enabled: boolean; p_key: string }
         Returns: undefined
