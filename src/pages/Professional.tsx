@@ -1,10 +1,5 @@
 import { useEffect, useState, useMemo } from 'react'
-import {
-  useProfessionalStore,
-  PatientLink,
-  Appointment,
-  ClinicalNote,
-} from '@/stores/useProfessionalStore'
+import { useProfessionalStore, PatientLink } from '@/stores/useProfessionalStore'
 import { StethoscopeIcon } from '@/components/professional/StethoscopeIcon'
 import { ClinicConfigModal } from '@/components/professional/ClinicConfigModal'
 import { DeletePatientModal } from '@/components/professional/DeletePatientModal'
@@ -16,13 +11,24 @@ import {
 } from '@/stores/useSiteSettingsStore'
 import { PatientDetailsDrawer } from '@/components/professional/PatientDetailsDrawer'
 import { AppointmentModal } from '@/components/professional/AppointmentModal'
-import { NoteModal } from '@/components/professional/NoteModal'
 import { InvitePatientModal } from '@/components/professional/InvitePatientModal'
 import { CreateOfflinePatientModal } from '@/components/professional/CreateOfflinePatientModal'
 import { ProfessionalGroupsTab } from '@/components/professional/ProfessionalGroupsTab'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import { Checkbox } from '@/components/ui/checkbox'
 import { safeFormatDate } from '@/lib/date-utils'
 import {
   Users,
@@ -34,11 +40,7 @@ import {
   Settings,
   Clock,
   CheckCircle2,
-  XCircle,
-  HelpCircle,
-  AlertCircle,
   Trash2,
-  Lock,
   MessageCircle,
   CheckSquare,
   Share2,
@@ -49,6 +51,9 @@ import {
   Sparkles,
   Flame,
   Zap,
+  MapPin,
+  RotateCcw,
+  Check,
 } from 'lucide-react'
 
 const ICON_MAP: Record<string, any> = {
@@ -96,7 +101,7 @@ export default function ProfessionalPage() {
   }, [proNavItems])
 
   const [activeTab, setActiveTab] = useState<
-    'overview' | 'patients' | 'appointments' | 'notes' | 'groups_pro'
+    'overview' | 'patients' | 'appointments' | 'groups_pro'
   >('overview')
 
   // Se a aba ativa atual não estiver na lista de visíveis, chavear para a primeira visível
@@ -110,17 +115,32 @@ export default function ProfessionalPage() {
   const [inviteModalOpen, setInviteModalOpen] = useState(false)
   const [offlinePatientModalOpen, setOfflinePatientModalOpen] = useState(false)
   const [appointmentModalOpen, setAppointmentModalOpen] = useState(false)
-  const [noteModalOpen, setNoteModalOpen] = useState(false)
   const [selectedPatientForDrawer, setSelectedPatientForDrawer] = useState<PatientLink | null>(null)
 
-  const { professionalLocations, deletePatientFromPro } = useProfessionalStore()
+  const {
+    professionalLocations,
+    deletePatientFromPro,
+    restorePatientLink,
+    updatePatientCareLocations,
+  } = useProfessionalStore()
 
-  // Search & filters
+  // Search & filters de pacientes
   const [patientSearch, setPatientSearch] = useState('')
   const [patientStatusFilter, setPatientStatusFilter] = useState<
     'all' | 'active' | 'pending' | 'ended'
   >('all')
   const [patientLocationFilter, setPatientLocationFilter] = useState<string>('all')
+
+  // Filtros combináveis da aba Consultas (dia + atalhos + local)
+  const [appointmentDateFilter, setAppointmentDateFilter] = useState<string>('')
+  const [appointmentDatePreset, setAppointmentDatePreset] = useState<
+    'all' | 'today' | 'this_week' | 'custom'
+  >('all')
+  const [appointmentLocationFilter, setAppointmentLocationFilter] = useState<string>('all')
+
+  // Modal de confirmação Duolingo para Restaurar vínculo
+  const [patientToRestore, setPatientToRestore] = useState<PatientLink | null>(null)
+  const [restoring, setRestoring] = useState(false)
 
   // Patient to delete via confirmation modal
   const [patientToDelete, setPatientToDelete] = useState<PatientLink | null>(null)
@@ -178,6 +198,46 @@ export default function ProfessionalPage() {
       .filter((a) => new Date(a.scheduled_at) >= now && a.status === 'scheduled')
       .slice(0, 6)
   }, [appointments, now])
+
+  // Filtros da aba Consultas
+  const filteredAppointments = useMemo(() => {
+    const today = new Date()
+    const todayMidnight = new Date(today.getFullYear(), today.getMonth(), today.getDate()).getTime()
+    const todayEnd = todayMidnight + 24 * 60 * 60 * 1000 - 1
+
+    // Semana atual (segunda a domingo)
+    const currentDayOfWeek = today.getDay()
+    const diffToMonday = (currentDayOfWeek + 6) % 7
+    const weekStart = new Date(
+      today.getFullYear(),
+      today.getMonth(),
+      today.getDate() - diffToMonday,
+    ).getTime()
+    const weekEnd = weekStart + 7 * 24 * 60 * 60 * 1000 - 1
+
+    return appointments.filter((appt) => {
+      // Filtro de local
+      if (appointmentLocationFilter !== 'all') {
+        if (appointmentLocationFilter === 'none') {
+          if (appt.location_name) return false
+        } else if (appt.location_name !== appointmentLocationFilter) {
+          return false
+        }
+      }
+
+      // Filtro de data / atalhos
+      const apptTime = new Date(appt.scheduled_at).getTime()
+      if (appointmentDatePreset === 'today') {
+        if (apptTime < todayMidnight || apptTime > todayEnd) return false
+      } else if (appointmentDatePreset === 'this_week') {
+        if (apptTime < weekStart || apptTime > weekEnd) return false
+      } else if (appointmentDatePreset === 'custom' && appointmentDateFilter) {
+        if (!appt.scheduled_at.startsWith(appointmentDateFilter)) return false
+      }
+
+      return true
+    })
+  }, [appointments, appointmentLocationFilter, appointmentDatePreset, appointmentDateFilter])
 
   return (
     <div className="max-w-6xl mx-auto space-y-6 pb-16 animate-fade-in px-2 sm:px-4">
@@ -302,7 +362,11 @@ export default function ProfessionalPage() {
               </div>
             </div>
 
-            <div className="p-4 rounded-3xl border-2 bg-card shadow-sm space-y-1">
+            <div
+              onClick={() => setActiveTab('patients')}
+              className="p-4 rounded-3xl border-2 bg-card shadow-sm space-y-1 cursor-pointer hover:border-[#1CB0F6]/50 transition-all"
+              title="Ir para a lista de pacientes"
+            >
               <div className="flex items-center justify-between text-muted-foreground">
                 <span className="text-[11px] font-bold uppercase tracking-wider">
                   Anotações Clínicas
@@ -310,8 +374,9 @@ export default function ProfessionalPage() {
                 <FileText className="w-4 h-4 text-[#FFC800]" />
               </div>
               <div className="text-2xl font-black text-foreground">{notes.length}</div>
-              <div className="text-[10px] text-muted-foreground font-semibold">
-                Evoluções salvas
+              <div className="text-[10px] text-muted-foreground font-semibold flex items-center justify-between">
+                <span>Evoluções salvas</span>
+                <span className="text-[9px] text-[#1CB0F6] font-bold">Ver pacientes →</span>
               </div>
             </div>
           </div>
@@ -361,13 +426,21 @@ export default function ProfessionalPage() {
                       <div className="text-xs text-muted-foreground font-semibold">
                         {appt.title || 'Consulta'}
                       </div>
-                      <div className="text-[11px] font-bold text-[#1CB0F6] flex items-center gap-1">
+                      <div className="text-[11px] font-bold text-[#1CB0F6] flex items-center gap-1 flex-wrap">
                         <Clock className="w-3.5 h-3.5" />
-                        {new Date(appt.scheduled_at).toLocaleString('pt-BR', {
-                          dateStyle: 'short',
-                          timeStyle: 'short',
-                        })}{' '}
-                        ({appt.duration_minutes} min)
+                        <span>
+                          {new Date(appt.scheduled_at).toLocaleString('pt-BR', {
+                            dateStyle: 'short',
+                            timeStyle: 'short',
+                          })}{' '}
+                          ({appt.duration_minutes} min)
+                        </span>
+                        {appt.location_name && (
+                          <span className="px-2 py-0.5 rounded-full text-[9px] font-bold border flex items-center gap-1 bg-muted/60 text-foreground ml-1">
+                            <MapPin className="w-2.5 h-2.5 text-[#1CB0F6]" />
+                            <span className="truncate max-w-[110px]">{appt.location_name}</span>
+                          </span>
+                        )}
                       </div>
                     </div>
 
@@ -486,11 +559,17 @@ export default function ProfessionalPage() {
                       <div className="min-w-0">
                         <div className="font-bold text-sm text-foreground flex items-center gap-1.5 flex-wrap">
                           <span>{p.patient_name}</span>
-                          {p.is_offline && (
+                          {/* Badge Offline / Online discreto */}
+                          {p.is_offline ? (
                             <span className="px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-amber-500/15 text-amber-800 dark:text-amber-300 border border-amber-500/30 shrink-0">
                               Offline
                             </span>
-                          )}
+                          ) : p.status === 'active' ? (
+                            <span className="px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-[#58CC02]/15 text-[#58CC02] border border-[#58CC02]/30 shrink-0">
+                              Online
+                            </span>
+                          ) : null}
+
                           {p.status === 'active' && (
                             <Badge className="bg-emerald-500 text-white text-[9px] font-black uppercase px-2 py-0.2">
                               Ativo
@@ -538,6 +617,79 @@ export default function ProfessionalPage() {
                                 )}
                               </div>
                             )}
+
+                          {/* Seletor rápido de locais de atendimento por linha (offline ou online) */}
+                          {professionalLocations.length > 0 && (
+                            <div onClick={(e) => e.stopPropagation()} className="shrink-0">
+                              <Popover>
+                                <PopoverTrigger asChild>
+                                  <button
+                                    type="button"
+                                    className="p-1 rounded-lg border hover:bg-muted text-muted-foreground hover:text-[#1CB0F6] transition-colors"
+                                    title="Editar locais de atendimento"
+                                  >
+                                    <MapPin className="w-3 h-3" />
+                                  </button>
+                                </PopoverTrigger>
+                                <PopoverContent
+                                  className="w-64 p-3 rounded-2xl border-2 shadow-xl"
+                                  align="start"
+                                  onClick={(e) => e.stopPropagation()}
+                                >
+                                  <div className="space-y-2">
+                                    <div className="flex items-center justify-between pb-1 border-b">
+                                      <span className="text-[11px] font-black text-foreground flex items-center gap-1">
+                                        <MapPin className="w-3.5 h-3.5 text-[#1CB0F6]" />
+                                        Locais de Atendimento
+                                      </span>
+                                      <span className="text-[9px] text-muted-foreground font-semibold">
+                                        {p.patient_name?.split(' ')[0]}
+                                      </span>
+                                    </div>
+                                    <div className="space-y-1.5 max-h-48 overflow-y-auto">
+                                      {professionalLocations.map((loc) => {
+                                        const currentLocs: string[] = Array.isArray(
+                                          p.offline_details?.care_locations,
+                                        )
+                                          ? p.offline_details!.care_locations!
+                                          : []
+                                        const isChecked = currentLocs.some(
+                                          (l) => l.toLowerCase() === loc.name.toLowerCase(),
+                                        )
+
+                                        return (
+                                          <label
+                                            key={loc.id}
+                                            className="flex items-center gap-2 p-1.5 rounded-xl hover:bg-muted/60 cursor-pointer text-xs transition-colors"
+                                          >
+                                            <Checkbox
+                                              checked={isChecked}
+                                              onCheckedChange={async (chk) => {
+                                                const nextLocs = chk
+                                                  ? [...currentLocs, loc.name]
+                                                  : currentLocs.filter(
+                                                      (l) =>
+                                                        l.toLowerCase() !== loc.name.toLowerCase(),
+                                                    )
+                                                await updatePatientCareLocations(p.id, nextLocs)
+                                              }}
+                                            />
+                                            <span
+                                              className="w-2 h-2 rounded-full shrink-0"
+                                              style={{ backgroundColor: loc.color || '#1CB0F6' }}
+                                            />
+                                            <span className="truncate font-bold text-foreground">
+                                              {loc.name}
+                                            </span>
+                                          </label>
+                                        )
+                                      })}
+                                    </div>
+                                  </div>
+                                </PopoverContent>
+                              </Popover>
+                            </div>
+                          )}
                         </div>
                         <div className="text-xs text-muted-foreground truncate">
                           {p.patient_email && !p.patient_email.endsWith('@pacientes.offline')
@@ -568,6 +720,20 @@ export default function ProfessionalPage() {
                           <span className="text-xs text-muted-foreground italic">Encerrado</span>
                           <Button
                             type="button"
+                            size="sm"
+                            variant="outline"
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              setPatientToRestore(p)
+                            }}
+                            title="Restaurar vínculo"
+                            className="h-8 px-2.5 rounded-xl border-2 border-[#58CC02]/40 text-[#58CC02] hover:bg-[#58CC02]/10 hover:border-[#58CC02] font-black text-xs flex items-center gap-1 transition-all"
+                          >
+                            <RotateCcw className="w-3.5 h-3.5" />
+                            <span>Restaurar</span>
+                          </Button>
+                          <Button
+                            type="button"
                             size="icon"
                             variant="ghost"
                             onClick={(e) => {
@@ -593,7 +759,7 @@ export default function ProfessionalPage() {
       {/* ABA 3: CONSULTAS */}
       {activeTab === 'appointments' && (
         <div className="space-y-4">
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col sm:flex-row gap-3 items-stretch sm:items-center justify-between">
             <div>
               <h3 className="font-black text-base text-foreground">Agenda de Consultas</h3>
               <p className="text-xs text-muted-foreground">
@@ -602,31 +768,118 @@ export default function ProfessionalPage() {
             </div>
             <Button
               onClick={() => setAppointmentModalOpen(true)}
-              className="rounded-2xl h-11 px-5 font-black bg-[#1CB0F6] hover:bg-[#1899d6] text-white border-b-4 border-[#1899d6] active:border-b-0 active:translate-y-1 transition-all text-xs flex items-center gap-2 shadow-sm"
+              className="rounded-2xl h-11 px-5 font-black bg-[#1CB0F6] hover:bg-[#1899d6] text-white border-b-4 border-[#1899d6] active:border-b-0 active:translate-y-1 transition-all text-xs flex items-center gap-2 shadow-sm shrink-0"
             >
               <Plus className="w-4 h-4" />
               <span>Agendar Consulta</span>
             </Button>
           </div>
 
+          {/* Barra de Filtros Combináveis: Atalhos de dia, input de data e seletor de local */}
+          <div className="p-3 rounded-3xl border-2 bg-card flex flex-wrap items-center justify-between gap-2.5">
+            <div className="flex flex-wrap items-center gap-1.5">
+              <span className="text-[11px] font-black text-foreground mr-1 flex items-center gap-1">
+                <Calendar className="w-3.5 h-3.5 text-[#1CB0F6]" />
+                Período:
+              </span>
+              <button
+                type="button"
+                onClick={() => {
+                  setAppointmentDatePreset('all')
+                  setAppointmentDateFilter('')
+                }}
+                className={`px-3 py-1.5 rounded-xl text-xs font-black transition-all border-2 ${
+                  appointmentDatePreset === 'all'
+                    ? 'bg-[#1CB0F6] text-white border-[#1CB0F6] border-b-3'
+                    : 'bg-muted/40 border-transparent text-muted-foreground hover:bg-muted'
+                }`}
+              >
+                Todas
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setAppointmentDatePreset('today')
+                  setAppointmentDateFilter('')
+                }}
+                className={`px-3 py-1.5 rounded-xl text-xs font-black transition-all border-2 ${
+                  appointmentDatePreset === 'today'
+                    ? 'bg-[#1CB0F6] text-white border-[#1CB0F6] border-b-3'
+                    : 'bg-muted/40 border-transparent text-muted-foreground hover:bg-muted'
+                }`}
+              >
+                Hoje
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setAppointmentDatePreset('this_week')
+                  setAppointmentDateFilter('')
+                }}
+                className={`px-3 py-1.5 rounded-xl text-xs font-black transition-all border-2 ${
+                  appointmentDatePreset === 'this_week'
+                    ? 'bg-[#1CB0F6] text-white border-[#1CB0F6] border-b-3'
+                    : 'bg-muted/40 border-transparent text-muted-foreground hover:bg-muted'
+                }`}
+              >
+                Esta semana
+              </button>
+
+              <div className="relative">
+                <Input
+                  type="date"
+                  value={appointmentDateFilter}
+                  onChange={(e) => {
+                    setAppointmentDateFilter(e.target.value)
+                    setAppointmentDatePreset(e.target.value ? 'custom' : 'all')
+                  }}
+                  className="h-8 rounded-xl border-2 text-xs font-bold w-36"
+                  title="Filtrar por data específica"
+                />
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <span className="text-[11px] font-black text-foreground flex items-center gap-1">
+                <MapPin className="w-3.5 h-3.5 text-[#1CB0F6]" />
+                Local:
+              </span>
+              <select
+                value={appointmentLocationFilter}
+                onChange={(e) => setAppointmentLocationFilter(e.target.value)}
+                className="h-8 px-2.5 rounded-xl border-2 bg-card text-xs font-bold text-foreground focus:outline-none focus:ring-2 focus:ring-[#1CB0F6]"
+              >
+                <option value="all">Todos os locais</option>
+                <option value="none">Sem local</option>
+                {professionalLocations.map((loc) => (
+                  <option key={loc.id} value={loc.name}>
+                    📍 {loc.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+
           <div className="bg-card border-2 rounded-3xl overflow-hidden shadow-sm">
-            {appointments.length === 0 ? (
+            {filteredAppointments.length === 0 ? (
               <div className="py-14 text-center space-y-2">
                 <Calendar className="w-10 h-10 text-muted-foreground mx-auto opacity-40" />
-                <p className="font-extrabold text-foreground">Nenhuma consulta agendada</p>
+                <p className="font-extrabold text-foreground">Nenhuma consulta encontrada</p>
                 <p className="text-xs text-muted-foreground">
-                  Marque sessões e acompanhe o histórico de atendimentos clínicos.
+                  {appointments.length === 0
+                    ? 'Marque sessões e acompanhe o histórico de atendimentos clínicos.'
+                    : 'Nenhuma consulta corresponde aos filtros de data ou local selecionados.'}
                 </p>
               </div>
             ) : (
               <div className="divide-y divide-border">
-                {appointments.map((appt) => (
+                {filteredAppointments.map((appt) => (
                   <div
                     key={appt.id}
                     className="p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3"
                   >
                     <div className="space-y-1 min-w-0">
-                      <div className="font-black text-sm text-foreground flex items-center gap-2">
+                      <div className="font-black text-sm text-foreground flex items-center gap-2 flex-wrap">
                         <span>{appt.patient_name}</span>
                         {appt.status === 'scheduled' && (
                           <Badge className="bg-[#1CB0F6] text-white text-[9px] font-black uppercase">
@@ -651,17 +904,27 @@ export default function ProfessionalPage() {
                             Faltou
                           </Badge>
                         )}
+
+                        {/* Mini-chip de local da consulta */}
+                        {appt.location_name && (
+                          <span className="px-2 py-0.5 rounded-full text-[9px] font-bold border flex items-center gap-1 bg-muted/60 text-foreground">
+                            <MapPin className="w-2.5 h-2.5 text-[#1CB0F6]" />
+                            <span className="truncate max-w-[120px]">{appt.location_name}</span>
+                          </span>
+                        )}
                       </div>
                       <div className="text-xs text-muted-foreground font-semibold">
                         {appt.title || 'Consulta'}
                       </div>
-                      <div className="text-xs text-foreground font-bold flex items-center gap-1.5">
+                      <div className="text-xs text-foreground font-bold flex items-center gap-1.5 flex-wrap">
                         <Clock className="w-3.5 h-3.5 text-[#1CB0F6]" />
-                        {new Date(appt.scheduled_at).toLocaleString('pt-BR', {
-                          dateStyle: 'long',
-                          timeStyle: 'short',
-                        })}{' '}
-                        • Duração: {appt.duration_minutes} min
+                        <span>
+                          {new Date(appt.scheduled_at).toLocaleString('pt-BR', {
+                            dateStyle: 'long',
+                            timeStyle: 'short',
+                          })}{' '}
+                          • Duração: {appt.duration_minutes} min
+                        </span>
                       </div>
                       {appt.notes && (
                         <p className="text-xs text-muted-foreground bg-muted/40 p-2 rounded-xl mt-1">
@@ -699,79 +962,8 @@ export default function ProfessionalPage() {
         </div>
       )}
 
-      {/* ABA 5: GRUPOS PRO */}
+      {/* ABA 4: GRUPOS PRO */}
       {activeTab === 'groups_pro' && <ProfessionalGroupsTab />}
-
-      {/* ABA 4: ANOTAÇÕES CLÍNICAS */}
-      {activeTab === 'notes' && (
-        <div className="space-y-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <div className="flex items-center gap-2">
-                <h3 className="font-black text-base text-foreground">
-                  Anotações Clínicas & Condutas
-                </h3>
-                <span className="flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 border border-emerald-500/20">
-                  <Lock className="w-3 h-3" /> Privado
-                </span>
-              </div>
-              <p className="text-xs text-muted-foreground">
-                Notas confidenciais visíveis somente para você (autor do prontuário)
-              </p>
-            </div>
-
-            <Button
-              onClick={() => setNoteModalOpen(true)}
-              className="rounded-2xl h-11 px-5 font-black bg-[#1CB0F6] hover:bg-[#1899d6] text-white border-b-4 border-[#1899d6] active:border-b-0 active:translate-y-1 transition-all text-xs flex items-center gap-2 shadow-sm"
-            >
-              <Plus className="w-4 h-4" />
-              <span>Nova Anotação</span>
-            </Button>
-          </div>
-
-          <div className="bg-card border-2 rounded-3xl overflow-hidden shadow-sm">
-            {notes.length === 0 ? (
-              <div className="py-14 text-center space-y-2">
-                <FileText className="w-10 h-10 text-muted-foreground mx-auto opacity-40" />
-                <p className="font-extrabold text-foreground">Nenhuma anotação registrada</p>
-                <p className="text-xs text-muted-foreground">
-                  Registre impressões diagnósticas, anamneses e condutas dos atendimentos.
-                </p>
-              </div>
-            ) : (
-              <div className="divide-y divide-border">
-                {notes.map((note) => (
-                  <div key={note.id} className="p-4 space-y-2">
-                    <div className="flex items-center justify-between gap-2">
-                      <div className="flex items-center gap-2">
-                        <span className="font-black text-sm text-foreground">
-                          {note.patient_name}
-                        </span>
-                        <span className="text-[10px] text-muted-foreground font-semibold">
-                          {safeFormatDate(note.created_at)}
-                        </span>
-                      </div>
-
-                      <Button
-                        size="icon"
-                        variant="ghost"
-                        onClick={() => deleteClinicalNote(note.id)}
-                        className="h-8 w-8 rounded-xl text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </Button>
-                    </div>
-
-                    <p className="text-xs text-foreground font-medium leading-relaxed whitespace-pre-wrap bg-muted/20 p-3 rounded-2xl border">
-                      {note.content}
-                    </p>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        </div>
-      )}
 
       {/* Modais do Painel */}
       <ClinicConfigModal
@@ -793,13 +985,6 @@ export default function ProfessionalPage() {
         activePatients={activePatients}
       />
 
-      <NoteModal
-        open={noteModalOpen}
-        onOpenChange={setNoteModalOpen}
-        activePatients={activePatients}
-        appointments={appointments}
-      />
-
       <PatientDetailsDrawer
         patient={selectedPatientForDrawer}
         open={Boolean(selectedPatientForDrawer)}
@@ -810,6 +995,51 @@ export default function ProfessionalPage() {
           }
         }}
       />
+
+      {/* AlertDialog Duolingo para Restaurar vínculo com paciente */}
+      <AlertDialog
+        open={Boolean(patientToRestore)}
+        onOpenChange={(open) => {
+          if (!open) setPatientToRestore(null)
+        }}
+      >
+        <AlertDialogContent className="max-w-md rounded-3xl border-2 p-6 shadow-2xl">
+          <AlertDialogHeader>
+            <div className="w-12 h-12 rounded-2xl bg-[#58CC02]/15 text-[#58CC02] flex items-center justify-center mb-1">
+              <RotateCcw className="w-6 h-6" />
+            </div>
+            <AlertDialogTitle className="text-lg font-black text-foreground">
+              Restaurar vínculo com {patientToRestore?.patient_name || 'Paciente'}?
+            </AlertDialogTitle>
+            <AlertDialogDescription className="text-xs text-muted-foreground leading-relaxed">
+              O paciente voltará a aparecer como ativo na sua lista, com acesso às permissões e
+              histórico de dados anterior ao encerramento.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="gap-2 pt-2">
+            <AlertDialogCancel disabled={restoring} className="rounded-2xl font-bold">
+              Cancelar
+            </AlertDialogCancel>
+            <AlertDialogAction
+              disabled={restoring}
+              onClick={async (e) => {
+                e.preventDefault()
+                if (!patientToRestore) return
+                setRestoring(true)
+                try {
+                  const ok = await restorePatientLink(patientToRestore.id)
+                  if (ok) setPatientToRestore(null)
+                } finally {
+                  setRestoring(false)
+                }
+              }}
+              className="rounded-2xl font-black bg-[#58CC02] hover:bg-[#46a302] text-white border-b-4 border-[#3c8c02] active:border-b-0 active:translate-y-1 transition-all"
+            >
+              {restoring ? 'Restaurando...' : 'Restaurar'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {patientToDelete && (
         <DeletePatientModal

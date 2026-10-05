@@ -88,8 +88,7 @@ export const DEFAULT_PRO_NAV_ITEMS: NavItemCustomization[] = [
   { key: 'overview', label: 'Visão Geral', icon: 'LayoutDashboard', order: 0, visible: true },
   { key: 'patients', label: 'Pacientes', icon: 'Users', order: 1, visible: true },
   { key: 'appointments', label: 'Consultas', icon: 'Calendar', order: 2, visible: true },
-  { key: 'notes', label: 'Anotações Clínicas', icon: 'FileText', order: 3, visible: true },
-  { key: 'groups_pro', label: 'Grupos Pro', icon: 'MessageCircle', order: 4, visible: true },
+  { key: 'groups_pro', label: 'Grupos Pro', icon: 'MessageCircle', order: 3, visible: true },
 ]
 
 export const DEFAULT_SITE_SETTINGS: SiteSettingsData = {

@@ -1375,9 +1375,7 @@ export const useProfessionalStore = create<ProfessionalState>((set, get) => ({
                 }
               : a,
           )
-          .sort(
-            (a, b) => new Date(a.scheduled_at).getTime() - new Date(b.scheduled_at).getTime(),
-          ),
+          .sort((a, b) => new Date(a.scheduled_at).getTime() - new Date(b.scheduled_at).getTime()),
       }))
 
       toast.success('Consulta atualizada com sucesso!')
@@ -1409,10 +1407,7 @@ export const useProfessionalStore = create<ProfessionalState>((set, get) => ({
         if (status === 'canceled' || status === 'no_show') {
           await supabase.from('tasks').delete().eq('id', target.reminder_task_id)
         } else if (status === 'done') {
-          await supabase
-            .from('tasks')
-            .update({ completed: true })
-            .eq('id', target.reminder_task_id)
+          await supabase.from('tasks').update({ completed: true }).eq('id', target.reminder_task_id)
         }
       }
 
