@@ -19,6 +19,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { useProfessionalStore } from '@/stores/useProfessionalStore'
+import { ClinicConfigModal } from './ClinicConfigModal'
 import {
   UserPlus,
   Mail,
@@ -30,7 +31,11 @@ import {
   FileText,
   Loader2,
   Info,
+  MapPin,
+  Check,
+  Sparkles,
 } from 'lucide-react'
+import { cn } from '@/lib/utils'
 
 interface CreateOfflinePatientModalProps {
   open: boolean
@@ -38,7 +43,8 @@ interface CreateOfflinePatientModalProps {
 }
 
 export function CreateOfflinePatientModal({ open, onOpenChange }: CreateOfflinePatientModalProps) {
-  const { checkOfflineEmail, createOfflinePatient } = useProfessionalStore()
+  const { checkOfflineEmail, createOfflinePatient, professionalLocations, profile } =
+    useProfessionalStore()
 
   const [displayName, setDisplayName] = useState('')
   const [email, setEmail] = useState('')
@@ -46,6 +52,8 @@ export function CreateOfflinePatientModal({ open, onOpenChange }: CreateOfflineP
   const [birthDate, setBirthDate] = useState('')
   const [gender, setGender] = useState<string>('')
   const [notes, setNotes] = useState('')
+  const [selectedLocations, setSelectedLocations] = useState<string[]>([])
+  const [clinicConfigModalOpen, setClinicConfigModalOpen] = useState(false)
 
   const [saving, setSaving] = useState(false)
   const [checkingEmail, setCheckingEmail] = useState(false)
@@ -65,6 +73,7 @@ export function CreateOfflinePatientModal({ open, onOpenChange }: CreateOfflineP
       setBirthDate('')
       setGender('')
       setNotes('')
+      setSelectedLocations([])
       setEmailStatus('idle')
       setEmailMessage(null)
       setFirstProfName(null)
@@ -134,6 +143,7 @@ export function CreateOfflinePatientModal({ open, onOpenChange }: CreateOfflineP
       birthDate: birthDate || undefined,
       gender: gender || undefined,
       notes: notes.trim() || undefined,
+      careLocations: selectedLocations,
     })
     setSaving(false)
 
@@ -334,6 +344,77 @@ export function CreateOfflinePatientModal({ open, onOpenChange }: CreateOfflineP
             </Select>
           </div>
 
+          {/* Locais de Atendimento */}
+          <div className="space-y-2 pt-1 border-t">
+            <div className="flex items-center justify-between">
+              <Label className="text-xs font-bold text-foreground flex items-center gap-1.5">
+                <MapPin className="w-3.5 h-3.5 text-[#1CB0F6]" />
+                Locais de Atendimento (Opcional)
+              </Label>
+              {professionalLocations.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => setClinicConfigModalOpen(true)}
+                  className="text-[11px] font-bold text-[#1CB0F6] hover:underline"
+                >
+                  Gerenciar locais
+                </button>
+              )}
+            </div>
+
+            {professionalLocations.length === 0 ? (
+              <div className="p-3 rounded-2xl border-2 border-dashed bg-muted/20 space-y-2 text-center">
+                <p className="text-xs text-muted-foreground font-medium">
+                  Você ainda não cadastrou locais de atendimento (consultório, clínica, SUS etc.).
+                </p>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  onClick={() => setClinicConfigModalOpen(true)}
+                  className="rounded-xl h-8 px-3 text-xs font-bold border-2 text-[#1CB0F6] hover:bg-[#1CB0F6]/10"
+                >
+                  <Sparkles className="w-3.5 h-3.5 mr-1 text-[#1CB0F6]" />
+                  Cadastrar locais de atendimento
+                </Button>
+              </div>
+            ) : (
+              <div className="flex flex-wrap items-center gap-1.5">
+                {professionalLocations.map((loc) => {
+                  const isSelected = selectedLocations.some(
+                    (l) => l.toLowerCase() === loc.name.toLowerCase(),
+                  )
+                  return (
+                    <button
+                      key={loc.id}
+                      type="button"
+                      onClick={() => {
+                        setSelectedLocations((prev) =>
+                          isSelected
+                            ? prev.filter((l) => l.toLowerCase() !== loc.name.toLowerCase())
+                            : [...prev, loc.name],
+                        )
+                      }}
+                      className={cn(
+                        'px-2.5 py-1 rounded-xl text-[11px] font-bold border-2 transition-all flex items-center gap-1.5 active:scale-95 cursor-pointer',
+                        isSelected
+                          ? 'bg-[#1CB0F6]/15 border-[#1CB0F6] text-foreground font-black shadow-xs'
+                          : 'bg-card border-border/80 text-muted-foreground hover:bg-muted',
+                      )}
+                    >
+                      <span
+                        className="w-2 h-2 rounded-full shrink-0"
+                        style={{ backgroundColor: loc.color || '#1CB0F6' }}
+                      />
+                      <span>{loc.name}</span>
+                      {isSelected && <Check className="w-3 h-3 text-[#1CB0F6] stroke-[3]" />}
+                    </button>
+                  )
+                })}
+              </div>
+            )}
+          </div>
+
           {/* Observações Iniciais */}
           <div className="space-y-1.5">
             <Label className="text-xs font-bold text-foreground flex items-center gap-1.5">
@@ -368,6 +449,12 @@ export function CreateOfflinePatientModal({ open, onOpenChange }: CreateOfflineP
           </DialogFooter>
         </form>
       </DialogContent>
+
+      <ClinicConfigModal
+        open={clinicConfigModalOpen}
+        onOpenChange={setClinicConfigModalOpen}
+        profile={profile}
+      />
     </Dialog>
   )
 }

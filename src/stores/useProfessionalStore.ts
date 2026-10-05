@@ -17,6 +17,13 @@ export interface ProfessionalProfile {
 
 export type ConsentScope = 'tarefas' | 'saude' | 'financas' | 'estudos'
 
+export interface CareLocation {
+  id: string
+  name: string
+  type: string
+  color?: string
+}
+
 export interface PatientLink {
   id: string
   professional_id: string
@@ -33,6 +40,7 @@ export interface PatientLink {
     birth_date?: string
     gender?: string
     notes?: string
+    care_locations?: string[]
     created_offline_at?: string
     created_by_professional_id?: string
     first_conversion_by?: string
@@ -178,6 +186,7 @@ export interface ActivePatientContext {
 
 interface ProfessionalState {
   profile: ProfessionalProfile | null
+  professionalLocations: CareLocation[]
   patients: PatientLink[]
   incomingInvites: PatientLink[]
   myProfessionals: PatientLink[]
@@ -194,6 +203,7 @@ interface ProfessionalState {
   loadProfessionalData: () => Promise<void>
   loadPatientConsentData: () => Promise<void>
   upsertClinicProfile: (data: Partial<ProfessionalProfile>) => Promise<boolean>
+  saveProfessionalLocations: (locations: CareLocation[]) => Promise<boolean>
 
   // Patient link management
   invitePatientByEmail: (email: string) => Promise<boolean>
@@ -211,6 +221,7 @@ interface ProfessionalState {
     birthDate?: string
     gender?: string
     notes?: string
+    careLocations?: string[]
   }) => Promise<{ ok: boolean; patientId?: string; error?: string }>
   setOfflinePatientEmail: (
     patientId: string,
@@ -234,6 +245,8 @@ interface ProfessionalState {
     grantedPages: string[],
     allowMultidisciplinary?: boolean,
   ) => Promise<boolean>
+  updatePatientCareLocations: (linkId: string, careLocations: string[]) => Promise<boolean>
+  deletePatientFromPro: (linkId: string) => Promise<boolean>
   endPatientLink: (linkId: string) => Promise<boolean>
 
   // Appointments
@@ -279,6 +292,7 @@ interface ProfessionalState {
 
 export const useProfessionalStore = create<ProfessionalState>((set, get) => ({
   profile: null,
+  professionalLocations: [],
   patients: [],
   incomingInvites: [],
   myProfessionals: [],
@@ -362,8 +376,8 @@ export const useProfessionalStore = create<ProfessionalState>((set, get) => ({
         return
       }
 
-      // Fetch professional profile, patient links, appointments, notes
-      const [profRes, linksRes, apptsRes, notesRes] = await Promise.all([
+      // Fetch professional profile, patient links, appointments, notes, user's profile (for professional_locations)
+      const [profRes, linksRes, apptsRes, notesRes, userProfileRes] = await Promise.all([
         supabase.from('professional_profiles').select('*').eq('user_id', user.id).maybeSingle(),
         supabase
           .from('professional_patients')
@@ -380,7 +394,18 @@ export const useProfessionalStore = create<ProfessionalState>((set, get) => ({
           .select('*')
           .eq('professional_id', user.id)
           .order('created_at', { ascending: false }),
+        supabase
+          .from('profiles')
+          .select('id, professional_locations')
+          .eq('id', user.id)
+          .maybeSingle(),
       ])
+
+      const loadedLocations: CareLocation[] = Array.isArray(
+        userProfileRes.data?.professional_locations,
+      )
+        ? (userProfileRes.data.professional_locations as any[])
+        : []
 
       const rawLinks = linksRes.data || []
       const rawAppts = apptsRes.data || []
@@ -438,6 +463,7 @@ export const useProfessionalStore = create<ProfessionalState>((set, get) => ({
 
       set({
         profile: profRes.data as ProfessionalProfile | null,
+        professionalLocations: loadedLocations,
         patients: enrichedLinks,
         appointments: enrichedAppts,
         notes: enrichedNotes,
@@ -597,6 +623,93 @@ export const useProfessionalStore = create<ProfessionalState>((set, get) => ({
     }
   },
 
+  saveProfessionalLocations: async (locations: CareLocation[]) => {
+    const prev = get().professionalLocations
+    set({ professionalLocations: locations })
+    try {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser()
+      if (!user) throw new Error('Não autenticado')
+
+      const { error } = await supabase
+        .from('profiles')
+        .update({ professional_locations: locations as any })
+        .eq('id', user.id)
+
+      if (error) throw error
+      toast.success('Locais de atendimento salvos!')
+      return true
+    } catch (err) {
+      set({ professionalLocations: prev })
+      const message = err instanceof Error ? err.message : 'Erro ao salvar locais de atendimento'
+      toast.error(message)
+      return false
+    }
+  },
+
+  updatePatientCareLocations: async (linkId: string, careLocations: string[]) => {
+    const prevPatients = get().patients
+    const target = prevPatients.find((p) => p.id === linkId)
+    if (!target) return false
+
+    const updatedOfflineDetails = {
+      ...(target.offline_details || {}),
+      care_locations: careLocations,
+    }
+
+    // Optimistic update
+    set((state) => ({
+      patients: state.patients.map((p) =>
+        p.id === linkId ? { ...p, offline_details: updatedOfflineDetails } : p,
+      ),
+    }))
+
+    try {
+      const { error } = await supabase
+        .from('professional_patients')
+        .update({ offline_details: updatedOfflineDetails })
+        .eq('id', linkId)
+
+      if (error) throw error
+      toast.success('Locais de atendimento do paciente atualizados!')
+      return true
+    } catch (err) {
+      set({ patients: prevPatients })
+      const message = err instanceof Error ? err.message : 'Erro ao atualizar locais do paciente'
+      toast.error(message)
+      return false
+    }
+  },
+
+  deletePatientFromPro: async (linkId: string) => {
+    const prevPatients = get().patients
+    const target = prevPatients.find((p) => p.id === linkId)
+    if (!target) return false
+
+    // Optimistic removal from patients list
+    set((state) => ({
+      patients: state.patients.filter((p) => p.id !== linkId),
+    }))
+
+    try {
+      const { error } = await (supabase.rpc as any)('delete_patient_from_pro', {
+        p_link_id: linkId,
+      })
+
+      if (error) throw error
+
+      toast.success('Paciente removido da sua base de dados com sucesso.')
+      return true
+    } catch (err) {
+      // Rollback on failure
+      set({ patients: prevPatients })
+      const message = err instanceof Error ? err.message : 'Erro ao remover paciente da base'
+      toast.error(message)
+      return false
+    }
+  },
+
   createOfflinePatient: async (data: {
     displayName: string
     email?: string
@@ -604,6 +717,7 @@ export const useProfessionalStore = create<ProfessionalState>((set, get) => ({
     birthDate?: string
     gender?: string
     notes?: string
+    careLocations?: string[]
   }) => {
     const cleanEmail = data.email ? data.email.trim().toLowerCase() : ''
     const cleanName = data.displayName.trim()
@@ -639,6 +753,33 @@ export const useProfessionalStore = create<ProfessionalState>((set, get) => ({
         return { ok: false, error: rpcErr.message }
       }
 
+      // If careLocations were provided, update offline_details in professional_patients
+      const careLocs = Array.isArray(data.careLocations) ? data.careLocations : []
+      if (careLocs.length > 0) {
+        try {
+          const { data: currentLink } = await supabase
+            .from('professional_patients')
+            .select('id, offline_details')
+            .eq('professional_id', user.id)
+            .eq('patient_id', newPatientId)
+            .maybeSingle()
+
+          if (currentLink) {
+            await supabase
+              .from('professional_patients')
+              .update({
+                offline_details: {
+                  ...((currentLink.offline_details as any) || {}),
+                  care_locations: careLocs,
+                },
+              })
+              .eq('id', currentLink.id)
+          }
+        } catch (locErr) {
+          console.warn('Erro ao associar locais ao paciente offline:', locErr)
+        }
+      }
+
       // Optimistic update of local patients list
       const tempLink: PatientLink = {
         id: `offline-link-${Date.now()}`,
@@ -648,7 +789,17 @@ export const useProfessionalStore = create<ProfessionalState>((set, get) => ({
         requested_by: user.id,
         created_at: new Date().toISOString(),
         responded_at: new Date().toISOString(),
-        granted_pages: ['tarefas', 'saude', 'prontuario_geral', 'nutricao', 'exercicios', 'raio_x'],
+        granted_pages: [
+          'prontuario_geral',
+          'tarefas',
+          'mente',
+          'nutricao',
+          'exercicios',
+          'raio_x',
+          'financas',
+          'estudos',
+          'historico_social',
+        ],
         allow_multidisciplinary: false,
         is_offline: true,
         offline_details: {
@@ -656,6 +807,7 @@ export const useProfessionalStore = create<ProfessionalState>((set, get) => ({
           birth_date: data.birthDate,
           gender: data.gender,
           notes: data.notes?.trim(),
+          care_locations: careLocs,
           email_pending: !cleanEmail,
           created_offline_at: new Date().toISOString(),
           created_by_professional_id: user.id,

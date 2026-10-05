@@ -66,7 +66,19 @@ import {
   normalizeGrantedPages,
   ScopeId,
 } from './consent-scopes.tsx'
-import { Send, Copy, Check, Globe, Mail, Loader2, XCircle, Info, AlertTriangle } from 'lucide-react'
+import {
+  Send,
+  Copy,
+  Check,
+  Globe,
+  Mail,
+  Loader2,
+  XCircle,
+  Info,
+  AlertTriangle,
+  MapPin,
+} from 'lucide-react'
+import { DeletePatientModal } from './DeletePatientModal'
 import { Label } from '@/components/ui/label'
 import { Input } from '@/components/ui/input'
 import { cn } from '@/lib/utils'
@@ -99,7 +111,7 @@ const ORDERED_TABS: ScopeId[] = [
 interface PatientDetailsDrawerProps {
   patient: PatientLink | null
   open: boolean
-  onOpenChange: (open: boolean) => void
+  onOpenChange: (open: boolean, deletedLinkId?: string) => void
 }
 
 interface ScopePermissionInfo {
@@ -119,6 +131,9 @@ export function PatientDetailsDrawer({ patient, open, onOpenChange }: PatientDet
     fetchPatientMultidisciplinaryScopes,
     setActivePatient,
     endPatientLink,
+    deletePatientFromPro,
+    updatePatientCareLocations,
+    professionalLocations,
     convertOfflinePatient,
     checkOfflineEmail,
     setOfflinePatientEmail,
@@ -135,6 +150,7 @@ export function PatientDetailsDrawer({ patient, open, onOpenChange }: PatientDet
   const [activeTab, setActiveTab] = useState<string>('')
   const [confirmEndOpen, setConfirmEndOpen] = useState(false)
   const [ending, setEnding] = useState(false)
+  const [deletePatientModalOpen, setDeletePatientModalOpen] = useState(false)
 
   // Conversão de paciente offline
   const [confirmConvertOpen, setConfirmConvertOpen] = useState(false)
@@ -571,6 +587,58 @@ export function PatientDetailsDrawer({ patient, open, onOpenChange }: PatientDet
                         {!isDirect && <Eye className="w-2.5 h-2.5" />}
                         {label}
                       </span>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
+
+            {/* SEÇÃO DE LOCAIS DE ATENDIMENTO DO PACIENTE (Chips multi-seleção com salvamento otimista) */}
+            <div className="pt-1 border-t flex flex-wrap items-center gap-2">
+              <span className="text-[11px] font-black text-foreground flex items-center gap-1 shrink-0">
+                <MapPin className="w-3.5 h-3.5 text-[#1CB0F6]" />
+                Locais de Atendimento:
+              </span>
+              {professionalLocations.length === 0 ? (
+                <span className="text-[10px] text-muted-foreground italic">
+                  Nenhum local configurado no seu consultório.
+                </span>
+              ) : (
+                <div className="flex flex-wrap items-center gap-1.5">
+                  {professionalLocations.map((loc) => {
+                    const currentLocs: string[] = Array.isArray(
+                      patient.offline_details?.care_locations,
+                    )
+                      ? patient.offline_details!.care_locations!
+                      : []
+                    const isSelected = currentLocs.some(
+                      (l) => l.toLowerCase() === loc.name.toLowerCase(),
+                    )
+
+                    return (
+                      <button
+                        key={loc.id}
+                        type="button"
+                        onClick={async () => {
+                          const nextLocs = isSelected
+                            ? currentLocs.filter((l) => l.toLowerCase() !== loc.name.toLowerCase())
+                            : [...currentLocs, loc.name]
+                          await updatePatientCareLocations(patient.id, nextLocs)
+                        }}
+                        className={cn(
+                          'px-2.5 py-1 rounded-xl text-[11px] font-bold border-2 transition-all flex items-center gap-1.5 active:scale-95 cursor-pointer',
+                          isSelected
+                            ? 'bg-[#1CB0F6]/15 border-[#1CB0F6] text-foreground font-black shadow-xs'
+                            : 'bg-card border-border/80 text-muted-foreground hover:bg-muted',
+                        )}
+                      >
+                        <span
+                          className="w-2 h-2 rounded-full shrink-0"
+                          style={{ backgroundColor: loc.color || '#1CB0F6' }}
+                        />
+                        <span>{loc.name}</span>
+                        {isSelected && <Check className="w-3 h-3 text-[#1CB0F6] stroke-[3]" />}
+                      </button>
                     )
                   })}
                 </div>
@@ -2321,7 +2389,7 @@ export function PatientDetailsDrawer({ patient, open, onOpenChange }: PatientDet
               </>
             )}
 
-            {/* Ação de Encerrar Vínculo */}
+            {/* Ação de Encerrar Vínculo ou Apagar Paciente da Base */}
             <div className="pt-4 border-t flex flex-col sm:flex-row sm:items-center justify-between gap-3">
               <div className="text-[11px] text-muted-foreground leading-relaxed">
                 Conteúdos que você criar aparecerão para o paciente com seu nome. O paciente pode
@@ -2336,6 +2404,16 @@ export function PatientDetailsDrawer({ patient, open, onOpenChange }: PatientDet
                 >
                   <UserX className="w-4 h-4" />
                   <span>Encerrar vínculo</span>
+                </Button>
+              )}
+              {patient.status === 'ended' && (
+                <Button
+                  type="button"
+                  onClick={() => setDeletePatientModalOpen(true)}
+                  className="rounded-2xl border-b-4 border-rose-800 bg-rose-600 hover:bg-rose-700 text-white font-black text-xs h-10 px-4 flex items-center gap-1.5 active:border-b-0 active:translate-y-1 transition-all"
+                >
+                  <Trash2 className="w-4 h-4" />
+                  <span>Apagar paciente da base</span>
                 </Button>
               )}
             </div>
@@ -2773,6 +2851,22 @@ export function PatientDetailsDrawer({ patient, open, onOpenChange }: PatientDet
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Confirmação de exclusão total da base de dados */}
+      <DeletePatientModal
+        open={deletePatientModalOpen}
+        onOpenChange={setDeletePatientModalOpen}
+        patientName={patient.patient_name || patient.patient_email || 'Paciente'}
+        isOffline={patient.is_offline}
+        onConfirm={async () => {
+          const targetId = patient.id
+          const ok = await deletePatientFromPro(targetId)
+          if (ok) {
+            setDeletePatientModalOpen(false)
+            onOpenChange(false, targetId)
+          }
+        }}
+      />
     </>
   )
 }

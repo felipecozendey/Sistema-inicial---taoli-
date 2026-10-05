@@ -7,6 +7,7 @@ import {
 } from '@/stores/useProfessionalStore'
 import { StethoscopeIcon } from '@/components/professional/StethoscopeIcon'
 import { ClinicConfigModal } from '@/components/professional/ClinicConfigModal'
+import { DeletePatientModal } from '@/components/professional/DeletePatientModal'
 import {
   useSiteSettingsStore,
   useBrandName,
@@ -112,11 +113,17 @@ export default function ProfessionalPage() {
   const [noteModalOpen, setNoteModalOpen] = useState(false)
   const [selectedPatientForDrawer, setSelectedPatientForDrawer] = useState<PatientLink | null>(null)
 
+  const { professionalLocations, deletePatientFromPro } = useProfessionalStore()
+
   // Search & filters
   const [patientSearch, setPatientSearch] = useState('')
   const [patientStatusFilter, setPatientStatusFilter] = useState<
     'all' | 'active' | 'pending' | 'ended'
   >('all')
+  const [patientLocationFilter, setPatientLocationFilter] = useState<string>('all')
+
+  // Patient to delete via confirmation modal
+  const [patientToDelete, setPatientToDelete] = useState<PatientLink | null>(null)
 
   useEffect(() => {
     loadProfessionalData()
@@ -136,9 +143,22 @@ export default function ProfessionalPage() {
         (p.patient_name && p.patient_name.toLowerCase().includes(patientSearch.toLowerCase())) ||
         (p.patient_email && p.patient_email.toLowerCase().includes(patientSearch.toLowerCase()))
       const matchStatus = patientStatusFilter === 'all' || p.status === patientStatusFilter
-      return matchSearch && matchStatus
+
+      // Care locations filter
+      const patientLocs: string[] = Array.isArray(p.offline_details?.care_locations)
+        ? p.offline_details!.care_locations!
+        : []
+
+      let matchLocation = true
+      if (patientLocationFilter === 'none') {
+        matchLocation = patientLocs.length === 0
+      } else if (patientLocationFilter !== 'all') {
+        matchLocation = patientLocs.includes(patientLocationFilter)
+      }
+
+      return matchSearch && matchStatus && matchLocation
     })
-  }, [patients, patientSearch, patientStatusFilter])
+  }, [patients, patientSearch, patientStatusFilter, patientLocationFilter])
 
   // Appointments today / upcoming
   const now = new Date()
@@ -193,30 +213,6 @@ export default function ProfessionalPage() {
           </Button>
         </div>
       </div>
-
-      {/* CTA de configuração caso consultório ainda não tenha sido preenchido */}
-      {!profile && !loading && (
-        <div className="p-4 rounded-3xl border-2 border-[#1CB0F6]/30 bg-[#1CB0F6]/10 flex flex-col sm:flex-row items-center justify-between gap-3 text-center sm:text-left">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-2xl bg-[#1CB0F6] text-white flex items-center justify-center shrink-0">
-              <StethoscopeIcon size={20} />
-            </div>
-            <div>
-              <h3 className="font-black text-sm text-foreground">Configure seu consultório</h3>
-              <p className="text-xs text-muted-foreground">
-                Adicione seu registro (CRN/CRM etc.), especialidade e contato para personalizar seus
-                atendimentos.
-              </p>
-            </div>
-          </div>
-          <Button
-            onClick={() => setClinicModalOpen(true)}
-            className="rounded-2xl h-10 px-4 font-black bg-[#1CB0F6] hover:bg-[#1899d6] text-white border-b-4 border-[#1899d6] active:border-b-0 active:translate-y-1 transition-all text-xs shrink-0"
-          >
-            Configurar agora
-          </Button>
-        </div>
-      )}
 
       {/* Mobile-first chips roláveis para abas customizadas */}
       <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-hide border-b">
@@ -424,14 +420,30 @@ export default function ProfessionalPage() {
                 <option value="pending">🟡 Pendentes</option>
                 <option value="ended">⚪ Encerrados</option>
               </select>
+
+              <select
+                value={patientLocationFilter}
+                onChange={(e) => setPatientLocationFilter(e.target.value)}
+                className="h-11 px-3 rounded-2xl border-2 bg-card text-xs font-bold text-foreground focus:outline-none focus:ring-2 focus:ring-[#1CB0F6]"
+              >
+                <option value="all">Todos os locais</option>
+                <option value="none">Sem local</option>
+                {professionalLocations.map((loc) => (
+                  <option key={loc.id} value={loc.name}>
+                    📍 {loc.name}
+                  </option>
+                ))}
+              </select>
             </div>
 
             <div className="flex items-center gap-2 shrink-0">
               <Button
                 onClick={() => setOfflinePatientModalOpen(true)}
-                className="rounded-2xl h-11 px-4 font-black bg-[#1CB0F6] hover:bg-[#1899d6] text-white border-b-4 border-[#147eb0] active:border-b-0 active:translate-y-1 transition-all text-xs flex items-center gap-1.5 shadow-sm"
+                variant="outline"
+                className="rounded-2xl h-11 px-4 font-extrabold border-2 border-border text-xs flex items-center gap-1.5 hover:bg-muted"
               >
-                <span>Paciente offline</span>
+                <Plus className="w-4 h-4" />
+                <span>+ Paciente offline</span>
               </Button>
               <Button
                 onClick={() => setInviteModalOpen(true)}
@@ -472,7 +484,7 @@ export default function ProfessionalPage() {
                         {(p.patient_name || p.patient_email || 'P')[0].toUpperCase()}
                       </div>
                       <div className="min-w-0">
-                        <div className="font-bold text-sm text-foreground flex items-center gap-2 truncate">
+                        <div className="font-bold text-sm text-foreground flex items-center gap-1.5 flex-wrap">
                           <span>{p.patient_name}</span>
                           {p.is_offline && (
                             <span className="px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-amber-500/15 text-amber-800 dark:text-amber-300 border border-amber-500/30 shrink-0">
@@ -497,6 +509,35 @@ export default function ProfessionalPage() {
                               Encerrado
                             </Badge>
                           )}
+
+                          {/* Mini-chips de locais de atendimento (até 2, +N se houver mais) */}
+                          {Array.isArray(p.offline_details?.care_locations) &&
+                            p.offline_details!.care_locations!.length > 0 && (
+                              <div className="flex items-center gap-1 shrink-0">
+                                {p.offline_details!.care_locations!.slice(0, 2).map((locName) => {
+                                  const matched = professionalLocations.find(
+                                    (l) => l.name.toLowerCase() === locName.toLowerCase(),
+                                  )
+                                  return (
+                                    <span
+                                      key={locName}
+                                      className="px-2 py-0.5 rounded-full text-[9px] font-bold border flex items-center gap-1 bg-muted/60 text-foreground"
+                                    >
+                                      <span
+                                        className="w-1.5 h-1.5 rounded-full shrink-0"
+                                        style={{ backgroundColor: matched?.color || '#1CB0F6' }}
+                                      />
+                                      <span className="truncate max-w-[90px]">{locName}</span>
+                                    </span>
+                                  )
+                                })}
+                                {p.offline_details!.care_locations!.length > 2 && (
+                                  <span className="px-1.5 py-0.5 rounded-full text-[9px] font-extrabold bg-muted text-muted-foreground border">
+                                    +{p.offline_details!.care_locations!.length - 2}
+                                  </span>
+                                )}
+                              </div>
+                            )}
                         </div>
                         <div className="text-xs text-muted-foreground truncate">
                           {p.patient_email && !p.patient_email.endsWith('@pacientes.offline')
@@ -510,7 +551,7 @@ export default function ProfessionalPage() {
                       <span className="text-[11px] text-muted-foreground">
                         {safeFormatDate(p.created_at)}
                       </span>
-                      {p.status === 'active' ? (
+                      {p.status === 'active' && (
                         <Button
                           size="sm"
                           variant="outline"
@@ -518,10 +559,27 @@ export default function ProfessionalPage() {
                         >
                           Ver Prontuário
                         </Button>
-                      ) : (
-                        <span className="text-xs text-muted-foreground italic">
-                          {p.status === 'pending' ? 'Pendente' : 'Desconectado'}
-                        </span>
+                      )}
+                      {p.status === 'pending' && (
+                        <span className="text-xs text-muted-foreground italic">Pendente</span>
+                      )}
+                      {p.status === 'ended' && (
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-xs text-muted-foreground italic">Encerrado</span>
+                          <Button
+                            type="button"
+                            size="icon"
+                            variant="ghost"
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              setPatientToDelete(p)
+                            }}
+                            title="Apagar paciente da base"
+                            className="h-8 w-8 rounded-xl text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950 transition-colors"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
+                        </div>
                       )}
                     </div>
                   </div>
@@ -644,9 +702,6 @@ export default function ProfessionalPage() {
       {/* ABA 5: GRUPOS PRO */}
       {activeTab === 'groups_pro' && <ProfessionalGroupsTab />}
 
-      {/* ABA 5: GRUPOS PRO */}
-      {activeTab === 'groups_pro' && <ProfessionalGroupsTab />}
-
       {/* ABA 4: ANOTAÇÕES CLÍNICAS */}
       {activeTab === 'notes' && (
         <div className="space-y-4">
@@ -748,10 +803,28 @@ export default function ProfessionalPage() {
       <PatientDetailsDrawer
         patient={selectedPatientForDrawer}
         open={Boolean(selectedPatientForDrawer)}
-        onOpenChange={(isOpen) => {
+        onOpenChange={(isOpen, deletedLinkId) => {
           if (!isOpen) setSelectedPatientForDrawer(null)
+          if (deletedLinkId) {
+            setSelectedPatientForDrawer(null)
+          }
         }}
       />
+
+      {patientToDelete && (
+        <DeletePatientModal
+          open={Boolean(patientToDelete)}
+          onOpenChange={(open) => {
+            if (!open) setPatientToDelete(null)
+          }}
+          patientName={patientToDelete.patient_name || patientToDelete.patient_email || 'Paciente'}
+          isOffline={patientToDelete.is_offline}
+          onConfirm={async () => {
+            await deletePatientFromPro(patientToDelete.id)
+            setPatientToDelete(null)
+          }}
+        />
+      )}
     </div>
   )
 }
