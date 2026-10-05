@@ -18,7 +18,9 @@ import {
   PatientFinancasData,
   PatientEstudosData,
   PatientMenteData,
+  ClinicalNote,
 } from '@/stores/useProfessionalStore'
+import { ClinicalNoteModal } from './ClinicalNoteModal'
 import { PatientMenteView } from './PatientMenteView'
 import { PatientSocialHistoryTab } from './PatientSocialHistoryTab'
 import { PatientSocialHistoryData } from '@/services/social'
@@ -77,6 +79,8 @@ import {
   Info,
   AlertTriangle,
   MapPin,
+  RotateCcw,
+  Users2,
 } from 'lucide-react'
 import { DeletePatientModal } from './DeletePatientModal'
 import { Label } from '@/components/ui/label'
@@ -123,6 +127,7 @@ interface ScopePermissionInfo {
 
 export function PatientDetailsDrawer({ patient, open, onOpenChange }: PatientDetailsDrawerProps) {
   const {
+    patients,
     fetchPatientTarefas,
     fetchPatientSaude,
     fetchPatientFinancas,
@@ -131,13 +136,19 @@ export function PatientDetailsDrawer({ patient, open, onOpenChange }: PatientDet
     fetchPatientMultidisciplinaryScopes,
     setActivePatient,
     endPatientLink,
+    restorePatientLink,
     deletePatientFromPro,
     updatePatientCareLocations,
     professionalLocations,
     convertOfflinePatient,
     checkOfflineEmail,
     setOfflinePatientEmail,
+    fetchPatientClinicalNotes,
+    deleteClinicalNote,
   } = useProfessionalStore()
+
+  // Sincronizar o paciente atual com o store para refletir mudanças de status (ex: ended -> active após restauração)
+  const currentPatient = (patient ? patients.find((p) => p.id === patient.id) : null) || patient
 
   const [currentUserId, setCurrentUserId] = useState<string | null>(null)
 
@@ -150,7 +161,15 @@ export function PatientDetailsDrawer({ patient, open, onOpenChange }: PatientDet
   const [activeTab, setActiveTab] = useState<string>('')
   const [confirmEndOpen, setConfirmEndOpen] = useState(false)
   const [ending, setEnding] = useState(false)
+  const [confirmRestoreOpen, setConfirmRestoreOpen] = useState(false)
+  const [restoring, setRestoring] = useState(false)
   const [deletePatientModalOpen, setDeletePatientModalOpen] = useState(false)
+
+  // Clinical notes state
+  const [clinicalNotes, setClinicalNotes] = useState<ClinicalNote[]>([])
+  const [loadingClinicalNotes, setLoadingClinicalNotes] = useState(false)
+  const [noteModalOpen, setNoteModalOpen] = useState(false)
+  const [editingNote, setEditingNote] = useState<ClinicalNote | null>(null)
 
   // Conversão de paciente offline
   const [confirmConvertOpen, setConfirmConvertOpen] = useState(false)
@@ -313,6 +332,17 @@ export function PatientDetailsDrawer({ patient, open, onOpenChange }: PatientDet
     setSaudeData(res)
   }, [patient, fetchPatientSaude])
 
+  const reloadClinicalNotes = useCallback(async () => {
+    if (!patient) return
+    setLoadingClinicalNotes(true)
+    try {
+      const list = await fetchPatientClinicalNotes(patient.patient_id)
+      setClinicalNotes(list)
+    } finally {
+      setLoadingClinicalNotes(false)
+    }
+  }, [patient, fetchPatientClinicalNotes])
+
   // Fetch multidisciplinary info when drawer opens
   useEffect(() => {
     if (open && patient) {
@@ -387,6 +417,7 @@ export function PatientDetailsDrawer({ patient, open, onOpenChange }: PatientDet
       setEstudosData(null)
       setMenteData(null)
       setSocialHistoryData(null)
+      setClinicalNotes([])
       setLoadingMap({})
     }
   }, [patient?.id])
@@ -396,6 +427,10 @@ export function PatientDetailsDrawer({ patient, open, onOpenChange }: PatientDet
     if (!open || !patient || !activeTab) return
 
     const clinicalTabs = ['prontuario_geral', 'nutricao', 'exercicios', 'raio_x']
+
+    if (activeTab === 'prontuario_geral') {
+      reloadClinicalNotes()
+    }
 
     if (activeTab === 'tarefas' && !tarefasData && !loadingMap['tarefas']) {
       setLoadingMap((m) => ({ ...m, tarefas: true }))
@@ -457,6 +492,7 @@ export function PatientDetailsDrawer({ patient, open, onOpenChange }: PatientDet
     fetchPatientFinancas,
     fetchPatientEstudos,
     fetchPatientMente,
+    reloadClinicalNotes,
   ])
 
   if (!patient) return null
@@ -539,7 +575,11 @@ export function PatientDetailsDrawer({ patient, open, onOpenChange }: PatientDet
                       </span>
                     )}
                     <Badge className="bg-[#1CB0F6] text-white text-[10px] font-extrabold uppercase shrink-0">
-                      {patient.status === 'active' ? 'Ativo' : patient.status}
+                      {currentPatient?.status === 'active'
+                        ? 'Ativo'
+                        : currentPatient?.status === 'ended'
+                          ? 'Encerrado'
+                          : currentPatient?.status || 'Ativo'}
                     </Badge>
                   </DialogTitle>
                   <DialogDescription className="text-xs text-muted-foreground truncate mt-0.5">
@@ -738,222 +778,365 @@ export function PatientDetailsDrawer({ patient, open, onOpenChange }: PatientDet
                   </div>
                 )}
 
-                {/* ABA 1: PRONTUÁRIO GERAL (Métricas, peso, dobras, metas clínicas, exames anexados e registros gerais) */}
+                {/* ABA 1: PRONTUÁRIO GERAL (Entradas de Prontuário, Métricas, peso, dobras, metas clínicas, exames anexados e registros gerais) */}
                 {activeTab === 'prontuario_geral' && (
                   <div className="space-y-5 animate-fade-in">
-                    {/* Botão de Registro (apenas se concessão direta) */}
+                    {/* Botão verde 3D em destaque "Entrada de prontuário" (apenas se não estiver em modo leitura) */}
                     {!activeTabPermission.isReadOnly && (
                       <button
                         type="button"
                         onClick={() => {
-                          setEditingMetric(null)
-                          setAnthropometryModalOpen(true)
+                          setEditingNote(null)
+                          setNoteModalOpen(true)
                         }}
-                        className="w-full py-3 px-4 rounded-3xl bg-[#1CB0F6] hover:bg-[#1899d6] text-white font-extrabold text-xs sm:text-sm border-b-4 border-[#147eb0] active:translate-y-1 active:border-b-0 transition-all shadow-md flex items-center justify-center gap-2 cursor-pointer"
+                        className="w-full py-3 px-4 rounded-3xl bg-[#58CC02] hover:bg-[#46a302] text-white font-extrabold text-xs sm:text-sm border-b-4 border-[#3c8c02] active:translate-y-1 active:border-b-0 transition-all shadow-md flex items-center justify-center gap-2 cursor-pointer"
                       >
                         <Plus className="w-4 h-4 stroke-[3]" />
-                        <span>Novo Registro no Prontuário Geral</span>
+                        <span>Entrada de prontuário</span>
                       </button>
                     )}
 
-                    {loadingMap['saude'] ? (
-                      <div className="space-y-3">
-                        <Skeleton className="h-20 w-full rounded-2xl" />
-                        <Skeleton className="h-32 w-full rounded-2xl" />
-                      </div>
-                    ) : !saudeData ? (
-                      <p className="text-xs text-muted-foreground italic text-center py-6">
-                        Nenhum registro clínico disponível no prontuário.
-                      </p>
-                    ) : (
-                      <>
-                        {/* Resumo Clínico de Metas e Medições */}
-                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
-                          <div className="p-3 rounded-2xl border-2 bg-card">
-                            <div className="text-[10px] font-bold text-muted-foreground">
-                              Peso Atual
-                            </div>
-                            <div className="text-base font-black text-foreground mt-0.5">
-                              {saudeData.latest_metrics?.weight
-                                ? `${saudeData.latest_metrics.weight} kg`
-                                : '—'}
-                            </div>
-                          </div>
-                          <div className="p-3 rounded-2xl border-2 bg-card">
-                            <div className="text-[10px] font-bold text-muted-foreground">
-                              Meta de Peso
-                            </div>
-                            <div className="text-base font-black text-[#1CB0F6] mt-0.5">
-                              {saudeData.goals?.target_weight
-                                ? `${saudeData.goals.target_weight} kg`
-                                : '—'}
-                            </div>
-                          </div>
-                          <div className="p-3 rounded-2xl border-2 bg-card">
-                            <div className="text-[10px] font-bold text-muted-foreground">
-                              % Gordura
-                            </div>
-                            <div className="text-base font-black text-foreground mt-0.5">
-                              {saudeData.latest_metrics?.body_fat_percentage
-                                ? `${saudeData.latest_metrics.body_fat_percentage}%`
-                                : '—'}
-                            </div>
-                          </div>
-                          <div className="p-3 rounded-2xl border-2 bg-card">
-                            <div className="text-[10px] font-bold text-muted-foreground">
-                              Exames Anexados
-                            </div>
-                            <div className="text-base font-black text-foreground mt-0.5">
-                              {saudeData.medical_exams?.length || 0}
-                            </div>
-                          </div>
-                        </div>
-
-                        {/* Exames Clínicos Anexados */}
-                        {saudeData.medical_exams && saudeData.medical_exams.length > 0 && (
-                          <div className="space-y-2">
-                            <h4 className="text-xs font-black uppercase text-muted-foreground tracking-wider flex items-center gap-1.5">
-                              <Paperclip className="w-4 h-4 text-[#1CB0F6]" />
-                              Exames Médicos Anexados ({saudeData.medical_exams.length})
-                            </h4>
-                            <div className="space-y-1.5 max-h-[180px] overflow-y-auto pr-1">
-                              {saudeData.medical_exams.map((ex: any) => (
-                                <div
-                                  key={ex.id}
-                                  className="p-2.5 rounded-xl border bg-card flex items-center justify-between text-xs hover:border-[#1CB0F6]/40 transition-colors"
-                                >
-                                  <div className="min-w-0 flex-1">
-                                    <div className="font-extrabold text-foreground truncate">
-                                      {ex.title || 'Exame Clínico'}
-                                    </div>
-                                    <div className="text-[10px] text-muted-foreground">
-                                      {safeFormatDate(ex.date || ex.created_at)}
-                                    </div>
-                                  </div>
-                                  {ex.file_url && (
-                                    <a
-                                      href={ex.file_url}
-                                      target="_blank"
-                                      rel="noopener noreferrer"
-                                      className="px-2.5 py-1 rounded-lg bg-[#1CB0F6]/10 text-[#1CB0F6] font-bold text-[10px] hover:bg-[#1CB0F6]/20 transition-colors"
-                                    >
-                                      Visualizar
-                                    </a>
-                                  )}
-                                </div>
-                              ))}
-                            </div>
-                          </div>
+                    {/* SEÇÃO: ENTRADAS DE PRONTUÁRIO (Bloco de notas + Multidisciplinar) */}
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between">
+                        <h4 className="text-xs font-black uppercase text-muted-foreground tracking-wider flex items-center gap-1.5">
+                          <FileText className="w-4 h-4 text-[#58CC02]" />
+                          Entradas de Prontuário ({clinicalNotes.length})
+                        </h4>
+                        {loadingClinicalNotes && (
+                          <span className="text-[10px] text-muted-foreground flex items-center gap-1">
+                            <Loader2 className="w-3 h-3 animate-spin text-[#58CC02]" />
+                            Atualizando...
+                          </span>
                         )}
+                      </div>
 
-                        {/* Histórico Geral de Registros Clínicos */}
+                      {loadingClinicalNotes && clinicalNotes.length === 0 ? (
                         <div className="space-y-2">
-                          <h4 className="text-xs font-black uppercase text-muted-foreground tracking-wider flex items-center gap-1.5">
-                            <FileText className="w-4 h-4 text-emerald-500" />
-                            Registros Clínicos Recentes ({saudeData.metrics_history?.length || 0})
-                          </h4>
-                          {!saudeData.metrics_history || saudeData.metrics_history.length === 0 ? (
-                            <div className="p-6 rounded-2xl border-2 border-dashed bg-muted/20 text-center text-xs text-muted-foreground">
-                              Nenhum registro clínico no prontuário ainda.
+                          <Skeleton className="h-20 w-full rounded-2xl" />
+                          <Skeleton className="h-20 w-full rounded-2xl" />
+                        </div>
+                      ) : clinicalNotes.length === 0 ? (
+                        <div className="p-5 rounded-2xl border-2 border-dashed bg-muted/20 text-center space-y-1.5">
+                          <FileText className="w-7 h-7 text-muted-foreground/60 mx-auto" />
+                          <p className="text-xs font-bold text-foreground">
+                            Nenhuma entrada de prontuário registrada
+                          </p>
+                          <p className="text-[11px] text-muted-foreground">
+                            {!activeTabPermission.isReadOnly
+                              ? 'Clique no botão acima para registrar a evolução, queixas e condutas do paciente.'
+                              : 'Não há entradas de prontuário multidisciplinares disponíveis.'}
+                          </p>
+                        </div>
+                      ) : (
+                        <div className="space-y-2.5 max-h-[380px] overflow-y-auto pr-1">
+                          {clinicalNotes.map((note) => {
+                            const isAuthor =
+                              currentUserId &&
+                              note.professional_id === currentUserId &&
+                              !activeTabPermission.isReadOnly
+
+                            return (
+                              <div
+                                key={note.id}
+                                className="p-3.5 rounded-2xl border-2 bg-card hover:border-[#58CC02]/40 transition-colors space-y-2 shadow-xs"
+                              >
+                                <div className="flex items-start justify-between gap-2">
+                                  <div className="min-w-0 flex-1 space-y-1">
+                                    <div className="flex items-center gap-2 flex-wrap">
+                                      <span className="font-extrabold text-foreground text-xs">
+                                        {safeFormatDate(note.created_at)}
+                                      </span>
+                                      {note.professional_id ? (
+                                        <ProfessionalTag createdBy={note.professional_id} />
+                                      ) : null}
+                                      {note.is_multidisciplinary && (
+                                        <span className="px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-[#58CC02]/15 text-[#58CC02] border border-[#58CC02]/30 flex items-center gap-1 shrink-0">
+                                          <Users2 className="w-2.5 h-2.5" />
+                                          Multidisciplinar
+                                        </span>
+                                      )}
+                                    </div>
+
+                                    {note.title && (
+                                      <div className="font-black text-xs sm:text-sm text-foreground">
+                                        {note.title}
+                                      </div>
+                                    )}
+                                  </div>
+
+                                  <div className="flex items-center gap-1 shrink-0">
+                                    {isAuthor ? (
+                                      <>
+                                        <Button
+                                          type="button"
+                                          size="icon"
+                                          variant="ghost"
+                                          onClick={() => {
+                                            setEditingNote(note)
+                                            setNoteModalOpen(true)
+                                          }}
+                                          className="h-7 w-7 rounded-lg text-muted-foreground hover:text-[#58CC02]"
+                                          title="Editar entrada"
+                                        >
+                                          <Pencil className="w-3.5 h-3.5" />
+                                        </Button>
+                                        <Button
+                                          type="button"
+                                          size="icon"
+                                          variant="ghost"
+                                          onClick={() => {
+                                            setDeleteConfirm({
+                                              open: true,
+                                              title: 'Excluir entrada do prontuário?',
+                                              description: `Deseja remover esta anotação ${note.title ? `"${note.title}"` : ''} de ${safeFormatDate(note.created_at)}?`,
+                                              onConfirm: async () => {
+                                                const ok = await deleteClinicalNote(note.id)
+                                                if (ok) reloadClinicalNotes()
+                                              },
+                                            })
+                                          }}
+                                          className="h-7 w-7 rounded-lg text-muted-foreground hover:text-rose-600"
+                                          title="Excluir entrada"
+                                        >
+                                          <Trash2 className="w-3.5 h-3.5" />
+                                        </Button>
+                                      </>
+                                    ) : (
+                                      <Badge
+                                        variant="secondary"
+                                        className="text-[9px] font-semibold"
+                                      >
+                                        Modo leitura
+                                      </Badge>
+                                    )}
+                                  </div>
+                                </div>
+
+                                <div className="text-xs text-foreground/90 whitespace-pre-wrap leading-relaxed bg-muted/30 p-2.5 rounded-xl border border-border/60">
+                                  {note.content}
+                                </div>
+
+                                {note.updated_at && note.updated_at !== note.created_at && (
+                                  <div className="text-[10px] text-muted-foreground italic text-right">
+                                    Editado em {safeFormatDate(note.updated_at)}
+                                  </div>
+                                )}
+                              </div>
+                            )
+                          })}
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="border-t pt-4 space-y-4">
+                      <h4 className="text-xs font-black uppercase text-muted-foreground tracking-wider flex items-center gap-1.5">
+                        <Activity className="w-4 h-4 text-[#1CB0F6]" />
+                        Métricas e Exames Clínicos
+                      </h4>
+
+                      {loadingMap['saude'] ? (
+                        <div className="space-y-3">
+                          <Skeleton className="h-20 w-full rounded-2xl" />
+                          <Skeleton className="h-32 w-full rounded-2xl" />
+                        </div>
+                      ) : !saudeData ? (
+                        <p className="text-xs text-muted-foreground italic text-center py-6">
+                          Nenhum registro clínico disponível no prontuário.
+                        </p>
+                      ) : (
+                        <>
+                          {/* Resumo Clínico de Metas e Medições */}
+                          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+                            <div className="p-3 rounded-2xl border-2 bg-card">
+                              <div className="text-[10px] font-bold text-muted-foreground">
+                                Peso Atual
+                              </div>
+                              <div className="text-base font-black text-foreground mt-0.5">
+                                {saudeData.latest_metrics?.weight
+                                  ? `${saudeData.latest_metrics.weight} kg`
+                                  : '—'}
+                              </div>
                             </div>
-                          ) : (
-                            <div className="space-y-2 max-h-[260px] overflow-y-auto pr-1">
-                              {saudeData.metrics_history.map((m: any) => {
-                                const isAuthor =
-                                  currentUserId &&
-                                  m.created_by === currentUserId &&
-                                  !activeTabPermission.isReadOnly
-                                return (
+                            <div className="p-3 rounded-2xl border-2 bg-card">
+                              <div className="text-[10px] font-bold text-muted-foreground">
+                                Meta de Peso
+                              </div>
+                              <div className="text-base font-black text-[#1CB0F6] mt-0.5">
+                                {saudeData.goals?.target_weight
+                                  ? `${saudeData.goals.target_weight} kg`
+                                  : '—'}
+                              </div>
+                            </div>
+                            <div className="p-3 rounded-2xl border-2 bg-card">
+                              <div className="text-[10px] font-bold text-muted-foreground">
+                                % Gordura
+                              </div>
+                              <div className="text-base font-black text-foreground mt-0.5">
+                                {saudeData.latest_metrics?.body_fat_percentage
+                                  ? `${saudeData.latest_metrics.body_fat_percentage}%`
+                                  : '—'}
+                              </div>
+                            </div>
+                            <div className="p-3 rounded-2xl border-2 bg-card">
+                              <div className="text-[10px] font-bold text-muted-foreground">
+                                Exames Anexados
+                              </div>
+                              <div className="text-base font-black text-foreground mt-0.5">
+                                {saudeData.medical_exams?.length || 0}
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Exames Clínicos Anexados */}
+                          {saudeData.medical_exams && saudeData.medical_exams.length > 0 && (
+                            <div className="space-y-2">
+                              <h4 className="text-xs font-black uppercase text-muted-foreground tracking-wider flex items-center gap-1.5">
+                                <Paperclip className="w-4 h-4 text-[#1CB0F6]" />
+                                Exames Médicos Anexados ({saudeData.medical_exams.length})
+                              </h4>
+                              <div className="space-y-1.5 max-h-[180px] overflow-y-auto pr-1">
+                                {saudeData.medical_exams.map((ex: any) => (
                                   <div
-                                    key={m.id}
-                                    className="p-3 rounded-2xl border bg-card flex items-center justify-between text-xs gap-3 hover:border-[#1CB0F6]/40 transition-colors"
+                                    key={ex.id}
+                                    className="p-2.5 rounded-xl border bg-card flex items-center justify-between text-xs hover:border-[#1CB0F6]/40 transition-colors"
                                   >
                                     <div className="min-w-0 flex-1">
-                                      <div className="flex items-center gap-2">
-                                        <span className="font-extrabold text-foreground">
-                                          {safeFormatDate(m.date || m.created_at)}
-                                        </span>
-                                        {m.created_by ? (
-                                          <ProfessionalTag createdBy={m.created_by} />
-                                        ) : (
-                                          <span className="text-[10px] text-muted-foreground italic">
-                                            registro do paciente
-                                          </span>
-                                        )}
+                                      <div className="font-extrabold text-foreground truncate">
+                                        {ex.title || 'Exame Clínico'}
                                       </div>
-                                      <div className="text-[11px] text-muted-foreground flex flex-wrap gap-2 mt-0.5">
-                                        {m.weight && <span>Peso: {m.weight} kg</span>}
-                                        {m.body_fat_percentage && (
-                                          <span>• Gordura: {m.body_fat_percentage}%</span>
-                                        )}
-                                        {m.lean_mass && (
-                                          <span>• Massa Magra: {m.lean_mass} kg</span>
-                                        )}
-                                        {m.blood_pressure && (
-                                          <span>• P.A.: {m.blood_pressure}</span>
-                                        )}
+                                      <div className="text-[10px] text-muted-foreground">
+                                        {safeFormatDate(ex.date || ex.created_at)}
                                       </div>
-                                      {m.observations && (
-                                        <p className="text-[10px] text-muted-foreground italic line-clamp-1 mt-1">
-                                          &quot;{m.observations}&quot;
-                                        </p>
-                                      )}
                                     </div>
-
-                                    <div className="flex items-center gap-1 shrink-0">
-                                      {isAuthor ? (
-                                        <>
-                                          <Button
-                                            type="button"
-                                            size="icon"
-                                            variant="ghost"
-                                            onClick={() => {
-                                              setEditingMetric(m)
-                                              setAnthropometryModalOpen(true)
-                                            }}
-                                            className="h-7 w-7 rounded-lg text-muted-foreground hover:text-[#1CB0F6]"
-                                            title="Editar avaliação"
-                                          >
-                                            <Pencil className="w-3.5 h-3.5" />
-                                          </Button>
-                                          <Button
-                                            type="button"
-                                            size="icon"
-                                            variant="ghost"
-                                            onClick={() => {
-                                              setDeleteConfirm({
-                                                open: true,
-                                                title: 'Excluir registro do prontuário?',
-                                                description: `Deseja remover o registro de ${safeFormatDate(m.date || m.created_at)}?`,
-                                                onConfirm: async () => {
-                                                  const ok = await deleteBodyMetricForPatient(m.id)
-                                                  if (ok) reloadSaude()
-                                                },
-                                              })
-                                            }}
-                                            className="h-7 w-7 rounded-lg text-muted-foreground hover:text-rose-600"
-                                            title="Excluir avaliação"
-                                          >
-                                            <Trash2 className="w-3.5 h-3.5" />
-                                          </Button>
-                                        </>
-                                      ) : (
-                                        <Badge
-                                          variant="secondary"
-                                          className="text-[9px] font-semibold"
-                                        >
-                                          Somente leitura
-                                        </Badge>
-                                      )}
-                                    </div>
+                                    {ex.file_url && (
+                                      <a
+                                        href={ex.file_url}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="px-2.5 py-1 rounded-lg bg-[#1CB0F6]/10 text-[#1CB0F6] font-bold text-[10px] hover:bg-[#1CB0F6]/20 transition-colors"
+                                      >
+                                        Visualizar
+                                      </a>
+                                    )}
                                   </div>
-                                )
-                              })}
+                                ))}
+                              </div>
                             </div>
                           )}
-                        </div>
-                      </>
-                    )}
+
+                          {/* Histórico Geral de Registros Clínicos */}
+                          <div className="space-y-2">
+                            <h4 className="text-xs font-black uppercase text-muted-foreground tracking-wider flex items-center gap-1.5">
+                              <FileText className="w-4 h-4 text-emerald-500" />
+                              Registros Clínicos Recentes ({saudeData.metrics_history?.length || 0})
+                            </h4>
+                            {!saudeData.metrics_history ||
+                            saudeData.metrics_history.length === 0 ? (
+                              <div className="p-6 rounded-2xl border-2 border-dashed bg-muted/20 text-center text-xs text-muted-foreground">
+                                Nenhum registro clínico no prontuário ainda.
+                              </div>
+                            ) : (
+                              <div className="space-y-2 max-h-[260px] overflow-y-auto pr-1">
+                                {saudeData.metrics_history.map((m: any) => {
+                                  const isAuthor =
+                                    currentUserId &&
+                                    m.created_by === currentUserId &&
+                                    !activeTabPermission.isReadOnly
+                                  return (
+                                    <div
+                                      key={m.id}
+                                      className="p-3 rounded-2xl border bg-card flex items-center justify-between text-xs gap-3 hover:border-[#1CB0F6]/40 transition-colors"
+                                    >
+                                      <div className="min-w-0 flex-1">
+                                        <div className="flex items-center gap-2">
+                                          <span className="font-extrabold text-foreground">
+                                            {safeFormatDate(m.date || m.created_at)}
+                                          </span>
+                                          {m.created_by ? (
+                                            <ProfessionalTag createdBy={m.created_by} />
+                                          ) : (
+                                            <span className="text-[10px] text-muted-foreground italic">
+                                              registro do paciente
+                                            </span>
+                                          )}
+                                        </div>
+                                        <div className="text-[11px] text-muted-foreground flex flex-wrap gap-2 mt-0.5">
+                                          {m.weight && <span>Peso: {m.weight} kg</span>}
+                                          {m.body_fat_percentage && (
+                                            <span>• Gordura: {m.body_fat_percentage}%</span>
+                                          )}
+                                          {m.lean_mass && (
+                                            <span>• Massa Magra: {m.lean_mass} kg</span>
+                                          )}
+                                          {m.blood_pressure && (
+                                            <span>• P.A.: {m.blood_pressure}</span>
+                                          )}
+                                        </div>
+                                        {m.observations && (
+                                          <p className="text-[10px] text-muted-foreground italic line-clamp-1 mt-1">
+                                            &quot;{m.observations}&quot;
+                                          </p>
+                                        )}
+                                      </div>
+
+                                      <div className="flex items-center gap-1 shrink-0">
+                                        {isAuthor ? (
+                                          <>
+                                            <Button
+                                              type="button"
+                                              size="icon"
+                                              variant="ghost"
+                                              onClick={() => {
+                                                setEditingMetric(m)
+                                                setAnthropometryModalOpen(true)
+                                              }}
+                                              className="h-7 w-7 rounded-lg text-muted-foreground hover:text-[#1CB0F6]"
+                                              title="Editar avaliação"
+                                            >
+                                              <Pencil className="w-3.5 h-3.5" />
+                                            </Button>
+                                            <Button
+                                              type="button"
+                                              size="icon"
+                                              variant="ghost"
+                                              onClick={() => {
+                                                setDeleteConfirm({
+                                                  open: true,
+                                                  title: 'Excluir registro do prontuário?',
+                                                  description: `Deseja remover o registro de ${safeFormatDate(m.date || m.created_at)}?`,
+                                                  onConfirm: async () => {
+                                                    const ok = await deleteBodyMetricForPatient(
+                                                      m.id,
+                                                    )
+                                                    if (ok) reloadSaude()
+                                                  },
+                                                })
+                                              }}
+                                              className="h-7 w-7 rounded-lg text-muted-foreground hover:text-rose-600"
+                                              title="Excluir avaliação"
+                                            >
+                                              <Trash2 className="w-3.5 h-3.5" />
+                                            </Button>
+                                          </>
+                                        ) : (
+                                          <Badge
+                                            variant="secondary"
+                                            className="text-[9px] font-semibold"
+                                          >
+                                            Somente leitura
+                                          </Badge>
+                                        )}
+                                      </div>
+                                    </div>
+                                  )
+                                })}
+                              </div>
+                            )}
+                          </div>
+                        </>
+                      )}
+                    </div>
                   </div>
                 )}
 
@@ -2395,7 +2578,7 @@ export function PatientDetailsDrawer({ patient, open, onOpenChange }: PatientDet
                 Conteúdos que você criar aparecerão para o paciente com seu nome. O paciente pode
                 revogar permissões a qualquer momento.
               </div>
-              {patient.status === 'active' && (
+              {currentPatient?.status === 'active' && (
                 <Button
                   type="button"
                   variant="outline"
@@ -2406,15 +2589,25 @@ export function PatientDetailsDrawer({ patient, open, onOpenChange }: PatientDet
                   <span>Encerrar vínculo</span>
                 </Button>
               )}
-              {patient.status === 'ended' && (
-                <Button
-                  type="button"
-                  onClick={() => setDeletePatientModalOpen(true)}
-                  className="rounded-2xl border-b-4 border-rose-800 bg-rose-600 hover:bg-rose-700 text-white font-black text-xs h-10 px-4 flex items-center gap-1.5 active:border-b-0 active:translate-y-1 transition-all"
-                >
-                  <Trash2 className="w-4 h-4" />
-                  <span>Apagar paciente da base</span>
-                </Button>
+              {currentPatient?.status === 'ended' && (
+                <>
+                  <Button
+                    type="button"
+                    onClick={() => setConfirmRestoreOpen(true)}
+                    className="rounded-2xl border-b-4 border-[#3c8c02] bg-[#58CC02] hover:bg-[#46a302] text-white font-black text-xs h-10 px-4 flex items-center gap-1.5 active:border-b-0 active:translate-y-1 transition-all shadow-sm"
+                  >
+                    <RotateCcw className="w-4 h-4" />
+                    <span>Restaurar vínculo</span>
+                  </Button>
+                  <Button
+                    type="button"
+                    onClick={() => setDeletePatientModalOpen(true)}
+                    className="rounded-2xl border-b-4 border-rose-800 bg-rose-600 hover:bg-rose-700 text-white font-black text-xs h-10 px-4 flex items-center gap-1.5 active:border-b-0 active:translate-y-1 transition-all"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                    <span>Apagar paciente da base</span>
+                  </Button>
+                </>
               )}
             </div>
           </div>
@@ -2466,6 +2659,23 @@ export function PatientDetailsDrawer({ patient, open, onOpenChange }: PatientDet
           reloadTarefas()
         }}
       />
+
+      {/* Modal Entrada de Prontuário */}
+      {patient && (
+        <ClinicalNoteModal
+          open={noteModalOpen}
+          onOpenChange={(v) => {
+            setNoteModalOpen(v)
+            if (!v) setEditingNote(null)
+          }}
+          patientId={patient.patient_id}
+          patientName={patient.patient_name || patient.patient_email || 'Paciente'}
+          editNote={editingNote}
+          onSuccess={() => {
+            reloadClinicalNotes()
+          }}
+        />
+      )}
 
       {/* Modal Prescrever / Editar Refeição no Plano Alimentar */}
       {patient && (
@@ -2847,6 +3057,47 @@ export function PatientDetailsDrawer({ patient, open, onOpenChange }: PatientDet
               className="rounded-2xl font-black bg-rose-600 hover:bg-rose-700 text-white border-b-4 border-rose-800"
             >
               {ending ? 'Encerrando...' : 'Sim, encerrar vínculo'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Confirmação de restauração de vínculo */}
+      <AlertDialog open={confirmRestoreOpen} onOpenChange={setConfirmRestoreOpen}>
+        <AlertDialogContent className="rounded-3xl border-2 p-6 shadow-2xl max-w-md">
+          <AlertDialogHeader>
+            <div className="w-12 h-12 rounded-2xl bg-[#58CC02]/15 text-[#58CC02] flex items-center justify-center mb-1">
+              <RotateCcw className="w-6 h-6" />
+            </div>
+            <AlertDialogTitle className="text-lg font-black text-foreground">
+              Restaurar vínculo com {patient.patient_name || patient.patient_email || 'o paciente'}?
+            </AlertDialogTitle>
+            <AlertDialogDescription className="text-xs text-muted-foreground leading-relaxed">
+              O paciente voltará a aparecer como ativo na sua lista, com acesso às permissões e
+              histórico de dados anteriores ao encerramento.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="gap-2 pt-2">
+            <AlertDialogCancel disabled={restoring} className="rounded-2xl font-bold">
+              Cancelar
+            </AlertDialogCancel>
+            <AlertDialogAction
+              disabled={restoring}
+              onClick={async (e) => {
+                e.preventDefault()
+                setRestoring(true)
+                try {
+                  const ok = await restorePatientLink(patient.id)
+                  if (ok) {
+                    setConfirmRestoreOpen(false)
+                  }
+                } finally {
+                  setRestoring(false)
+                }
+              }}
+              className="rounded-2xl font-black bg-[#58CC02] hover:bg-[#46a302] text-white border-b-4 border-[#3c8c02] active:border-b-0 active:translate-y-1 transition-all"
+            >
+              {restoring ? 'Restaurando...' : 'Restaurar'}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

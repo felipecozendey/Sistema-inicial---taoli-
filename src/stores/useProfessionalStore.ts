@@ -78,6 +78,7 @@ export interface ClinicalNote {
   professional_id: string
   patient_id: string
   appointment_id: string | null
+  title?: string | null
   content: string
   is_multidisciplinary?: boolean
   created_at: string
@@ -287,10 +288,15 @@ interface ProfessionalState {
   createClinicalNote: (data: {
     patient_id: string
     appointment_id?: string | null
+    title?: string | null
     content: string
     is_multidisciplinary?: boolean
   }) => Promise<boolean>
-  updateClinicalNote: (id: string, content: string) => Promise<boolean>
+  updateClinicalNote: (
+    id: string,
+    content: string,
+    extra?: { title?: string | null; is_multidisciplinary?: boolean },
+  ) => Promise<boolean>
   deleteClinicalNote: (id: string) => Promise<boolean>
 
   // Patient details reader
@@ -1488,6 +1494,7 @@ export const useProfessionalStore = create<ProfessionalState>((set, get) => ({
         professional_id: user.id,
         patient_id: data.patient_id,
         appointment_id: data.appointment_id || null,
+        title: data.title?.trim() ? data.title.trim() : null,
         content: data.content,
         is_multidisciplinary: Boolean(data.is_multidisciplinary),
       }
@@ -1519,16 +1526,40 @@ export const useProfessionalStore = create<ProfessionalState>((set, get) => ({
     }
   },
 
-  updateClinicalNote: async (id, content) => {
+  updateClinicalNote: async (id, content, extra) => {
     const prev = get().notes
+    const updatePayload: {
+      content: string
+      title?: string | null
+      is_multidisciplinary?: boolean
+    } = { content }
+    if (extra?.title !== undefined) {
+      updatePayload.title = extra.title && extra.title.trim() ? extra.title.trim() : null
+    }
+    if (extra?.is_multidisciplinary !== undefined) {
+      updatePayload.is_multidisciplinary = Boolean(extra.is_multidisciplinary)
+    }
+
     set((state) => ({
       notes: state.notes.map((n) =>
-        n.id === id ? { ...n, content, updated_at: new Date().toISOString() } : n,
+        n.id === id
+          ? {
+              ...n,
+              content,
+              ...(extra?.title !== undefined
+                ? { title: extra.title?.trim() ? extra.title.trim() : null }
+                : {}),
+              ...(extra?.is_multidisciplinary !== undefined
+                ? { is_multidisciplinary: Boolean(extra.is_multidisciplinary) }
+                : {}),
+              updated_at: new Date().toISOString(),
+            }
+          : n,
       ),
     }))
 
     try {
-      const { error } = await supabase.from('professional_notes').update({ content }).eq('id', id)
+      const { error } = await supabase.from('professional_notes').update(updatePayload).eq('id', id)
 
       if (error) throw error
       toast.success('Anotação atualizada!')

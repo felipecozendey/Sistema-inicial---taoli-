@@ -544,12 +544,14 @@ export default function ProfessionalPage() {
                   <div
                     key={p.id}
                     onClick={() => {
-                      if (p.status === 'active') {
+                      if (p.status === 'active' || p.status === 'ended') {
                         setSelectedPatientForDrawer(p)
                       }
                     }}
                     className={`p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 transition-colors ${
-                      p.status === 'active' ? 'hover:bg-muted/40 cursor-pointer' : ''
+                      p.status === 'active' || p.status === 'ended'
+                        ? 'hover:bg-muted/40 cursor-pointer'
+                        : ''
                     }`}
                   >
                     <div className="flex items-center gap-3 min-w-0">
