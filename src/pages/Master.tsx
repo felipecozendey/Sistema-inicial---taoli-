@@ -21,8 +21,9 @@ import { MasterSystemTab } from '@/components/master/system/MasterSystemTab'
 import { MasterAuditTab } from '@/components/master/MasterAuditTab'
 import { MasterProfessionalTab } from '@/components/master/MasterProfessionalTab'
 import { MasterSocialTab } from '@/components/master/MasterSocialTab'
+import { MasterAiTab } from '@/components/master/ai/MasterAiTab'
 import { StethoscopeIcon } from '@/components/professional/StethoscopeIcon'
-import { Share2 } from 'lucide-react'
+import { Share2, Sparkles } from 'lucide-react'
 
 export default function Master() {
   const { loadMasterData, loading } = useMasterStore()
@@ -130,6 +131,14 @@ export default function Master() {
             </TabsTrigger>
 
             <TabsTrigger
+              value="ai"
+              className="rounded-xl px-3.5 py-2 text-xs font-black transition-all data-[state=active]:bg-[#58CC02] data-[state=active]:text-white data-[state=active]:shadow-sm flex items-center gap-1.5"
+            >
+              <Sparkles className="w-4 h-4" />
+              IA
+            </TabsTrigger>
+
+            <TabsTrigger
               value="audit"
               className="rounded-xl px-3.5 py-2 text-xs font-black transition-all data-[state=active]:bg-amber-500 data-[state=active]:text-white data-[state=active]:shadow-sm flex items-center gap-1.5"
             >
@@ -138,6 +147,11 @@ export default function Master() {
             </TabsTrigger>
           </TabsList>
         </div>
+
+        {/* Tab IA */}
+        <TabsContent value="ai" className="mt-6">
+          <MasterAiTab />
+        </TabsContent>
 
         {/* Tab 1: Visão Geral */}
         <TabsContent value="overview" className="mt-6">
